@@ -14,7 +14,303 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      configuracoes: {
+        Row: {
+          cooperacao_dias_padrao: number | null
+          created_at: string
+          exclusao_automatica_afiliados: boolean | null
+          gateway_chave_global: string | null
+          id: string
+          user_id: string
+          webhook_outro_global: string | null
+          webhook_telegram_global: string | null
+        }
+        Insert: {
+          cooperacao_dias_padrao?: number | null
+          created_at?: string
+          exclusao_automatica_afiliados?: boolean | null
+          gateway_chave_global?: string | null
+          id?: string
+          user_id: string
+          webhook_outro_global?: string | null
+          webhook_telegram_global?: string | null
+        }
+        Update: {
+          cooperacao_dias_padrao?: number | null
+          created_at?: string
+          exclusao_automatica_afiliados?: boolean | null
+          gateway_chave_global?: string | null
+          id?: string
+          user_id?: string
+          webhook_outro_global?: string | null
+          webhook_telegram_global?: string | null
+        }
+        Relationships: []
+      }
+      logs: {
+        Row: {
+          acao: string
+          created_at: string
+          detalhes: string | null
+          id: string
+          plataforma_id: string | null
+          plataforma_nome: string | null
+          tipo: string
+          user_id: string
+          usuario: string | null
+          valor: number | null
+        }
+        Insert: {
+          acao: string
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          tipo?: string
+          user_id: string
+          usuario?: string | null
+          valor?: number | null
+        }
+        Update: {
+          acao?: string
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          tipo?: string
+          user_id?: string
+          usuario?: string | null
+          valor?: number | null
+        }
+        Relationships: []
+      }
+      mensagens_personalizadas: {
+        Row: {
+          ativo: boolean | null
+          created_at: string
+          evento: string
+          id: string
+          mensagem: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string
+          evento: string
+          id?: string
+          mensagem: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string
+          evento?: string
+          id?: string
+          mensagem?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notificacoes: {
+        Row: {
+          created_at: string
+          id: string
+          lida: boolean
+          mensagem: string | null
+          plataforma_id: string | null
+          plataforma_nome: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem?: string | null
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          tipo?: string
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem?: string | null
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          tipo?: string
+          titulo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      plataformas: {
+        Row: {
+          categoria: Database["public"]["Enums"]["platform_category"]
+          coluna_saldo: string | null
+          cooperacao_dias: number | null
+          cooperacao_expira: string | null
+          cor: string | null
+          created_at: string
+          db_host: string | null
+          db_name: string | null
+          db_pass: string | null
+          db_port: number | null
+          db_user: string | null
+          gateway_chave: string | null
+          id: string
+          logo: string | null
+          nome: string
+          saldo_total: number | null
+          status: Database["public"]["Enums"]["platform_status"]
+          tabela_afiliados: string | null
+          tabela_saldo: string | null
+          tabela_usuarios: string | null
+          total_afiliados: number | null
+          total_usuarios: number | null
+          ultimo_sync: string | null
+          url: string | null
+          user_id: string
+          webhook_outro: string | null
+          webhook_telegram: string | null
+        }
+        Insert: {
+          categoria?: Database["public"]["Enums"]["platform_category"]
+          coluna_saldo?: string | null
+          cooperacao_dias?: number | null
+          cooperacao_expira?: string | null
+          cor?: string | null
+          created_at?: string
+          db_host?: string | null
+          db_name?: string | null
+          db_pass?: string | null
+          db_port?: number | null
+          db_user?: string | null
+          gateway_chave?: string | null
+          id?: string
+          logo?: string | null
+          nome: string
+          saldo_total?: number | null
+          status?: Database["public"]["Enums"]["platform_status"]
+          tabela_afiliados?: string | null
+          tabela_saldo?: string | null
+          tabela_usuarios?: string | null
+          total_afiliados?: number | null
+          total_usuarios?: number | null
+          ultimo_sync?: string | null
+          url?: string | null
+          user_id: string
+          webhook_outro?: string | null
+          webhook_telegram?: string | null
+        }
+        Update: {
+          categoria?: Database["public"]["Enums"]["platform_category"]
+          coluna_saldo?: string | null
+          cooperacao_dias?: number | null
+          cooperacao_expira?: string | null
+          cor?: string | null
+          created_at?: string
+          db_host?: string | null
+          db_name?: string | null
+          db_pass?: string | null
+          db_port?: number | null
+          db_user?: string | null
+          gateway_chave?: string | null
+          id?: string
+          logo?: string | null
+          nome?: string
+          saldo_total?: number | null
+          status?: Database["public"]["Enums"]["platform_status"]
+          tabela_afiliados?: string | null
+          tabela_saldo?: string | null
+          tabela_usuarios?: string | null
+          total_afiliados?: number | null
+          total_usuarios?: number | null
+          ultimo_sync?: string | null
+          url?: string | null
+          user_id?: string
+          webhook_outro?: string | null
+          webhook_telegram?: string | null
+        }
+        Relationships: []
+      }
+      telegram_config: {
+        Row: {
+          ativo: boolean
+          bot_token: string | null
+          chat_id: string | null
+          created_at: string
+          id: string
+          notif_cooperacao: boolean | null
+          notif_deposito: boolean | null
+          notif_erro: boolean | null
+          notif_novo_usuario: boolean | null
+          notif_plataforma_offline: boolean | null
+          notif_saque: boolean | null
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          bot_token?: string | null
+          chat_id?: string | null
+          created_at?: string
+          id?: string
+          notif_cooperacao?: boolean | null
+          notif_deposito?: boolean | null
+          notif_erro?: boolean | null
+          notif_novo_usuario?: boolean | null
+          notif_plataforma_offline?: boolean | null
+          notif_saque?: boolean | null
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          bot_token?: string | null
+          chat_id?: string | null
+          created_at?: string
+          id?: string
+          notif_cooperacao?: boolean | null
+          notif_deposito?: boolean | null
+          notif_erro?: boolean | null
+          notif_novo_usuario?: boolean | null
+          notif_plataforma_offline?: boolean | null
+          notif_saque?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      telegram_eventos: {
+        Row: {
+          ativo: boolean | null
+          created_at: string
+          id: string
+          mensagem: string
+          nome: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string
+          id?: string
+          mensagem: string
+          nome: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string
+          id?: string
+          mensagem?: string
+          nome?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +319,14 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      platform_category:
+        | "chinese"
+        | "brazilian"
+        | "esports"
+        | "casino"
+        | "sports"
+        | "other"
+      platform_status: "online" | "offline" | "error" | "warning"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +453,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      platform_category: [
+        "chinese",
+        "brazilian",
+        "esports",
+        "casino",
+        "sports",
+        "other",
+      ],
+      platform_status: ["online", "offline", "error", "warning"],
+    },
   },
 } as const
