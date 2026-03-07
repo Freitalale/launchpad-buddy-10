@@ -11,7 +11,12 @@ import Platforms from "./pages/Platforms";
 import Logs from "./pages/Logs";
 import Settings from "./pages/Settings";
 import Integrations from "./pages/Integrations";
+import Eventos from "./pages/Eventos";
+import Depositos from "./pages/Depositos";
+import Saques from "./pages/Saques";
+import Sacs from "./pages/Sacs";
 import SystemHealth from "./pages/SystemHealth";
+import Tutorial from "./pages/Tutorial";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,10 +33,15 @@ const App = () => (
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/platforms" element={<Platforms />} />
+              <Route path="/depositos" element={<Depositos />} />
+              <Route path="/saques" element={<Saques />} />
+              <Route path="/sacs" element={<Sacs />} />
+              <Route path="/eventos" element={<Eventos />} />
               <Route path="/logs" element={<Logs />} />
               <Route path="/integrations" element={<Integrations />} />
               <Route path="/health" element={<SystemHealth />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/tutorial" element={<Tutorial />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -14,10 +14,15 @@ import ThemeToggle from "@/components/ThemeToggle";
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/platforms", label: "Plataformas", icon: Server },
-  { to: "/logs", label: "Logs & Atividade", icon: ScrollText },
-  { to: "/integrations", label: "Integrações", icon: Send },
-  { to: "/health", label: "Saúde do Sistema", icon: Activity },
+  { to: "/depositos", label: "Depósitos", icon: DollarSign },
+  { to: "/saques", label: "Saques", icon: ArrowUpRight },
+  { to: "/sacs", label: "SACs", icon: Headphones },
+  { to: "/eventos", label: "Eventos", icon: Zap },
+  { to: "/logs", label: "Logs", icon: ScrollText },
+  { to: "/integrations", label: "Telegram", icon: Send },
+  { to: "/health", label: "Saúde", icon: Activity },
   { to: "/settings", label: "Configurações", icon: Settings },
+  { to: "/tutorial", label: "Tutorial", icon: BookOpen },
 ];
 
 const Layout = () => {
