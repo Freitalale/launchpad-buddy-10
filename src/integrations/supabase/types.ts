@@ -47,6 +47,53 @@ export type Database = {
         }
         Relationships: []
       }
+      depositos: {
+        Row: {
+          created_at: string
+          detalhes: string | null
+          id: string
+          nome_usuario: string
+          pix: string | null
+          plataforma_id: string | null
+          plataforma_nome: string | null
+          status: string
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          nome_usuario: string
+          pix?: string | null
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          status?: string
+          user_id: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          nome_usuario?: string
+          pix?: string | null
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          status?: string
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "depositos_plataforma_id_fkey"
+            columns: ["plataforma_id"]
+            isOneToOne: false
+            referencedRelation: "plataformas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       logs: {
         Row: {
           acao: string
@@ -238,6 +285,100 @@ export type Database = {
           webhook_telegram?: string | null
         }
         Relationships: []
+      }
+      sacs: {
+        Row: {
+          created_at: string
+          id: string
+          motivo: string | null
+          nome_usuario: string
+          pix: string | null
+          plataforma_id: string | null
+          plataforma_nome: string | null
+          status: string
+          user_id: string
+          valor: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          nome_usuario: string
+          pix?: string | null
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          status?: string
+          user_id: string
+          valor?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          nome_usuario?: string
+          pix?: string | null
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          status?: string
+          user_id?: string
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sacs_plataforma_id_fkey"
+            columns: ["plataforma_id"]
+            isOneToOne: false
+            referencedRelation: "plataformas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saques: {
+        Row: {
+          created_at: string
+          detalhes: string | null
+          id: string
+          nome_usuario: string
+          pix: string | null
+          plataforma_id: string | null
+          plataforma_nome: string | null
+          status: string
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          nome_usuario: string
+          pix?: string | null
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          status?: string
+          user_id: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          detalhes?: string | null
+          id?: string
+          nome_usuario?: string
+          pix?: string | null
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          status?: string
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saques_plataforma_id_fkey"
+            columns: ["plataforma_id"]
+            isOneToOne: false
+            referencedRelation: "plataformas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       telegram_config: {
         Row: {
