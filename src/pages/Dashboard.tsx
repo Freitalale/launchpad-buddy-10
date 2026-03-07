@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Users, TrendingUp, Wifi, Server, Handshake, DollarSign, AlertCircle, Activity, HeartCrack, Filter, ArrowUpRight, Headphones } from "lucide-react";
+import { Users, TrendingUp, Wifi, Server, Handshake, DollarSign, HeartCrack, Filter, ArrowUpRight, Headphones, Calendar } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import StatsCard from "@/components/StatsCard";
 import ExportButtons from "@/components/ExportButtons";
 import CooperationBadge from "@/components/CooperationBadge";
@@ -14,7 +16,7 @@ import { useDepositos } from "@/hooks/useDepositos";
 import { useSaques } from "@/hooks/useSaques";
 import { useSacs } from "@/hooks/useSacs";
 import { useExpiringCooperations, getCooperationInfo } from "@/hooks/useCooperation";
-import { format, subDays, isAfter } from "date-fns";
+import { format, subDays, isAfter, isBefore, startOfDay, endOfDay, subYears } from "date-fns";
 
 const categoryLabels: Record<string, string> = {
   chinese: "Chinesa", brazilian: "Brasileira", esports: "E-Sports",
@@ -33,21 +35,45 @@ const Dashboard = () => {
   const expiringCoops = useExpiringCooperations(platforms);
   const [filterDays, setFilterDays] = useState("30");
   const [filterPlat, setFilterPlat] = useState("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
-  const cutoff = subDays(new Date(), Number(filterDays));
+  const isCustom = filterDays === "custom";
+
+  const getDateRange = () => {
+    if (isCustom && customFrom && customTo) {
+      return { from: startOfDay(new Date(customFrom)), to: endOfDay(new Date(customTo)) };
+    }
+    const days = filterDays === "0" ? 0 : filterDays === "1" ? 1 : Number(filterDays);
+    if (filterDays === "0") {
+      return { from: startOfDay(new Date()), to: endOfDay(new Date()) };
+    }
+    if (filterDays === "1") {
+      const yesterday = subDays(new Date(), 1);
+      return { from: startOfDay(yesterday), to: endOfDay(yesterday) };
+    }
+    return { from: subDays(new Date(), days), to: new Date() };
+  };
+
+  const { from: dateFrom, to: dateTo } = getDateRange();
+
+  const inRange = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return isAfter(d, dateFrom) && isBefore(d, dateTo);
+  };
 
   const filteredDepositos = depositos.filter(d => {
-    if (!isAfter(new Date(d.created_at), cutoff)) return false;
+    if (!inRange(d.created_at)) return false;
     if (filterPlat !== "all" && d.plataforma_id !== filterPlat) return false;
     return true;
   });
   const filteredSaques = saques.filter(s => {
-    if (!isAfter(new Date(s.created_at), cutoff)) return false;
+    if (!inRange(s.created_at)) return false;
     if (filterPlat !== "all" && s.plataforma_id !== filterPlat) return false;
     return true;
   });
   const filteredSacs = sacs.filter(s => {
-    if (!isAfter(new Date(s.created_at), cutoff)) return false;
+    if (!inRange(s.created_at)) return false;
     if (filterPlat !== "all" && s.plataforma_id !== filterPlat) return false;
     return true;
   });
@@ -73,7 +99,6 @@ const Dashboard = () => {
   const rankingData = [...platforms].sort((a, b) => Number(b.saldo_total ?? 0) - Number(a.saldo_total ?? 0)).slice(0, 8)
     .map(p => ({ name: p.nome.length > 12 ? p.nome.slice(0, 12) + "…" : p.nome, saldo: Number(p.saldo_total ?? 0), fill: p.cor ?? "#00c4ff" }));
 
-  // Build daily chart data for deposits/saques
   const dailyMap: Record<string, { date: string; depositos: number; saques: number }> = {};
   filteredDepositos.forEach(d => {
     const day = format(new Date(d.created_at), "dd/MM");
@@ -98,32 +123,45 @@ const Dashboard = () => {
     Saldo: Number(p.saldo_total ?? 0),
   }));
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /></div>;
-  }
+  if (isLoading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /></div>;
 
   return (
     <div className="p-4 md:p-6 space-y-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-black text-foreground">Dashboard <span className="gradient-text">Global</span></h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Visão consolidada em tempo real · v3.0 Enterprise</p>
+          <p className="text-muted-foreground text-sm mt-0.5">Visão consolidada em tempo real</p>
         </div>
         <ExportButtons data={exportData} filename="dashboard_plataformas" title="Master Painel Pro — Relatório" />
       </motion.div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-end">
         <Select value={filterDays} onValueChange={setFilterDays}>
-          <SelectTrigger className="w-36 bg-secondary h-9 text-sm"><Filter className="w-3 h-3 mr-2" /><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44 bg-secondary h-9 text-sm"><Filter className="w-3 h-3 mr-2" /><SelectValue /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="0">Hoje</SelectItem>
+            <SelectItem value="1">Ontem</SelectItem>
             <SelectItem value="7">Últimos 7 dias</SelectItem>
             <SelectItem value="15">Últimos 15 dias</SelectItem>
             <SelectItem value="30">Últimos 30 dias</SelectItem>
             <SelectItem value="90">Últimos 90 dias</SelectItem>
             <SelectItem value="365">Último ano</SelectItem>
+            <SelectItem value="custom">Personalizado</SelectItem>
           </SelectContent>
         </Select>
+        {isCustom && (
+          <>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">De</Label>
+              <Input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="bg-secondary h-9 text-sm w-36" />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Até</Label>
+              <Input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="bg-secondary h-9 text-sm w-36" />
+            </div>
+          </>
+        )}
         <Select value={filterPlat} onValueChange={setFilterPlat}>
           <SelectTrigger className="w-44 bg-secondary h-9 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -167,12 +205,12 @@ const Dashboard = () => {
         <StatsCard title="Plataformas Online" value={stats.onlinePlatforms} subtitle={`${stats.errorPlatforms} com erro`} icon={Wifi} color="blue" delay={0.35} />
       </div>
 
-      {/* Daily Deposits vs Saques Chart */}
+      {/* Charts */}
       {dailyData.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
           className="rounded-xl border border-border/60 p-4 md:p-5" style={{ background: "hsl(var(--card))" }}>
           <h3 className="font-bold text-sm text-foreground mb-1">📊 Depósitos vs Saques</h3>
-          <p className="text-xs text-muted-foreground mb-4">Últimos {filterDays} dias</p>
+          <p className="text-xs text-muted-foreground mb-4">Período selecionado</p>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={dailyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -221,7 +259,7 @@ const Dashboard = () => {
         </motion.div>
       )}
 
-      {/* Platform Status Table */}
+      {/* Platform Status */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
         className="rounded-xl border border-border/60 overflow-hidden" style={{ background: "hsl(var(--card))" }}>
         <div className="p-4 border-b border-border/50 flex items-center justify-between">
