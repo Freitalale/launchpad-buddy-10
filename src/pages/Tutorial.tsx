@@ -1,116 +1,248 @@
 import { motion } from "framer-motion";
-import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight } from "lucide-react";
+import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight, Code, FileText, Globe } from "lucide-react";
 
 const sections = [
   {
-    icon: Database, color: "neon-blue", title: "1. Estrutura do Banco de Dados",
-    content: `O sistema utiliza as seguintes tabelas no banco de dados:
+    icon: Globe, color: "neon-blue", title: "1. Visão Geral da Arquitetura",
+    content: `O Master Painel Pro funciona como um painel centralizador que se conecta ao banco de dados de cada plataforma de apostas.
 
-**plataformas** — Armazena todas as plataformas de apostas cadastradas.
-- id (uuid, PK), user_id (uuid), nome (text), url (text), categoria (enum), status (enum)
-- total_usuarios (int), total_afiliados (int), saldo_total (numeric)
-- cooperacao_dias (int), cooperacao_expira (text)
-- db_host, db_user, db_pass, db_name, db_port — conexão ao banco externo
-- tabela_usuarios, tabela_afiliados, tabela_saldo, coluna_saldo — mapeamento de tabelas
-- webhook_telegram, webhook_outro, gateway_chave
+**Arquitetura:**
+- Frontend: React + Vite (este painel)
+- Backend: Lovable Cloud (autenticação, dados, funções)
+- Plataformas: Cada plataforma tem sua própria API/banco MySQL
+- Comunicação: A API de cada plataforma envia dados para o painel via endpoints REST
 
-**depositos** — Registros de depósitos realizados.
-- id, user_id, plataforma_id, plataforma_nome, nome_usuario, valor, pix, status, detalhes
-
-**saques** — Solicitações de saque.
-- id, user_id, plataforma_id, plataforma_nome, nome_usuario, valor, pix, status, detalhes
-
-**sacs** — Atendimentos/SACs com aprovação.
-- id, user_id, plataforma_id, plataforma_nome, nome_usuario, valor, pix, motivo, status
-
-**telegram_config** — Configuração do bot Telegram.
-- bot_token, chat_id, ativo, notif_novo_usuario, notif_deposito, notif_saque, etc.
-
-**telegram_eventos** — Eventos personalizáveis com mensagens dinâmicas.
-- nome, mensagem, ativo
-
-**logs** — Registro de atividades do sistema.
-**notificacoes** — Notificações em tempo real.
-**configuracoes** — Configurações gerais do usuário.`,
+**Fluxo de dados:**
+- A plataforma envia depósitos, saques e cadastros via API
+- O painel recebe, armazena e exibe os dados em tempo real
+- Eventos são disparados via Telegram automaticamente`,
   },
   {
-    icon: Key, color: "neon-green", title: "2. Chaves Dinâmicas dos Eventos",
-    content: `As mensagens dos eventos aceitam chaves dinâmicas que são substituídas automaticamente:
+    icon: Code, color: "neon-green", title: "2. Criar a API na Plataforma (PHP/MySQL)",
+    content: `Crie um arquivo \`api.php\` na raiz da hospedagem de cada plataforma:
 
-**{nome_usuario}** — Nome do usuário envolvido
-**{valor}** — Valor monetário (depósito/saque)
-**{nome_plataforma}** — Nome da plataforma
-**{quantidade_usuarios}** — Quantidade de usuários afetados
-**{nome_cooperacao}** — Nome/identificador da cooperação
-**{dias}** — Quantidade de dias (ex: dias restantes)
+**Arquivo: api.php**
+- <?php
+- header("Content-Type: application/json");
+- header("Access-Control-Allow-Origin: *");
+- 
+- $host = "localhost";
+- $user = "seu_usuario_db";
+- $pass = "sua_senha_db";
+- $db = "seu_banco";
+- $conn = new mysqli($host, $user, $pass, $db);
+- 
+- $action = $_GET["action"] ?? "";
+- 
+- if ($action === "stats") {
+-   $users = $conn->query("SELECT COUNT(*) as total FROM users")->fetch_assoc()["total"];
+-   $affiliates = $conn->query("SELECT COUNT(*) as total FROM affiliates")->fetch_assoc()["total"];
+-   $balance = $conn->query("SELECT SUM(balance) as total FROM wallets")->fetch_assoc()["total"];
+-   echo json_encode(["total_usuarios" => $users, "total_afiliados" => $affiliates, "saldo_total" => $balance]);
+- }
+- 
+- if ($action === "depositos") {
+-   $result = $conn->query("SELECT u.name as nome_usuario, d.amount as valor, d.pix, d.created_at, d.status FROM deposits d JOIN users u ON d.user_id = u.id ORDER BY d.created_at DESC LIMIT 100");
+-   $rows = [];
+-   while ($row = $result->fetch_assoc()) $rows[] = $row;
+-   echo json_encode($rows);
+- }
+- 
+- if ($action === "saques") {
+-   $result = $conn->query("SELECT u.name as nome_usuario, w.amount as valor, w.pix, w.created_at, w.status, w.id FROM withdrawals w JOIN users u ON w.user_id = u.id ORDER BY w.created_at DESC LIMIT 100");
+-   $rows = [];
+-   while ($row = $result->fetch_assoc()) $rows[] = $row;
+-   echo json_encode($rows);
+- }
+- 
+- if ($action === "aprovar_saque") {
+-   $id = intval($_POST["id"]);
+-   $conn->query("UPDATE withdrawals SET status='aprovado' WHERE id=$id");
+-   echo json_encode(["ok" => true]);
+- }
+- 
+- if ($action === "rejeitar_saque") {
+-   $id = intval($_POST["id"]);
+-   $conn->query("UPDATE withdrawals SET status='rejeitado' WHERE id=$id");
+-   echo json_encode(["ok" => true]);
+- }
+- 
+- if ($action === "remover_afiliados") {
+-   $conn->query("DELETE FROM affiliates WHERE cooperation_expired = 1");
+-   echo json_encode(["ok" => true]);
+- }
+- ?>
 
-**Eventos padrão:**
-- \`novo_usuario\`: "O usuário {nome_usuario} se cadastrou na plataforma {nome_plataforma}."
-- \`deposito\`: "O usuário {nome_usuario} fez um depósito de {valor} na plataforma {nome_plataforma}."
-- \`plataforma_offline\`: "A plataforma {nome_plataforma} está offline ou caiu."
-- \`cooperacao\`: "A cooperação {nome_cooperacao} expirou, removendo {quantidade_usuarios} usuários."
-- \`saque\`: "O usuário {nome_usuario} solicitou um saque de {valor} na plataforma {nome_plataforma}."`,
+**URL da API:** https://suaplataforma.com/api.php?action=stats`,
   },
   {
-    icon: Send, color: "neon-amber", title: "3. Configurar Telegram Bot",
-    content: `**Passo 1:** Abra o Telegram e busque @BotFather.
-**Passo 2:** Envie /newbot e siga as instruções para criar um bot.
-**Passo 3:** Copie o Bot Token fornecido (ex: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11).
-**Passo 4:** Crie um grupo/canal e adicione o bot como administrador.
-**Passo 5:** Para obter o Chat ID, envie uma mensagem no grupo e acesse:
-  https://api.telegram.org/bot<SEU_TOKEN>/getUpdates
-  O chat_id estará no campo "chat":{"id":-1001234567890}
-**Passo 6:** Cole o Bot Token e Chat ID na página de Integrações.
-**Passo 7:** Clique em "Testar Conexão" para verificar.
-**Passo 8:** Configure quais eventos devem enviar notificações.`,
+    icon: Database, color: "neon-purple", title: "3. Estrutura do Banco de Dados MySQL",
+    content: `Crie estas tabelas no banco MySQL de cada plataforma:
+
+**Tabela: users**
+- id INT AUTO_INCREMENT PRIMARY KEY
+- name VARCHAR(255)
+- email VARCHAR(255)
+- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+**Tabela: affiliates**
+- id INT AUTO_INCREMENT PRIMARY KEY
+- user_id INT (FK → users.id)
+- name VARCHAR(255)
+- cooperation_expired BOOLEAN DEFAULT 0
+- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+**Tabela: wallets**
+- id INT AUTO_INCREMENT PRIMARY KEY
+- user_id INT (FK → users.id)
+- balance DECIMAL(10,2) DEFAULT 0
+
+**Tabela: deposits**
+- id INT AUTO_INCREMENT PRIMARY KEY
+- user_id INT (FK → users.id)
+- amount DECIMAL(10,2)
+- pix VARCHAR(255)
+- status ENUM('pendente','aprovado','rejeitado') DEFAULT 'pendente'
+- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+**Tabela: withdrawals**
+- id INT AUTO_INCREMENT PRIMARY KEY
+- user_id INT (FK → users.id)
+- amount DECIMAL(10,2)
+- pix VARCHAR(255)
+- status ENUM('pendente','aprovado','rejeitado') DEFAULT 'pendente'
+- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+**SQL para criar:**
+- CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), email VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+- CREATE TABLE affiliates (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, name VARCHAR(255), cooperation_expired BOOLEAN DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+- CREATE TABLE wallets (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, balance DECIMAL(10,2) DEFAULT 0);
+- CREATE TABLE deposits (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, amount DECIMAL(10,2), pix VARCHAR(255), status ENUM('pendente','aprovado','rejeitado') DEFAULT 'pendente', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+- CREATE TABLE withdrawals (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, amount DECIMAL(10,2), pix VARCHAR(255), status ENUM('pendente','aprovado','rejeitado') DEFAULT 'pendente', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);`,
   },
   {
-    icon: Server, color: "neon-purple", title: "4. Conectar Banco de Dados Externo",
-    content: `Cada plataforma pode ser conectada a um banco de dados MySQL externo para sincronizar dados.
+    icon: Key, color: "neon-amber", title: "4. Configurar a Plataforma no Painel",
+    content: `**Passo 1:** Vá em "Plataformas" e clique em "Nova Plataforma"
+**Passo 2:** Preencha o nome, URL e categoria
+**Passo 3:** Clique em "Configurar" na plataforma criada
+**Passo 4:** Na aba "Banco de Dados", preencha:
+- Host: o IP ou domínio do servidor MySQL
+- Porta: geralmente 3306
+- Usuário: usuário do banco
+- Senha: senha do banco
+- Nome do Banco: nome do banco de dados
+**Passo 5:** Configure o mapeamento de tabelas:
+- tabela_usuarios: nome real (ex: users)
+- tabela_afiliados: nome real (ex: affiliates)
+- tabela_saldo: nome real (ex: wallets)
+- coluna_saldo: nome da coluna (ex: balance)
+**Passo 6:** Clique em "Verificar Configuração" para validar
+**Passo 7:** Salve e ative a plataforma
 
-**Campos necessários:**
-- db_host: endereço do servidor (ex: 192.168.1.100 ou db.exemplo.com)
-- db_port: porta do MySQL (padrão: 3306)
-- db_user: usuário do banco
-- db_pass: senha do banco
-- db_name: nome do banco de dados
-
-**Mapeamento de tabelas:**
-- tabela_usuarios: nome da tabela de usuários (padrão: "users")
-- tabela_afiliados: nome da tabela de afiliados (padrão: "affiliates")
-- tabela_saldo: nome da tabela de saldos (padrão: "wallets")
-- coluna_saldo: nome da coluna de saldo (padrão: "balance")
-
-**Importante:** O sistema só permite ativar a plataforma (status: online) se a conexão com o banco estiver funcionando corretamente.`,
+**Importante:** A plataforma só pode ficar "online" se o banco estiver configurado corretamente.`,
   },
   {
-    icon: Zap, color: "neon-cyan", title: "5. Cooperações e Remoção Automática",
-    content: `O sistema de cooperações permite definir prazos para cada plataforma.
+    icon: Send, color: "neon-cyan", title: "5. Configurar Telegram Bot",
+    content: `**Passo 1:** Abra o Telegram e busque @BotFather
+**Passo 2:** Envie /newbot e siga as instruções
+**Passo 3:** Copie o Bot Token (ex: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)
+**Passo 4:** Crie um grupo/canal e adicione o bot como administrador
+**Passo 5:** Para obter o Chat ID, envie uma mensagem e acesse:
+- https://api.telegram.org/bot<SEU_TOKEN>/getUpdates
+- O chat_id estará em "chat":{"id":-1001234567890}
+**Passo 6:** No painel, vá em "Integrações" e cole o Bot Token e Chat ID
+**Passo 7:** Clique em "Testar Conexão" para verificar
+**Passo 8:** Ative os eventos desejados em "Eventos & Mensagens"
+**Passo 9:** Cada evento tem sua própria mensagem configurável com chaves dinâmicas
 
-**Como funciona:**
-1. Ao cadastrar uma plataforma, defina "Dias de Cooperação" (ex: 30 dias).
-2. A data de expiração é calculada automaticamente.
-3. Quando a cooperação expira:
-   - O badge muda para "Expirada" com visual vermelho
-   - Aparece no Dashboard na seção "Cooperações Expirando"
-   - O evento "cooperacao" é disparado via Telegram
-
-**Remoção automática:**
-- Nas Configurações, ative "Exclusão Automática de Afiliados"
-- Quando a cooperação expirar, usuários e afiliados são removidos automaticamente
-- Um log é criado registrando a ação`,
+**Chaves disponíveis:**
+- {nome_usuario} — Nome do usuário
+- {valor} — Valor monetário
+- {nome_plataforma} — Nome da plataforma
+- {quantidade_usuarios} — Quantidade de usuários
+- {quantidade_dias} — Dias da cooperação
+- {pix} — Chave Pix`,
   },
   {
-    icon: Shield, color: "neon-red", title: "6. Segurança e Boas Práticas",
-    content: `**RLS (Row Level Security):** Todas as tabelas possuem políticas de segurança. Cada usuário só acessa seus próprios dados.
+    icon: Zap, color: "neon-red", title: "6. Cooperação — Exclusão de Afiliados",
+    content: `O sistema de cooperação controla o prazo de parceria com cada plataforma.
 
-**Autenticação:** O sistema usa autenticação por email/senha. Não são permitidos cadastros anônimos.
+**Como configurar:**
+- Na configuração de cada plataforma, defina "Dias de Cooperação" (ex: 30)
+- A data de expiração é calculada automaticamente
+- Quando expira, o sistema pode:
+  - Excluir SOMENTE afiliados da plataforma
+  - OU enviar notificação via Telegram
+  - Usuários totais NUNCA são excluídos
 
-**Dados sensíveis:** Tokens de bot, senhas de banco e chaves de gateway são armazenados no banco com RLS — nunca ficam expostos no frontend.
+**Nas Configurações Globais:**
+- Ative "Exclusão automática de afiliados"
+- Defina os dias padrão de cooperação
+- Isso serve como fallback para plataformas sem config própria
 
-**Realtime:** As tabelas de depósitos, saques e SACs possuem realtime habilitado para atualizações em tempo real.
+**Ação na API:**
+- Quando a cooperação expira, o painel chama api.php?action=remover_afiliados
+- A API executa DELETE FROM affiliates WHERE cooperation_expired = 1`,
+  },
+  {
+    icon: FileText, color: "neon-green", title: "7. Arquivo HTML da API (Alternativo)",
+    content: `Se preferir usar um arquivo HTML estático para testar a API:
 
-**Backup:** Exporte seus dados regularmente usando os botões de exportação (CSV/PDF) disponíveis no Dashboard e outras páginas.`,
+**Arquivo: test_api.html**
+- <!DOCTYPE html>
+- <html><head><title>Teste API</title></head>
+- <body>
+- <h1>Teste de Conexão da API</h1>
+- <button onclick="testStats()">Testar Stats</button>
+- <button onclick="testDepositos()">Testar Depósitos</button>
+- <button onclick="testSaques()">Testar Saques</button>
+- <pre id="result"></pre>
+- <script>
+- const API = "https://suaplataforma.com/api.php";
+- async function testStats() {
+-   const r = await fetch(API + "?action=stats");
+-   document.getElementById("result").textContent = JSON.stringify(await r.json(), null, 2);
+- }
+- async function testDepositos() {
+-   const r = await fetch(API + "?action=depositos");
+-   document.getElementById("result").textContent = JSON.stringify(await r.json(), null, 2);
+- }
+- async function testSaques() {
+-   const r = await fetch(API + "?action=saques");
+-   document.getElementById("result").textContent = JSON.stringify(await r.json(), null, 2);
+- }
+- </script>
+- </body></html>
+
+**Suba este arquivo para a mesma hospedagem e acesse pelo navegador para testar.**`,
+  },
+  {
+    icon: Shield, color: "neon-blue", title: "8. Segurança e Boas Práticas",
+    content: `**RLS (Row Level Security):** Cada usuário só acessa seus próprios dados no painel.
+
+**Autenticação:** Login por email/senha. Não são permitidos cadastros anônimos.
+
+**Dados sensíveis:** Tokens, senhas de banco e chaves ficam protegidos via RLS.
+
+**Realtime:** Depósitos, saques e SACs são atualizados em tempo real.
+
+**API da plataforma — Segurança:**
+- Adicione autenticação na API (token Bearer ou chave)
+- Valide todos os inputs antes de executar queries
+- Use prepared statements para evitar SQL injection
+- Limite as queries com LIMIT para evitar sobrecarga
+- Configure CORS corretamente
+
+**Backup:** Use os botões de exportação (CSV/PDF) para backup regular.
+
+**Checklist Final:**
+- ✅ Banco MySQL configurado na plataforma
+- ✅ Arquivo api.php criado e testado
+- ✅ Plataforma adicionada no painel com configurações corretas
+- ✅ Telegram Bot configurado e testado
+- ✅ Eventos configurados com mensagens personalizadas
+- ✅ Cooperação definida por plataforma
+- ✅ Dashboard mostrando dados reais`,
   },
 ];
 
@@ -119,9 +251,9 @@ const Tutorial = () => {
     <div className="p-4 md:p-6 space-y-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <h1 className="text-xl md:text-2xl font-black text-foreground">
-          Tutorial <span className="gradient-text">& Documentação</span>
+          Tutorial <span className="gradient-text">& Documentação Completa</span>
         </h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Guia completo para configurar e utilizar o Master Painel Pro</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Guia ultra detalhado: API, banco de dados, eventos e integração completa</p>
       </motion.div>
 
       <div className="space-y-4">
@@ -155,7 +287,7 @@ const Tutorial = () => {
                       return (
                         <div key={i} className="flex items-start gap-2 ml-2 my-0.5">
                           <ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
-                          <p className="text-xs text-muted-foreground">{line.slice(2)}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{line.slice(2)}</p>
                         </div>
                       );
                     }

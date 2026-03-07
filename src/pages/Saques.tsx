@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Plus, Search, Filter, CheckCircle, XCircle } from "lucide-react";
+import { ArrowUpRight, Search, Filter, CheckCircle, XCircle, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { useSaques, useCreateSaque, useUpdateSaque } from "@/hooks/useSaques";
+import { useSaques, useUpdateSaque } from "@/hooks/useSaques";
 import { usePlatforms } from "@/hooks/usePlatforms";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -20,14 +18,11 @@ const statusColors: Record<string, string> = {
 const Saques = () => {
   const { data: saques = [], isLoading } = useSaques();
   const { data: platforms = [] } = usePlatforms();
-  const createSaque = useCreateSaque();
   const updateSaque = useUpdateSaque();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [filterPlat, setFilterPlat] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nome_usuario: "", valor: "", pix: "", plataforma_id: "", detalhes: "" });
 
   const filtered = saques.filter(s => {
     if (search && !s.nome_usuario.toLowerCase().includes(search.toLowerCase())) return false;
@@ -36,73 +31,58 @@ const Saques = () => {
     return true;
   });
 
-  const handleCreate = async () => {
-    const plat = platforms.find(p => p.id === form.plataforma_id);
-    try {
-      await createSaque.mutateAsync({
-        nome_usuario: form.nome_usuario, valor: Number(form.valor) || 0,
-        pix: form.pix || null, plataforma_id: form.plataforma_id || null,
-        plataforma_nome: plat?.nome || null, status: "pendente", detalhes: form.detalhes || null,
-      });
-      toast({ title: "Saque registrado!" });
-      setOpen(false);
-      setForm({ nome_usuario: "", valor: "", pix: "", plataforma_id: "", detalhes: "" });
-    } catch (e: any) {
-      toast({ title: "Erro", description: e.message, variant: "destructive" });
-    }
-  };
-
   const handleAction = async (id: string, status: string) => {
     try {
       await updateSaque.mutateAsync({ id, status });
-      toast({ title: status === "aprovado" ? "Saque aprovado!" : "Saque rejeitado" });
+      toast({ title: status === "aprovado" ? "✅ Saque aprovado!" : "❌ Saque rejeitado" });
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
   };
 
+  const totalValor = filtered.reduce((s, d) => s + Number(d.valor), 0);
+  const pendentes = filtered.filter(s => s.status === "pendente").length;
   const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
   if (isLoading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /></div>;
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl md:text-2xl font-black text-foreground">Saques <span className="gradient-text">& Retiradas</span></h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Gerencie solicitações de saque</p>
-        </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 h-9 text-sm" style={{ background: "linear-gradient(135deg, hsl(var(--neon-blue)), hsl(220 100% 60%))" }}>
-              <Plus className="w-3.5 h-3.5" /> Novo Saque
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-card border-border">
-            <DialogHeader><DialogTitle>Registrar Saque</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <div><Label className="text-xs">Usuário</Label><Input value={form.nome_usuario} onChange={e => setForm(p => ({ ...p, nome_usuario: e.target.value }))} className="bg-secondary" /></div>
-              <div><Label className="text-xs">Valor (R$)</Label><Input type="number" value={form.valor} onChange={e => setForm(p => ({ ...p, valor: e.target.value }))} className="bg-secondary" /></div>
-              <div><Label className="text-xs">Pix</Label><Input value={form.pix} onChange={e => setForm(p => ({ ...p, pix: e.target.value }))} className="bg-secondary" /></div>
-              <div><Label className="text-xs">Plataforma</Label>
-                <Select value={form.plataforma_id} onValueChange={v => setForm(p => ({ ...p, plataforma_id: v }))}>
-                  <SelectTrigger className="bg-secondary"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>{platforms.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <Button onClick={handleCreate} disabled={!form.nome_usuario || !form.valor} className="w-full">Registrar</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <h1 className="text-xl md:text-2xl font-black text-foreground">Saques <span className="gradient-text">& Retiradas</span></h1>
+        <p className="text-muted-foreground text-sm mt-0.5">Aprove ou reprove solicitações de saque das plataformas</p>
       </motion.div>
 
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-3">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+          className="rounded-xl border border-border/60 p-4" style={{ background: "hsl(var(--card))" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingDown className="w-4 h-4 text-neon-amber" />
+            <span className="text-xs text-muted-foreground font-semibold uppercase">Total Saques</span>
+          </div>
+          <p className="text-lg font-black text-neon-amber">{formatCurrency(totalValor)}</p>
+          <p className="text-[10px] text-muted-foreground">{filtered.length} saques</p>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+          className="rounded-xl border border-border/60 p-4" style={{ background: "hsl(var(--card))" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <ArrowUpRight className="w-4 h-4 text-neon-red" />
+            <span className="text-xs text-muted-foreground font-semibold uppercase">Pendentes</span>
+          </div>
+          <p className="text-lg font-black text-neon-red">{pendentes}</p>
+          <p className="text-[10px] text-muted-foreground">Aguardando aprovação</p>
+        </motion.div>
+      </div>
+
+      {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar por usuário..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-secondary h-9 text-sm" />
         </div>
         <Select value={filterPlat} onValueChange={setFilterPlat}>
-          <SelectTrigger className="w-40 bg-secondary h-9 text-sm"><Filter className="w-3 h-3 mr-2" /><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44 bg-secondary h-9 text-sm"><Filter className="w-3 h-3 mr-2" /><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">Todas Plataformas</SelectItem>{platforms.map(p => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -111,6 +91,7 @@ const Saques = () => {
         </Select>
       </div>
 
+      {/* List */}
       <div className="rounded-xl border border-border/60 overflow-hidden" style={{ background: "hsl(var(--card))" }}>
         <div className="p-4 border-b border-border/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -131,21 +112,23 @@ const Saques = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-foreground">{s.nome_usuario}</p>
-                  <p className="text-[10px] text-muted-foreground">{s.plataforma_nome ?? "—"} · {s.pix ?? "Sem Pix"}</p>
+                  <p className="text-[10px] text-muted-foreground">{s.plataforma_nome ?? "—"} · Pix: {s.pix ?? "—"}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-neon-amber">{formatCurrency(Number(s.valor))}</p>
-                  <p className="text-[10px] text-muted-foreground">{format(new Date(s.created_at), "dd/MM/yy HH:mm")}</p>
+                  <p className="text-[10px] text-muted-foreground">{format(new Date(s.created_at), "dd/MM/yyyy HH:mm")}</p>
                 </div>
                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${statusColors[s.status] ?? ""}`}>
                   {s.status}
                 </span>
                 {s.status === "pendente" && (
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="w-7 h-7 text-neon-green hover:bg-neon-green/10" onClick={() => handleAction(s.id, "aprovado")}>
+                    <Button variant="ghost" size="icon" className="w-7 h-7 text-neon-green hover:bg-neon-green/10" onClick={() => handleAction(s.id, "aprovado")}
+                      title="Aprovar">
                       <CheckCircle className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="w-7 h-7 text-neon-red hover:bg-neon-red/10" onClick={() => handleAction(s.id, "rejeitado")}>
+                    <Button variant="ghost" size="icon" className="w-7 h-7 text-neon-red hover:bg-neon-red/10" onClick={() => handleAction(s.id, "rejeitado")}
+                      title="Reprovar">
                       <XCircle className="w-4 h-4" />
                     </Button>
                   </div>
