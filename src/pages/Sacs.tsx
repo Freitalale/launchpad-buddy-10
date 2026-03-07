@@ -1,13 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Headphones, Plus, Search, Filter, CheckCircle, XCircle } from "lucide-react";
+import { Headphones, Search, Filter, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { useSacs, useCreateSac, useUpdateSac } from "@/hooks/useSacs";
+import { useSacs, useUpdateSac } from "@/hooks/useSacs";
 import { usePlatforms } from "@/hooks/usePlatforms";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -21,14 +18,8 @@ const statusColors: Record<string, string> = {
 const Sacs = () => {
   const { data: sacs = [], isLoading } = useSacs();
   const { data: platforms = [] } = usePlatforms();
-  const createSac = useCreateSac();
   const updateSac = useUpdateSac();
   const { toast } = useToast();
-  const [search, setSearch] = useState("");
-  const [filterPlat, setFilterPlat] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nome_usuario: "", valor: "", pix: "", plataforma_id: "", motivo: "" });
 
   const filtered = sacs.filter(s => {
     if (search && !s.nome_usuario.toLowerCase().includes(search.toLowerCase())) return false;
