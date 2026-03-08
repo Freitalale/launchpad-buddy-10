@@ -334,244 +334,312 @@ $port = ${form.db_port || 3306};
 ?>`;
   };
 
+  const generateMappingJson = () => {
+    return JSON.stringify({
+      usuarios: {
+        table: form.tabela_usuarios || "users",
+        id: form.coluna_id_usuario || "id",
+        name: form.coluna_nome_usuario || "name",
+        email: form.coluna_email_usuario || "email",
+        phone: form.coluna_telefone_usuario || "phone",
+      },
+      depositos: {
+        table: form.tabela_depositos || "deposits",
+        id: form.coluna_id_deposito || "id",
+        user_id: form.coluna_user_id_deposito || "user_id",
+        amount: form.coluna_valor_deposito || "amount",
+        pix: form.coluna_pix_deposito || "pix",
+        status: form.coluna_status_deposito || "status",
+        date: form.coluna_created_at_deposito || "created_at",
+      },
+      saques: {
+        table: form.tabela_saques || "withdrawals",
+        id: form.coluna_id_saque || "id",
+        user_id: form.coluna_user_id_saque || "user_id",
+        amount: form.coluna_valor_saque || "amount",
+        pix: form.coluna_pix_saque || "pix",
+        status: form.coluna_status_saque || "status",
+        date: form.coluna_created_at_saque || "created_at",
+      },
+      saldo: {
+        table: form.tabela_saldo || "wallets",
+        user_id: form.coluna_user_id_saldo || "user_id",
+        balance: form.coluna_saldo || "balance",
+      },
+      afiliados: {
+        table: form.tabela_afiliados || "affiliates",
+        id: form.coluna_id_afiliado || "id",
+        name: form.coluna_nome_afiliado || "name",
+        user_id: form.coluna_user_id_afiliado || "user_id",
+        expired: form.coluna_cooperation_expired || "cooperation_expired",
+      },
+      version: "5.8.0",
+      updated_at: new Date().toISOString(),
+      platform: platform.nome,
+    }, null, 2);
+  };
+
   const generateApiPhp = () => {
-    const tb = {
-      u: form.tabela_usuarios || "users",
-      d: form.tabela_depositos || "deposits",
-      s: form.tabela_saques || "withdrawals",
-      w: form.tabela_saldo || "wallets",
-      a: form.tabela_afiliados || "affiliates",
-    };
-    const col = {
-      uid: form.coluna_id_usuario || "id",
-      uname: form.coluna_nome_usuario || "name",
-      did: form.coluna_id_deposito || "id",
-      duid: form.coluna_user_id_deposito || "user_id",
-      dval: form.coluna_valor_deposito || "amount",
-      dpix: form.coluna_pix_deposito || "pix",
-      dst: form.coluna_status_deposito || "status",
-      ddate: form.coluna_created_at_deposito || "created_at",
-      sid: form.coluna_id_saque || "id",
-      suid: form.coluna_user_id_saque || "user_id",
-      sval: form.coluna_valor_saque || "amount",
-      spix: form.coluna_pix_saque || "pix",
-      sst: form.coluna_status_saque || "status",
-      sdate: form.coluna_created_at_saque || "created_at",
-      wuid: form.coluna_user_id_saldo || "user_id",
-      wbal: form.coluna_saldo || "balance",
-      aexp: form.coluna_cooperation_expired || "cooperation_expired",
-    };
+    return `<?php
+// api.php — API Standalone v5.8 (Hybrid: mapping_cache.json + Direct Mapping)
+// Plataforma: ${platform.nome}
+// Gerado em: ${new Date().toISOString()}
+// ARQUITETURA: Lê mapping_cache.json → quando você muda no painel, basta atualizar o JSON
 
-    const lines: string[] = [];
-    const L = (s: string) => lines.push(s);
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+});
 
-    L('<?php');
-    L('// api.php — API Standalone v5.7 (Direct Mapping — Zero Fallbacks + Saldo Debug)');
-    L('// Plataforma: ' + platform.nome);
-    L('// Gerado em: ' + new Date().toISOString());
-    L('// O mapeamento que VOCÊ configurou é LEI — sem auto-override');
-    L('');
-    L('// CRITICAL: Wrap EVERYTHING in try/catch to NEVER return HTML');
-    L('set_error_handler(function($errno, $errstr, $errfile, $errline) {');
-    L('    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);');
-    L('});');
-    L('');
-    L('try {');
-    L('');
-    L('error_reporting(0);');
-    L('ini_set("display_errors", "0");');
-    L('');
-    L('header("Content-Type: application/json; charset=utf-8");');
-    L('header("Access-Control-Allow-Origin: *");');
-    L('header("Access-Control-Allow-Methods: GET, POST, OPTIONS");');
-    L('header("Access-Control-Allow-Headers: Content-Type, Authorization");');
-    L('if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") { http_response_code(200); exit; }');
-    L('');
-    L("include 'config.php';");
-    L('$conn = new mysqli($host, $user, $pass, $db, $port);');
-    L('if ($conn->connect_error) {');
-    L('    http_response_code(500);');
-    L('    echo json_encode(["error" => "DB connection failed: " . $conn->connect_error]);');
-    L('    exit;');
-    L('}');
-    L('$conn->set_charset("utf8mb4");');
-    L('');
-    L('// ═══ HELPERS ═══');
-    L('function get_columns($conn, $table) {');
-    L('    $cols = [];');
-    L('    $r = @$conn->query("SHOW COLUMNS FROM `$table`");');
-    L('    if ($r) { while ($c = $r->fetch_assoc()) { $cols[] = $c["Field"]; } }');
-    L('    return $cols;');
-    L('}');
-    L('function table_exists($conn, $table) {');
-    L("    $r = @$conn->query(\"SHOW TABLES LIKE '\" . $conn->real_escape_string($table) . \"'\");");
-    L('    return $r && $r->num_rows > 0;');
-    L('}');
-    L('// v5.6 — SEM fallbacks. Seu mapeamento manual é LEI ABSOLUTA.');
-    L('');
-    L('// ═══ MAPEAMENTO AUTORITATIVO — Suas tabelas, sua responsabilidade ═══');
-    L('$tb_usuarios  = "' + tb.u + '";');
-    L('$tb_depositos = "' + tb.d + '";');
-    L('$tb_saques    = "' + tb.s + '";');
-    L('$tb_saldo     = "' + tb.w + '";');
-    L('$tb_afiliados = "' + tb.a + '";');
-    L('');
-    L('$col_user_id   = "' + col.uid + '";');
-    L('$col_user_name = "' + col.uname + '";');
-    L('$col_dep_id     = "' + col.did + '";');
-    L('$col_dep_uid    = "' + col.duid + '";');
-    L('$col_dep_valor  = "' + col.dval + '";');
-    L('$col_dep_pix    = "' + col.dpix + '";');
-    L('$col_dep_status = "' + col.dst + '";');
-    L('$col_dep_date   = "' + col.ddate + '";');
-    L('$col_saq_id     = "' + col.sid + '";');
-    L('$col_saq_uid    = "' + col.suid + '";');
-    L('$col_saq_valor  = "' + col.sval + '";');
-    L('$col_saq_pix    = "' + col.spix + '";');
-    L('$col_saq_status = "' + col.sst + '";');
-    L('$col_saq_date   = "' + col.sdate + '";');
-    L('$col_wal_uid   = "' + col.wuid + '";');
-    L('$col_wal_saldo = "' + col.wbal + '";');
-    L('$col_aff_expired = "' + col.aexp + '";');
-    L('');
-    L('$action = $_GET["action"] ?? "";');
-    L('');
-    L('// ═══ SCAN_DB ═══');
-    L('if ($action === "scan_db") {');
-    L('    $tables_result = $conn->query("SHOW TABLES");');
-    L('    if (!$tables_result) { echo json_encode(["error" => $conn->error]); exit; }');
-    L('    $tables = [];');
-    L('    while ($row = $tables_result->fetch_array()) {');
-    L('        $tn = $row[0];');
-    L('        $cr = $conn->query("SHOW COLUMNS FROM `$tn`");');
-    L('        $columns = [];');
-    L('        if ($cr) { while ($c = $cr->fetch_assoc()) { $columns[] = ["name"=>$c["Field"],"type"=>$c["Type"],"key"=>$c["Key"]??"","nullable"=>$c["Null"]==="YES"]; } }');
-    L('        $cnt = @$conn->query("SELECT COUNT(*) as t FROM `$tn`");');
-    L('        $count = $cnt ? (int)$cnt->fetch_assoc()["t"] : 0;');
-    L('        $tables[$tn] = ["columns" => $columns, "count" => $count];');
-    L('    }');
-    L('    echo json_encode(["ok"=>true,"database"=>$db,"tables"=>$tables,"total"=>count($tables)]); exit;');
-    L('}');
-    L('');
-    L('// ═══ DIAGNOSTICO ═══');
-    L('if ($action === "diagnostico") {');
-    L('    $diag = ["mapping"=>[],"tests"=>[],"saldo_debug"=>null];');
-    L('    foreach (["usuarios"=>$tb_usuarios,"depositos"=>$tb_depositos,"saques"=>$tb_saques,"saldo"=>$tb_saldo,"afiliados"=>$tb_afiliados] as $key=>$t) {');
-    L('        $exists = table_exists($conn, $t);');
-    L('        $cols = $exists ? get_columns($conn, $t) : [];');
-    L('        $cnt = 0;');
-    L('        if ($exists) { $r = @$conn->query("SELECT COUNT(*) as t FROM `$t`"); if ($r) $cnt = (int)$r->fetch_assoc()["t"]; }');
-    L('        $diag["mapping"][$key] = ["table"=>$t,"exists"=>$exists,"columns"=>$cols,"count"=>$cnt];');
-    L('    }');
-    L('    // Debug saldo');
-    L('    if (table_exists($conn, $tb_saldo)) {');
-    L('        $hasSaldoCol = in_array($col_wal_saldo, get_columns($conn, $tb_saldo));');
-    L('        $saldoTotal = 0;');
-    L('        if ($hasSaldoCol) { $r = @$conn->query("SELECT COALESCE(SUM(`$col_wal_saldo`),0) as total FROM `$tb_saldo`"); if ($r) $saldoTotal = (float)$r->fetch_assoc()["total"]; }');
-    L('        $diag["saldo_debug"] = ["table"=>$tb_saldo,"column"=>$col_wal_saldo,"column_exists"=>$hasSaldoCol,"total"=>$saldoTotal];');
-    L('    }');
-    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_depositos`");');
-    L('    $diag["tests"]["depositos_count"] = $r ? (int)$r->fetch_assoc()["total"] : "ERRO: ".$conn->error;');
-    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_saques`");');
-    L('    $diag["tests"]["saques_count"] = $r ? (int)$r->fetch_assoc()["total"] : "ERRO: ".$conn->error;');
-    L('    echo json_encode(["ok"=>true,"version"=>"5.7.0","diagnostico"=>$diag]); exit;');
-    L('}');
-    L('');
-    L('// ═══ HEALTH ═══');
-    L('if ($action === "health") {');
-    L('    $checks = [];');
-    L('    foreach (["usuarios"=>$tb_usuarios,"depositos"=>$tb_depositos,"saques"=>$tb_saques,"saldo"=>$tb_saldo,"afiliados"=>$tb_afiliados] as $key=>$t) {');
-    L('        $checks[$key] = ["table"=>$t,"exists"=>table_exists($conn, $t)];');
-    L('    }');
-    L('    echo json_encode(["ok"=>true,"version"=>"5.7.0","db"=>true,"time"=>date("c"),"tables"=>$checks,"features"=>["scan_db","diagnostico","standalone","direct_mapping","zero_fallbacks"]]); exit;');
-    L('}');
-    L('');
-    L('// ═══ STATS ═══');
-    L('if ($action === "stats") {');
-    L('    $result = ["total_usuarios"=>0,"total_afiliados"=>0,"saldo_total"=>0.0,"total_depositos"=>0,"total_saques"=>0];');
-    L('    if (table_exists($conn, $tb_usuarios)) {');
-    L('        $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_usuarios`");');
-    L('        if ($r) $result["total_usuarios"] = (int)$r->fetch_assoc()["total"];');
-    L('    }');
-    L('    if (table_exists($conn, $tb_afiliados)) {');
-    L('        $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_afiliados`");');
-    L('        if ($r) $result["total_afiliados"] = (int)$r->fetch_assoc()["total"];');
-    L('    }');
-    L('    if (table_exists($conn, $tb_saldo)) {');
-    L('        $r = @$conn->query("SELECT COALESCE(SUM(`$col_wal_saldo`),0) as total FROM `$tb_saldo`");');
-    L('        if ($r) $result["saldo_total"] = (float)$r->fetch_assoc()["total"];');
-    L('    }');
-    L('    if (table_exists($conn, $tb_depositos)) {');
-    L('        $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_depositos`");');
-    L('        if ($r) $result["total_depositos"] = (int)$r->fetch_assoc()["total"];');
-    L('    }');
-    L('    if (table_exists($conn, $tb_saques)) {');
-    L('        $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_saques`");');
-    L('        if ($r) $result["total_saques"] = (int)$r->fetch_assoc()["total"];');
-    L('    }');
-    L('    echo json_encode($result); exit;');
-    L('}');
-    L('');
-    L('// ═══ DEPOSITOS (mapeamento direto v5.6) ═══');
-    L('if ($action === "depositos") {');
-    L('    if (!table_exists($conn, $tb_depositos)) { echo json_encode([]); exit; }');
-    L('    $hasUsers = table_exists($conn, $tb_usuarios);');
-    L('    if ($hasUsers) {');
-    L('        $sql = "SELECT u.`$col_user_name` as nome_usuario, d.`$col_dep_valor` as valor, d.`$col_dep_pix` as pix, d.`$col_dep_date` as created_at, d.`$col_dep_status` as status FROM `$tb_depositos` d LEFT JOIN `$tb_usuarios` u ON d.`$col_dep_uid`=u.`$col_user_id` ORDER BY d.`$col_dep_date` DESC LIMIT 500";');
-    L('    } else {');
-    L('        $sql = "SELECT `$col_dep_uid` as nome_usuario, `$col_dep_valor` as valor, `$col_dep_pix` as pix, `$col_dep_date` as created_at, `$col_dep_status` as status FROM `$tb_depositos` ORDER BY `$col_dep_date` DESC LIMIT 500";');
-    L('    }');
-    L('    $r = @$conn->query($sql);');
-    L('    if (!$r) { $r = @$conn->query("SELECT * FROM `$tb_depositos` LIMIT 500"); }');
-    L('    $rows = []; if ($r) { while ($x = $r->fetch_assoc()) $rows[] = $x; }');
-    L('    echo json_encode($rows); exit;');
-    L('}');
-    L('');
-    L('// ═══ SAQUES (mapeamento direto v5.6) ═══');
-    L('if ($action === "saques") {');
-    L('    if (!table_exists($conn, $tb_saques)) { echo json_encode([]); exit; }');
-    L('    $hasUsers = table_exists($conn, $tb_usuarios);');
-    L('    if ($hasUsers) {');
-    L('        $sql = "SELECT w.`$col_saq_id` as id, u.`$col_user_name` as nome_usuario, w.`$col_saq_valor` as valor, w.`$col_saq_pix` as pix, w.`$col_saq_date` as created_at, w.`$col_saq_status` as status FROM `$tb_saques` w LEFT JOIN `$tb_usuarios` u ON w.`$col_saq_uid`=u.`$col_user_id` ORDER BY w.`$col_saq_date` DESC LIMIT 500";');
-    L('    } else {');
-    L('        $sql = "SELECT `$col_saq_id` as id, `$col_saq_uid` as nome_usuario, `$col_saq_valor` as valor, `$col_saq_pix` as pix, `$col_saq_date` as created_at, `$col_saq_status` as status FROM `$tb_saques` ORDER BY `$col_saq_date` DESC LIMIT 500";');
-    L('    }');
-    L('    $r = @$conn->query($sql);');
-    L('    if (!$r) { $r = @$conn->query("SELECT * FROM `$tb_saques` LIMIT 500"); }');
-    L('    $rows = []; if ($r) { while ($x = $r->fetch_assoc()) $rows[] = $x; }');
-    L('    echo json_encode($rows); exit;');
-    L('}');
-    L('');
-    L('// ═══ APROVAR/REJEITAR SAQUE ═══');
-    L('if ($action === "aprovar_saque") {');
-    L('    $id = intval($_POST["id"] ?? $_GET["id"] ?? 0);');
-    L('    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }');
-    L('    $conn->query("UPDATE `$tb_saques` SET `$col_saq_status`=\'aprovado\' WHERE `$col_saq_id`=$id");');
-    L('    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows]); exit;');
-    L('}');
-    L('if ($action === "rejeitar_saque") {');
-    L('    $id = intval($_POST["id"] ?? $_GET["id"] ?? 0);');
-    L('    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }');
-    L('    $conn->query("UPDATE `$tb_saques` SET `$col_saq_status`=\'rejeitado\' WHERE `$col_saq_id`=$id");');
-    L('    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows]); exit;');
-    L('}');
-    L('');
-    L('// ═══ REMOVER AFILIADOS ═══');
-    L('if ($action === "remover_afiliados") {');
-    L('    $conn->query("DELETE FROM `$tb_afiliados` WHERE `$col_aff_expired` = 1");');
-    L('    echo json_encode(["ok"=>true,"removed"=>$conn->affected_rows]); exit;');
-    L('}');
-    L('');
-    L('// (diagnostico já tratado acima)');
-    L('');
-    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.7.0"]);');
-    L('');
-    L('} catch (Throwable $e) {');
-    L('    http_response_code(200);');
-    L('    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"5.7.0"]);');
-    L('}');
-    L('?>');
-    return lines.join("\n");
+try {
+
+error_reporting(0);
+ini_set("display_errors", "0");
+
+header("Content-Type: application/json; charset=utf-8");
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") { http_response_code(200); exit; }
+
+include 'config.php';
+$conn = new mysqli($host, $user, $pass, $db, $port);
+if ($conn->connect_error) {
+    http_response_code(500);
+    echo json_encode(["error" => "DB connection failed: " . $conn->connect_error]);
+    exit;
+}
+$conn->set_charset("utf8mb4");
+
+// ═══ HELPERS ═══
+function table_exists($conn, $table) {
+    $r = @$conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($table) . "'");
+    return $r && $r->num_rows > 0;
+}
+function get_columns($conn, $table) {
+    $cols = [];
+    $r = @$conn->query("SHOW COLUMNS FROM \`$table\`");
+    if ($r) { while ($c = $r->fetch_assoc()) { $cols[] = $c["Field"]; } }
+    return $cols;
+}
+function col_exists($conn, $table, $col) {
+    return in_array($col, get_columns($conn, $table));
+}
+
+// ═══ LOAD MAPPING (mapping_cache.json é LEI) ═══
+$mapping_file = __DIR__ . "/mapping_cache.json";
+if (file_exists($mapping_file)) {
+    $map = json_decode(file_get_contents($mapping_file), true);
+} else {
+    // Fallback inline (valores do momento da geração)
+    $map = json_decode('${generateMappingJson().replace(/'/g, "\\'")}', true);
+}
+
+$action = $_GET["action"] ?? "";
+
+// ═══ UPDATE_MAPPING — Painel envia novo mapeamento em tempo real ═══
+if ($action === "update_mapping") {
+    $input = json_decode(file_get_contents("php://input"), true);
+    if (!$input || !isset($input["usuarios"])) {
+        echo json_encode(["ok" => false, "error" => "JSON de mapeamento inválido"]); exit;
+    }
+    $input["updated_at"] = date("c");
+    $written = @file_put_contents($mapping_file, json_encode($input, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    if ($written === false) {
+        echo json_encode(["ok" => false, "error" => "Sem permissão de escrita em mapping_cache.json"]); exit;
+    }
+    echo json_encode(["ok" => true, "message" => "Mapeamento atualizado", "bytes" => $written]); exit;
+}
+
+// ═══ GET_MAPPING — Retorna mapeamento atual ═══
+if ($action === "get_mapping") {
+    echo json_encode(["ok" => true, "mapping" => $map, "source" => file_exists($mapping_file) ? "file" : "inline"]); exit;
+}
+
+// ═══ SCAN_DB ═══
+if ($action === "scan_db") {
+    $tables_result = $conn->query("SHOW TABLES");
+    if (!$tables_result) { echo json_encode(["error" => $conn->error]); exit; }
+    $tables = [];
+    while ($row = $tables_result->fetch_array()) {
+        $tn = $row[0];
+        $cr = $conn->query("SHOW COLUMNS FROM \`$tn\`");
+        $columns = [];
+        if ($cr) { while ($c = $cr->fetch_assoc()) { $columns[] = ["name"=>$c["Field"],"type"=>$c["Type"],"key"=>$c["Key"]??"","nullable"=>$c["Null"]==="YES"]; } }
+        $cnt = @$conn->query("SELECT COUNT(*) as t FROM \`$tn\`");
+        $count = $cnt ? (int)$cnt->fetch_assoc()["t"] : 0;
+        $tables[$tn] = ["columns" => $columns, "count" => $count];
+    }
+    echo json_encode(["ok"=>true,"database"=>$db,"tables"=>$tables,"total"=>count($tables)]); exit;
+}
+
+// ═══ DIAGNOSTICO PROFUNDO v5.8 ═══
+if ($action === "diagnostico") {
+    $diag = ["mapping"=>[],"column_checks"=>[],"saldo_debug"=>null,"mapping_source"=>file_exists($mapping_file)?"file":"inline"];
+    $entities = [
+        "usuarios" => ["table" => $map["usuarios"]["table"] ?? "users", "required_cols" => [$map["usuarios"]["id"] ?? "id", $map["usuarios"]["name"] ?? "name"]],
+        "depositos" => ["table" => $map["depositos"]["table"] ?? "deposits", "required_cols" => [$map["depositos"]["id"] ?? "id", $map["depositos"]["user_id"] ?? "user_id", $map["depositos"]["amount"] ?? "amount", $map["depositos"]["status"] ?? "status", $map["depositos"]["date"] ?? "created_at"]],
+        "saques" => ["table" => $map["saques"]["table"] ?? "withdrawals", "required_cols" => [$map["saques"]["id"] ?? "id", $map["saques"]["user_id"] ?? "user_id", $map["saques"]["amount"] ?? "amount", $map["saques"]["status"] ?? "status", $map["saques"]["date"] ?? "created_at"]],
+        "saldo" => ["table" => $map["saldo"]["table"] ?? "wallets", "required_cols" => [$map["saldo"]["user_id"] ?? "user_id", $map["saldo"]["balance"] ?? "balance"]],
+        "afiliados" => ["table" => $map["afiliados"]["table"] ?? "affiliates", "required_cols" => [$map["afiliados"]["expired"] ?? "cooperation_expired"]],
+    ];
+
+    foreach ($entities as $key => $cfg) {
+        $t = $cfg["table"];
+        $exists = table_exists($conn, $t);
+        $cols = $exists ? get_columns($conn, $t) : [];
+        $cnt = 0;
+        if ($exists) { $r = @$conn->query("SELECT COUNT(*) as t FROM \`$t\`"); if ($r) $cnt = (int)$r->fetch_assoc()["t"]; }
+        
+        // Check each required column
+        $col_results = [];
+        foreach ($cfg["required_cols"] as $rc) {
+            $col_results[$rc] = $exists ? in_array($rc, $cols) : false;
+        }
+        $missing_cols = array_keys(array_filter($col_results, function($v) { return !$v; }));
+        
+        $diag["mapping"][$key] = [
+            "table" => $t, "exists" => $exists, "columns" => $cols, "count" => $cnt,
+            "column_checks" => $col_results, "missing_columns" => $missing_cols,
+        ];
+    }
+
+    // Saldo debug detalhado
+    $tb_saldo = $map["saldo"]["table"] ?? "wallets";
+    $col_bal = $map["saldo"]["balance"] ?? "balance";
+    if (table_exists($conn, $tb_saldo)) {
+        $hasSaldoCol = col_exists($conn, $tb_saldo, $col_bal);
+        $saldoTotal = 0;
+        $sampleValues = [];
+        if ($hasSaldoCol) {
+            $r = @$conn->query("SELECT COALESCE(SUM(\`$col_bal\`),0) as total FROM \`$tb_saldo\`");
+            if ($r) $saldoTotal = (float)$r->fetch_assoc()["total"];
+            $r2 = @$conn->query("SELECT \`$col_bal\` FROM \`$tb_saldo\` WHERE \`$col_bal\` > 0 LIMIT 5");
+            if ($r2) { while ($s = $r2->fetch_assoc()) $sampleValues[] = (float)$s[$col_bal]; }
+        }
+        $all_cols = get_columns($conn, $tb_saldo);
+        $possible_balance_cols = array_filter($all_cols, function($c) {
+            return preg_match('/(balance|saldo|amount|valor|credits|money|wallet|disponivel)/i', $c);
+        });
+        $diag["saldo_debug"] = [
+            "table" => $tb_saldo, "column" => $col_bal, "column_exists" => $hasSaldoCol,
+            "total" => $saldoTotal, "sample_values" => $sampleValues,
+            "all_columns" => $all_cols, "possible_balance_columns" => array_values($possible_balance_cols),
+        ];
+    }
+
+    echo json_encode(["ok"=>true,"version"=>"5.8.0","diagnostico"=>$diag]); exit;
+}
+
+// ═══ HEALTH ═══
+if ($action === "health") {
+    $checks = [];
+    foreach (["usuarios","depositos","saques","saldo","afiliados"] as $key) {
+        $t = $map[$key]["table"] ?? "";
+        $checks[$key] = ["table"=>$t,"exists"=>table_exists($conn, $t)];
+    }
+    echo json_encode(["ok"=>true,"version"=>"5.8.0","db"=>true,"time"=>date("c"),"tables"=>$checks,
+        "mapping_source"=>file_exists($mapping_file)?"file":"inline",
+        "features"=>["scan_db","diagnostico","update_mapping","get_mapping","standalone","hybrid_mapping"]]); exit;
+}
+
+// ═══ STATS ═══
+if ($action === "stats") {
+    $result = ["total_usuarios"=>0,"total_afiliados"=>0,"saldo_total"=>0.0,"total_depositos"=>0,"total_saques"=>0];
+    $tb = $map["usuarios"]["table"] ?? "users";
+    if (table_exists($conn, $tb)) { $r = @$conn->query("SELECT COUNT(*) as total FROM \`$tb\`"); if ($r) $result["total_usuarios"] = (int)$r->fetch_assoc()["total"]; }
+    $tb = $map["afiliados"]["table"] ?? "affiliates";
+    if (table_exists($conn, $tb)) { $r = @$conn->query("SELECT COUNT(*) as total FROM \`$tb\`"); if ($r) $result["total_afiliados"] = (int)$r->fetch_assoc()["total"]; }
+    $tb = $map["saldo"]["table"] ?? "wallets"; $col = $map["saldo"]["balance"] ?? "balance";
+    if (table_exists($conn, $tb) && col_exists($conn, $tb, $col)) { $r = @$conn->query("SELECT COALESCE(SUM(\`$col\`),0) as total FROM \`$tb\`"); if ($r) $result["saldo_total"] = (float)$r->fetch_assoc()["total"]; }
+    $tb = $map["depositos"]["table"] ?? "deposits";
+    if (table_exists($conn, $tb)) { $r = @$conn->query("SELECT COUNT(*) as total FROM \`$tb\`"); if ($r) $result["total_depositos"] = (int)$r->fetch_assoc()["total"]; }
+    $tb = $map["saques"]["table"] ?? "withdrawals";
+    if (table_exists($conn, $tb)) { $r = @$conn->query("SELECT COUNT(*) as total FROM \`$tb\`"); if ($r) $result["total_saques"] = (int)$r->fetch_assoc()["total"]; }
+    echo json_encode($result); exit;
+}
+
+// ═══ DEPOSITOS ═══
+if ($action === "depositos") {
+    $d = $map["depositos"]; $u = $map["usuarios"];
+    $tb_d = $d["table"] ?? "deposits"; $tb_u = $u["table"] ?? "users";
+    if (!table_exists($conn, $tb_d)) { echo json_encode([]); exit; }
+    $hasUsers = table_exists($conn, $tb_u);
+    $col_uid = $d["user_id"] ?? "user_id"; $col_val = $d["amount"] ?? "amount";
+    $col_pix = $d["pix"] ?? "pix"; $col_dt = $d["date"] ?? "created_at"; $col_st = $d["status"] ?? "status";
+    $col_uname = $u["name"] ?? "name"; $col_u_id = $u["id"] ?? "id";
+
+    if ($hasUsers) {
+        $sql = "SELECT u.\`$col_uname\` as nome_usuario, d.\`$col_val\` as valor, " .
+            (col_exists($conn,$tb_d,$col_pix) ? "d.\`$col_pix\`" : "''") . " as pix, " .
+            "d.\`$col_dt\` as created_at, d.\`$col_st\` as status " .
+            "FROM \`$tb_d\` d LEFT JOIN \`$tb_u\` u ON d.\`$col_uid\`=u.\`$col_u_id\` ORDER BY d.\`$col_dt\` DESC LIMIT 500";
+    } else {
+        $sql = "SELECT \`$col_uid\` as nome_usuario, \`$col_val\` as valor, " .
+            (col_exists($conn,$tb_d,$col_pix) ? "\`$col_pix\`" : "''") . " as pix, " .
+            "\`$col_dt\` as created_at, \`$col_st\` as status FROM \`$tb_d\` ORDER BY \`$col_dt\` DESC LIMIT 500";
+    }
+    $r = @$conn->query($sql);
+    if (!$r) { echo json_encode(["error" => "SQL Error: " . $conn->error, "sql" => $sql]); exit; }
+    $rows = []; while ($x = $r->fetch_assoc()) $rows[] = $x;
+    echo json_encode($rows); exit;
+}
+
+// ═══ SAQUES ═══
+if ($action === "saques") {
+    $w = $map["saques"]; $u = $map["usuarios"];
+    $tb_w = $w["table"] ?? "withdrawals"; $tb_u = $u["table"] ?? "users";
+    if (!table_exists($conn, $tb_w)) { echo json_encode([]); exit; }
+    $hasUsers = table_exists($conn, $tb_u);
+    $col_wid = $w["id"] ?? "id"; $col_wuid = $w["user_id"] ?? "user_id";
+    $col_wval = $w["amount"] ?? "amount"; $col_wpix = $w["pix"] ?? "pix";
+    $col_wdt = $w["date"] ?? "created_at"; $col_wst = $w["status"] ?? "status";
+    $col_uname = $u["name"] ?? "name"; $col_u_id = $u["id"] ?? "id";
+
+    if ($hasUsers) {
+        $sql = "SELECT w.\`$col_wid\` as id, u.\`$col_uname\` as nome_usuario, w.\`$col_wval\` as valor, " .
+            (col_exists($conn,$tb_w,$col_wpix) ? "w.\`$col_wpix\`" : "''") . " as pix, " .
+            "w.\`$col_wdt\` as created_at, w.\`$col_wst\` as status " .
+            "FROM \`$tb_w\` w LEFT JOIN \`$tb_u\` u ON w.\`$col_wuid\`=u.\`$col_u_id\` ORDER BY w.\`$col_wdt\` DESC LIMIT 500";
+    } else {
+        $sql = "SELECT \`$col_wid\` as id, \`$col_wuid\` as nome_usuario, \`$col_wval\` as valor, " .
+            (col_exists($conn,$tb_w,$col_wpix) ? "\`$col_wpix\`" : "''") . " as pix, " .
+            "\`$col_wdt\` as created_at, \`$col_wst\` as status FROM \`$tb_w\` ORDER BY \`$col_wdt\` DESC LIMIT 500";
+    }
+    $r = @$conn->query($sql);
+    if (!$r) { echo json_encode(["error" => "SQL Error: " . $conn->error, "sql" => $sql]); exit; }
+    $rows = []; while ($x = $r->fetch_assoc()) $rows[] = $x;
+    echo json_encode($rows); exit;
+}
+
+// ═══ APROVAR/REJEITAR SAQUE ═══
+if ($action === "aprovar_saque" || $action === "rejeitar_saque") {
+    $id = intval($_POST["id"] ?? $_GET["id"] ?? 0);
+    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
+    $status = $action === "aprovar_saque" ? "aprovado" : "rejeitado";
+    $tb = $map["saques"]["table"] ?? "withdrawals";
+    $col_st = $map["saques"]["status"] ?? "status";
+    $col_id = $map["saques"]["id"] ?? "id";
+    $conn->query("UPDATE \`$tb\` SET \`$col_st\`='$status' WHERE \`$col_id\`=$id");
+    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows]); exit;
+}
+
+// ═══ REMOVER AFILIADOS ═══
+if ($action === "remover_afiliados") {
+    $tb = $map["afiliados"]["table"] ?? "affiliates";
+    $col = $map["afiliados"]["expired"] ?? "cooperation_expired";
+    $conn->query("DELETE FROM \`$tb\` WHERE \`$col\` = 1");
+    echo json_encode(["ok"=>true,"removed"=>$conn->affected_rows]); exit;
+}
+
+echo json_encode(["error"=>"Ação não reconhecida: ".$action,
+    "available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico","update_mapping","get_mapping"],
+    "version"=>"5.8.0"]);
+
+} catch (Throwable $e) {
+    http_response_code(200);
+    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"5.8.0"]);
+}
+?>`;
   };
 
   const generateTelegramWebhook = () => {
@@ -761,11 +829,11 @@ echo json_encode([
     const fullUrl = rawUrl && !rawUrl.startsWith("http") ? `https://${rawUrl}` : rawUrl;
     const apiUrl = fullUrl ? `${fullUrl}/api.php` : "https://seusite.com/api.php";
     return `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v5.0 — ${platform.nome}</title>
-<style>*{box-sizing:border-box}body{font-family:'Segoe UI',monospace;background:#0a0a0f;color:#e0e0e0;padding:20px;margin:0}h1{color:#00c4ff;margin-bottom:5px}h2{color:#888;font-size:14px;margin-top:0}.controls{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}button{background:#00c4ff;color:#000;border:none;padding:10px 18px;cursor:pointer;border-radius:8px;font-weight:bold;font-size:13px;transition:all .2s}button:hover{background:#00a0dd;transform:scale(1.02)}button.scan{background:#a855f7}button.scan:hover{background:#9333ea}button.diag{background:#f59e0b}button.diag:hover{background:#d97706}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:15px 0}.card{background:#111;border:1px solid #222;border-radius:10px;padding:15px}.card h3{margin:0 0 8px;font-size:13px;color:#00c4ff}.card.ok{border-color:#22c55e}.card.fail{border-color:#ef4444}pre{background:#0d0d15;padding:12px;border-radius:8px;overflow-x:auto;border:1px solid #1a1a2e;max-height:350px;font-size:12px;line-height:1.5}input{width:100%;max-width:600px;padding:10px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;font-size:14px;font-family:monospace}.status-bar{padding:12px;border-radius:8px;margin:10px 0;font-weight:bold;font-size:13px}.status-bar.ok{background:#22c55e15;border:1px solid #22c55e40;color:#22c55e}.status-bar.fail{background:#ef444415;border:1px solid #ef444440;color:#ef4444}</style>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v5.8 — ${platform.nome}</title>
+<style>*{box-sizing:border-box}body{font-family:'Segoe UI',monospace;background:#0a0a0f;color:#e0e0e0;padding:20px;margin:0}h1{color:#00c4ff;margin-bottom:5px}h2{color:#888;font-size:14px;margin-top:0}.controls{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}button{background:#00c4ff;color:#000;border:none;padding:10px 18px;cursor:pointer;border-radius:8px;font-weight:bold;font-size:13px;transition:all .2s}button:hover{background:#00a0dd;transform:scale(1.02)}button.scan{background:#a855f7}button.scan:hover{background:#9333ea}button.diag{background:#f59e0b}button.diag:hover{background:#d97706}button.map{background:#22c55e}button.map:hover{background:#16a34a}pre{background:#0d0d15;padding:12px;border-radius:8px;overflow-x:auto;border:1px solid #1a1a2e;max-height:350px;font-size:12px;line-height:1.5}input{width:100%;max-width:600px;padding:10px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;font-size:14px;font-family:monospace}.status-bar{padding:12px;border-radius:8px;margin:10px 0;font-weight:bold;font-size:13px}.status-bar.ok{background:#22c55e15;border:1px solid #22c55e40;color:#22c55e}.status-bar.fail{background:#ef444415;border:1px solid #ef444440;color:#ef4444}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:15px 0}.card{background:#111;border:1px solid #222;border-radius:10px;padding:15px}.card h3{margin:0 0 8px;font-size:13px;color:#00c4ff}.card.ok{border-color:#22c55e}.card.fail{border-color:#ef4444}</style>
 </head><body>
-<h1>🔌 Teste API v5.0 — ${platform.nome}</h1>
-<h2>API Standalone — Sem dependência do painel</h2>
+<h1>🔌 Teste API v5.8 — ${platform.nome}</h1>
+<h2>API Híbrida — mapping_cache.json + Direct Mapping</h2>
 <input id="apiUrl" value="${apiUrl}" placeholder="URL da API (api.php)" />
 <div class="controls">
 <button onclick="testEndpoint('health')">🏥 Health</button>
@@ -774,6 +842,7 @@ echo json_encode([
 <button onclick="testEndpoint('saques')">💸 Saques</button>
 <button class="scan" onclick="testEndpoint('scan_db')">🔍 Scan DB</button>
 <button class="diag" onclick="testEndpoint('diagnostico')">🔧 Diagnóstico</button>
+<button class="map" onclick="testEndpoint('get_mapping')">📋 Ver Mapping</button>
 <button onclick="testAll()">🚀 Testar Todos</button>
 </div>
 <div id="status"></div>
@@ -792,7 +861,7 @@ async function testEndpoint(a){
   }catch(e){g("status").innerHTML='<div class="status-bar fail">❌ '+e.message+"</div>";g("raw").textContent=e.message}
 }
 async function testAll(){
-  const actions=["health","stats","depositos","saques"];let html="";let allOk=true;
+  const actions=["health","stats","depositos","saques","get_mapping"];let html="";let allOk=true;
   for(const a of actions){try{const t=performance.now();const r=await fetch(api()+"?action="+a);const ms=Math.round(performance.now()-t);const txt=await r.text();
   let d;try{d=JSON.parse(txt)}catch(e){allOk=false;html+='<div class="card fail"><h3>'+a+'</h3><pre>Não é JSON: '+txt.slice(0,300)+"</pre></div>";continue}
   const ok=!d.error;if(!ok)allOk=false;
@@ -802,6 +871,31 @@ async function testAll(){
   g("results").innerHTML=html;
 }
 </script></body></html>`;
+  };
+
+  // Push mapping to remote API via update_mapping endpoint
+  const handlePushMapping = async () => {
+    if (!form.url) {
+      toast({ title: "URL necessária", variant: "destructive" });
+      return;
+    }
+    const apiUrl = `${form.url.replace(/\/$/, "")}/api.php`;
+    const mapping = JSON.parse(generateMappingJson());
+    try {
+      const res = await fetch(`${apiUrl}?action=update_mapping`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mapping),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast({ title: "✅ Mapeamento sincronizado!", description: `mapping_cache.json atualizado no servidor (${data.bytes} bytes)` });
+      } else {
+        toast({ title: "❌ Erro", description: data.error ?? "Falha ao atualizar mapping", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "❌ Erro de conexão", description: e.message, variant: "destructive" });
+    }
   };
 
   const handleTestApi = async () => {
@@ -1076,7 +1170,7 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v5.7 — Mapeamento Autoritativo + Scanner Completo</p>
+              <p className="text-xs text-muted-foreground">API v5.8 — Mapeamento Híbrido (mapping_cache.json + Direct Mapping)</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
@@ -1111,17 +1205,17 @@ async function testAll(){
                 <CopyButton text={apiKey} field="api_key" />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={handleTestApi} disabled={testing || !form.url}
                 className={`gap-2 h-8 text-xs flex-1 ${testResult === "success" ? "border-neon-green/60 text-neon-green" : testResult === "error" ? "border-neon-red/60 text-neon-red" : ""}`}>
                 {testing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <TestTube className="w-3 h-3" />}
                 {testing ? "Testando..." : testResult === "success" ? "API OK!" : "Testar API"}
               </Button>
-              <Button variant="outline" size="sm" onClick={handleTestMappingEndpoint} disabled={!apiKey} className="gap-2 h-8 text-xs">
-                <Zap className="w-3 h-3" /> Endpoint
+              <Button variant="outline" size="sm" onClick={handlePushMapping} disabled={!form.url} className="gap-2 h-8 text-xs border-accent/50 text-accent hover:bg-accent/10">
+                <Zap className="w-3 h-3" /> Sync Mapping
               </Button>
               <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || !form.url} className="gap-2 h-8 text-xs">
-                {syncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Sync
+                {syncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Sync Dados
               </Button>
             </div>
             {testDetails.length > 0 && (
@@ -1206,6 +1300,7 @@ async function testAll(){
                     const files = [
                       { name: "config.php", content: generateConfigPhp() },
                       { name: "api.php", content: generateApiPhp() },
+                      { name: "mapping_cache.json", content: generateMappingJson() },
                       { name: "test_api.html", content: generateTestHtml() },
                       { name: "telegram_webhook.php", content: generateTelegramWebhook() },
                       { name: "webhook_pix.php", content: generateWebhookPix() },
@@ -1214,9 +1309,9 @@ async function testAll(){
                       const blob = new Blob([f.content], { type: "text/plain;charset=utf-8" });
                       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = f.name; a.click();
                     }, i * 300));
-                    toast({ title: "📦 5 arquivos baixados!", description: "config.php + api.php + test_api.html + telegram_webhook.php + webhook_pix.php" });
+                    toast({ title: "📦 6 arquivos baixados!", description: "config.php + api.php + mapping_cache.json + test_api.html + telegram_webhook.php + webhook_pix.php" });
                   }}>
-                  <Download className="w-4 h-4" /> Baixar Todos os Arquivos (5)
+                  <Download className="w-4 h-4" /> Baixar Todos os Arquivos (6)
                 </Button>
               </div>
             )}
@@ -1540,10 +1635,25 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.7 — Mapeamento Autoritativo</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.8 — Hybrid Mapping</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">O que você configurar no Mapeamento é exatamente o que a API vai usar. Sem surpresas.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.7: Suas tabelas = lei + try/catch global + diagnóstico de saldo + zero fallbacks</p>
+              <p className="text-[10px] text-muted-foreground">API lê mapping_cache.json → mude o mapeamento no painel → clique "Sync Mapping" → API usa imediatamente.</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.8: mapping_cache.json + update_mapping + col_exists + diagnóstico de colunas</p>
+            </div>
+
+            {/* Sync mapping button */}
+            <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-accent" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">Sincronizar Mapeamento em Tempo Real</p>
+                  <p className="text-[9px] text-muted-foreground">Envia o mapeamento atual do painel direto para o mapping_cache.json do servidor. Sem precisar baixar/subir arquivos.</p>
+                </div>
+              </div>
+              <Button onClick={handlePushMapping} disabled={!form.url}
+                className="w-full gap-2 h-9 text-sm font-bold bg-accent text-accent-foreground hover:bg-accent/90">
+                <Zap className="w-4 h-4" /> Sincronizar Mapeamento → Servidor
+              </Button>
             </div>
 
             {/* Verify API Version */}
@@ -1578,9 +1688,6 @@ async function testAll(){
                       </div>
                     </div>
                   ))}
-                  {!verifyResult.endpoints.every(e => e.status === "ok") && (
-                    <p className="text-[9px] text-muted-foreground text-center">⚠️ Gere e suba os novos arquivos abaixo para corrigir os problemas</p>
-                  )}
                 </div>
               )}
             </div>
@@ -1594,6 +1701,7 @@ async function testAll(){
               const files = [
                 { name: "config.php", content: generateConfigPhp() },
                 { name: "api.php", content: generateApiPhp() },
+                { name: "mapping_cache.json", content: generateMappingJson() },
                 { name: "test_api.html", content: generateTestHtml() },
                 { name: "telegram_webhook.php", content: generateTelegramWebhook() },
                 { name: "webhook_pix.php", content: generateWebhookPix() },
@@ -1602,17 +1710,18 @@ async function testAll(){
                 const blob = new Blob([f.content], { type: "text/plain;charset=utf-8" });
                 const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
               }, i * 300));
-              toast({ title: "📥 Baixando 5 arquivos", description: "config.php + api.php + test_api.html + telegram_webhook.php + webhook_pix.php" });
+              toast({ title: "📥 Baixando 6 arquivos", description: "config.php + api.php + mapping_cache.json + test_api.html + webhooks" });
             }} className="w-full gap-2 h-10 text-sm font-bold border-neon-green/30 text-neon-green hover:bg-neon-green/10"
               style={{ background: "linear-gradient(135deg, hsl(142 76% 36% / 0.1), hsl(142 70% 45% / 0.1))" }}>
-              <Download className="w-4 h-4" /> Baixar Todos (5 arquivos)
+              <Download className="w-4 h-4" /> Baixar Todos (6 arquivos)
             </Button>
 
             {/* Individual files with separate Generate Preview / Download */}
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v5.7 Autoritativo", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "test_api.html", label: "📄 test_api.html — v5.7", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v5.8 Hybrid Mapping", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento Dinâmico", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
+              { name: "test_api.html", label: "📄 test_api.html — v5.8", gen: generateTestHtml, field: "test_html", type: "text/html" },
               { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
               { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => {
