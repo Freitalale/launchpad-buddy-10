@@ -92,6 +92,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const [extraTables, setExtraTables] = useState<ExtraTable[]>([]);
   // Hidden default columns per table
   const [hiddenColumns, setHiddenColumns] = useState<HiddenColumnsMap>({});
+  const [disabledTables, setDisabledTables] = useState<DisabledTablesSet>([]);
 
   const [form, setForm] = useState({
     url: "", db_host: "", db_port: 3306, db_user: "", db_pass: "", db_name: "",
