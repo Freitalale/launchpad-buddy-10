@@ -605,9 +605,13 @@ $port = ${form.db_port || 3306};
     L('    echo json_encode(["ok"=>true,"diagnostico"=>$diag]); exit;');
     L('}');
     L('');
-    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.2.0"]);');
+    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.3.0"]);');
+    L('');
+    L('} catch (Throwable $e) {');
+    L('    http_response_code(200);');
+    L('    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"5.3.0"]);');
+    L('}');
     L('?>');
-
     return lines.join("\n");
   };
 
