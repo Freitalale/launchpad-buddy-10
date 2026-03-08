@@ -205,9 +205,12 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     }
     setScanning(true);
     setScanResult(null);
-    try {
+      let apiUrl = form.url;
+      if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
+        apiUrl = `https://${apiUrl}`;
+      }
       const { data, error } = await supabase.functions.invoke("scan-database", {
-        body: { api_url: form.url },
+        body: { api_url: apiUrl },
       });
       if (error) throw error;
       setScanResult(data as ScanResult);
@@ -536,7 +539,9 @@ echo json_encode(["error" => "Ação não reconhecida: " . \$action, "available"
   };
 
   const generateTestHtml = () => {
-    const apiUrl = form.url ? `${form.url.replace(/\/$/, "")}/api.php` : "https://seusite.com/api.php";
+    const rawUrl = form.url ? form.url.replace(/\/$/, "") : "";
+    const fullUrl = rawUrl && !rawUrl.startsWith("http") ? `https://${rawUrl}` : rawUrl;
+    const apiUrl = fullUrl ? `${fullUrl}/api.php` : "https://seusite.com/api.php";
     return `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v4.0 — ${platform.nome}</title>
 <style>*{box-sizing:border-box}body{font-family:'Segoe UI',monospace;background:#0a0a0f;color:#e0e0e0;padding:20px;margin:0}h1{color:#00c4ff;margin-bottom:5px}h2{color:#888;font-size:14px;margin-top:0}.controls{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}button{background:#00c4ff;color:#000;border:none;padding:10px 18px;cursor:pointer;border-radius:8px;font-weight:bold;font-size:13px;transition:all .2s}button:hover{background:#00a0dd;transform:scale(1.02)}button.scan{background:#a855f7}button.scan:hover{background:#9333ea}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:15px 0}.card{background:#111;border:1px solid #222;border-radius:10px;padding:15px}.card h3{margin:0 0 8px;font-size:13px;color:#00c4ff}.card.ok{border-color:#22c55e}.card.fail{border-color:#ef4444}.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold}.badge.ok{background:#22c55e22;color:#22c55e}.badge.fail{background:#ef444422;color:#ef4444}.badge.warn{background:#f59e0b22;color:#f59e0b}pre{background:#0d0d15;padding:12px;border-radius:8px;overflow-x:auto;border:1px solid #1a1a2e;max-height:350px;font-size:12px;line-height:1.5}input{width:100%;max-width:600px;padding:10px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;font-size:14px;font-family:monospace}.status-bar{padding:12px;border-radius:8px;margin:10px 0;font-weight:bold;font-size:13px}.status-bar.ok{background:#22c55e15;border:1px solid #22c55e40;color:#22c55e}.status-bar.fail{background:#ef444415;border:1px solid #ef444440;color:#ef4444}.table-list{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.table-chip{background:#1a1a2e;border:1px solid #333;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;transition:all .2s}.table-chip:hover{border-color:#00c4ff;color:#00c4ff}.table-chip.detected{border-color:#22c55e;background:#22c55e15;color:#22c55e}</style>
