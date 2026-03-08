@@ -49,6 +49,7 @@ serve(async (req) => {
     const extraCols = extra.colunas_extra ?? {};
     const extraTables = extra.tabelas_extra ?? [];
     const hiddenCols = extra.colunas_ocultas ?? {};
+    const disabledTables: string[] = extra.tabelas_desativadas ?? [];
 
     // Build per-table column mappings (include extras, exclude hidden)
     const buildColumns = (tableKey: string, defaults: Record<string, string>) => {
@@ -89,51 +90,41 @@ serve(async (req) => {
       }
     }
 
+    // Build tables (skip disabled)
+    const tables: Record<string, string | null> = {};
+    const allTables = {
+      usuarios: p.tabela_usuarios ?? "users",
+      depositos: p.tabela_depositos ?? "deposits",
+      saques: p.tabela_saques ?? "withdrawals",
+      saldo: p.tabela_saldo ?? "wallets",
+      afiliados: p.tabela_afiliados ?? "affiliates",
+    };
+    for (const [key, val] of Object.entries(allTables)) {
+      tables[key] = disabledTables.includes(key) ? null : val;
+    }
+
+    // Build columns (skip disabled tables)
+    const columns: Record<string, Record<string, string>> = {};
+    const columnDefs: Record<string, Record<string, string>> = {
+      usuarios: { id: p.coluna_id_usuario ?? "id", nome: p.coluna_nome_usuario ?? "name", email: p.coluna_email_usuario ?? "email", telefone: p.coluna_telefone_usuario ?? "phone" },
+      depositos: { id: p.coluna_id_deposito ?? "id", user_id: p.coluna_user_id_deposito ?? p.coluna_user_id_fk ?? "user_id", valor: p.coluna_valor_deposito ?? "amount", pix: p.coluna_pix_deposito ?? p.coluna_pix ?? "pix", status: p.coluna_status_deposito ?? p.coluna_status ?? "status", created_at: p.coluna_created_at_deposito ?? p.coluna_created_at ?? "created_at" },
+      saques: { id: p.coluna_id_saque ?? "id", user_id: p.coluna_user_id_saque ?? p.coluna_user_id_fk ?? "user_id", valor: p.coluna_valor_saque ?? "amount", pix: p.coluna_pix_saque ?? p.coluna_pix ?? "pix", status: p.coluna_status_saque ?? p.coluna_status ?? "status", created_at: p.coluna_created_at_saque ?? p.coluna_created_at ?? "created_at" },
+      saldo: { user_id: p.coluna_user_id_saldo ?? "user_id", saldo: p.coluna_saldo ?? "balance" },
+      afiliados: { id: p.coluna_id_afiliado ?? "id", nome: p.coluna_nome_afiliado ?? "name", user_id: p.coluna_user_id_afiliado ?? "user_id", cooperation_expired: p.coluna_cooperation_expired ?? "cooperation_expired" },
+    };
+
+    for (const [key, defaults] of Object.entries(columnDefs)) {
+      if (disabledTables.includes(key)) continue;
+      columns[key] = buildColumns(key, defaults);
+    }
+
     const mapping = {
       ok: true,
       platform_id: p.id,
       platform_name: p.nome,
-      tables: {
-        usuarios: p.tabela_usuarios ?? "users",
-        depositos: p.tabela_depositos ?? "deposits",
-        saques: p.tabela_saques ?? "withdrawals",
-        saldo: p.tabela_saldo ?? "wallets",
-        afiliados: p.tabela_afiliados ?? "affiliates",
-      },
-      columns: {
-        usuarios: buildColumns("usuarios", {
-          id: p.coluna_id_usuario ?? "id",
-          nome: p.coluna_nome_usuario ?? "name",
-          email: p.coluna_email_usuario ?? "email",
-          telefone: p.coluna_telefone_usuario ?? "phone",
-        }),
-        depositos: buildColumns("depositos", {
-          id: p.coluna_id_deposito ?? "id",
-          user_id: p.coluna_user_id_deposito ?? p.coluna_user_id_fk ?? "user_id",
-          valor: p.coluna_valor_deposito ?? "amount",
-          pix: p.coluna_pix_deposito ?? p.coluna_pix ?? "pix",
-          status: p.coluna_status_deposito ?? p.coluna_status ?? "status",
-          created_at: p.coluna_created_at_deposito ?? p.coluna_created_at ?? "created_at",
-        }),
-        saques: buildColumns("saques", {
-          id: p.coluna_id_saque ?? "id",
-          user_id: p.coluna_user_id_saque ?? p.coluna_user_id_fk ?? "user_id",
-          valor: p.coluna_valor_saque ?? "amount",
-          pix: p.coluna_pix_saque ?? p.coluna_pix ?? "pix",
-          status: p.coluna_status_saque ?? p.coluna_status ?? "status",
-          created_at: p.coluna_created_at_saque ?? p.coluna_created_at ?? "created_at",
-        }),
-        saldo: buildColumns("saldo", {
-          user_id: p.coluna_user_id_saldo ?? "user_id",
-          saldo: p.coluna_saldo ?? "balance",
-        }),
-        afiliados: buildColumns("afiliados", {
-          id: p.coluna_id_afiliado ?? "id",
-          nome: p.coluna_nome_afiliado ?? "name",
-          user_id: p.coluna_user_id_afiliado ?? "user_id",
-          cooperation_expired: p.coluna_cooperation_expired ?? "cooperation_expired",
-        }),
-      },
+      tables,
+      columns,
+      disabled_tables: disabledTables,
       extra_tables: extraTablesMapping,
       updated_at: new Date().toISOString(),
     };

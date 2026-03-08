@@ -27,51 +27,52 @@ interface ExtraTable {
 
 type ExtraColumnsMap = Record<string, ExtraColumn[]>;
 
-const DEFAULT_COLUMNS: Record<string, { field: string; label: string; placeholder: string }[]> = {
+const DEFAULT_COLUMNS: Record<string, { field: string; label: string; placeholder: string; desc: string }[]> = {
   usuarios: [
-    { field: "coluna_id_usuario", label: "Coluna ID", placeholder: "id" },
-    { field: "coluna_nome_usuario", label: "Coluna Nome", placeholder: "name" },
-    { field: "coluna_email_usuario", label: "Coluna Email", placeholder: "email" },
-    { field: "coluna_telefone_usuario", label: "Coluna Telefone", placeholder: "phone" },
+    { field: "coluna_id_usuario", label: "Coluna ID", placeholder: "id", desc: "Identificador único de cada usuário" },
+    { field: "coluna_nome_usuario", label: "Coluna Nome", placeholder: "name", desc: "Nome ou username do usuário" },
+    { field: "coluna_email_usuario", label: "Coluna Email", placeholder: "email", desc: "Email do usuário (usado em SAC)" },
+    { field: "coluna_telefone_usuario", label: "Coluna Telefone", placeholder: "phone", desc: "Telefone/WhatsApp do usuário" },
   ],
   depositos: [
-    { field: "coluna_id_deposito", label: "Coluna ID", placeholder: "id" },
-    { field: "coluna_user_id_deposito", label: "Coluna User ID (FK)", placeholder: "user_id" },
-    { field: "coluna_valor_deposito", label: "Coluna Valor", placeholder: "amount" },
-    { field: "coluna_pix_deposito", label: "Coluna PIX", placeholder: "pix" },
-    { field: "coluna_status_deposito", label: "Coluna Status", placeholder: "status" },
-    { field: "coluna_created_at_deposito", label: "Coluna Data", placeholder: "created_at" },
+    { field: "coluna_id_deposito", label: "Coluna ID", placeholder: "id", desc: "ID único de cada depósito" },
+    { field: "coluna_user_id_deposito", label: "Coluna User ID (FK)", placeholder: "user_id", desc: "Chave que liga o depósito ao usuário" },
+    { field: "coluna_valor_deposito", label: "Coluna Valor", placeholder: "amount", desc: "Valor monetário do depósito" },
+    { field: "coluna_pix_deposito", label: "Coluna PIX", placeholder: "pix", desc: "Chave PIX usada no depósito" },
+    { field: "coluna_status_deposito", label: "Coluna Status", placeholder: "status", desc: "Status: pendente, aprovado, rejeitado" },
+    { field: "coluna_created_at_deposito", label: "Coluna Data", placeholder: "created_at", desc: "Data/hora em que o depósito foi feito" },
   ],
   saques: [
-    { field: "coluna_id_saque", label: "Coluna ID", placeholder: "id" },
-    { field: "coluna_user_id_saque", label: "Coluna User ID (FK)", placeholder: "user_id" },
-    { field: "coluna_valor_saque", label: "Coluna Valor", placeholder: "amount" },
-    { field: "coluna_pix_saque", label: "Coluna PIX", placeholder: "pix" },
-    { field: "coluna_status_saque", label: "Coluna Status", placeholder: "status" },
-    { field: "coluna_created_at_saque", label: "Coluna Data", placeholder: "created_at" },
+    { field: "coluna_id_saque", label: "Coluna ID", placeholder: "id", desc: "ID único de cada saque" },
+    { field: "coluna_user_id_saque", label: "Coluna User ID (FK)", placeholder: "user_id", desc: "Chave que liga o saque ao usuário" },
+    { field: "coluna_valor_saque", label: "Coluna Valor", placeholder: "amount", desc: "Valor monetário do saque" },
+    { field: "coluna_pix_saque", label: "Coluna PIX", placeholder: "pix", desc: "Chave PIX para pagamento do saque" },
+    { field: "coluna_status_saque", label: "Coluna Status", placeholder: "status", desc: "Status: pendente, aprovado, rejeitado" },
+    { field: "coluna_created_at_saque", label: "Coluna Data", placeholder: "created_at", desc: "Data/hora em que o saque foi solicitado" },
   ],
   saldo: [
-    { field: "coluna_user_id_saldo", label: "Coluna User ID (FK)", placeholder: "user_id" },
-    { field: "coluna_saldo", label: "Coluna Saldo", placeholder: "balance" },
+    { field: "coluna_user_id_saldo", label: "Coluna User ID (FK)", placeholder: "user_id", desc: "Chave que liga o saldo ao usuário" },
+    { field: "coluna_saldo", label: "Coluna Saldo", placeholder: "balance", desc: "Saldo atual disponível do usuário" },
   ],
   afiliados: [
-    { field: "coluna_id_afiliado", label: "Coluna ID", placeholder: "id" },
-    { field: "coluna_nome_afiliado", label: "Coluna Nome", placeholder: "name" },
-    { field: "coluna_user_id_afiliado", label: "Coluna User ID (FK)", placeholder: "user_id" },
-    { field: "coluna_cooperation_expired", label: "Coluna Cooperação Expirada", placeholder: "cooperation_expired" },
+    { field: "coluna_id_afiliado", label: "Coluna ID", placeholder: "id", desc: "ID único do afiliado" },
+    { field: "coluna_nome_afiliado", label: "Coluna Nome", placeholder: "name", desc: "Nome do afiliado" },
+    { field: "coluna_user_id_afiliado", label: "Coluna User ID (FK)", placeholder: "user_id", desc: "Chave que liga o afiliado ao usuário" },
+    { field: "coluna_cooperation_expired", label: "Coluna Cooperação Expirada", placeholder: "cooperation_expired", desc: "Flag se a cooperação expirou (1=sim)" },
   ],
 };
 
-const TABLE_META: { key: string; icon: any; color: string; tableField: string; defaultTable: string; label: string }[] = [
-  { key: "usuarios", icon: Users, color: "text-primary", tableField: "tabela_usuarios", defaultTable: "users", label: "Usuários" },
-  { key: "depositos", icon: ArrowDownCircle, color: "text-neon-green", tableField: "tabela_depositos", defaultTable: "deposits", label: "Depósitos" },
-  { key: "saques", icon: ArrowUpCircle, color: "text-neon-amber", tableField: "tabela_saques", defaultTable: "withdrawals", label: "Saques" },
-  { key: "saldo", icon: Wallet, color: "text-chart-4", tableField: "tabela_saldo", defaultTable: "wallets", label: "Saldo" },
-  { key: "afiliados", icon: UserCheck, color: "text-chart-5", tableField: "tabela_afiliados", defaultTable: "affiliates", label: "Afiliados" },
+const TABLE_META: { key: string; icon: any; color: string; tableField: string; defaultTable: string; label: string; desc: string }[] = [
+  { key: "usuarios", icon: Users, color: "text-primary", tableField: "tabela_usuarios", defaultTable: "users", label: "Usuários", desc: "Tabela principal de usuários. O painel usa para contar usuários, exibir nomes em depósitos/saques/SAC." },
+  { key: "depositos", icon: ArrowDownCircle, color: "text-neon-green", tableField: "tabela_depositos", defaultTable: "deposits", label: "Depósitos", desc: "Tabela de depósitos. O painel lista, filtra por status, mostra valores e PIX na tela de Depósitos." },
+  { key: "saques", icon: ArrowUpCircle, color: "text-neon-amber", tableField: "tabela_saques", defaultTable: "withdrawals", label: "Saques", desc: "Tabela de saques. Permite listar, aprovar e rejeitar saques pelo painel." },
+  { key: "saldo", icon: Wallet, color: "text-chart-4", tableField: "tabela_saldo", defaultTable: "wallets", label: "Saldo/Carteira", desc: "Tabela de saldos. Soma o saldo total de todos os usuários no Dashboard." },
+  { key: "afiliados", icon: UserCheck, color: "text-chart-5", tableField: "tabela_afiliados", defaultTable: "affiliates", label: "Afiliados", desc: "Tabela de afiliados. Controla cooperação, conta afiliados e permite remoção automática dos expirados." },
 ];
 
-// Track which default columns are hidden per table
-type HiddenColumnsMap = Record<string, string[]>; // tableKey -> [field1, field2]
+type HiddenColumnsMap = Record<string, string[]>;
+// Track which default tables are disabled
+type DisabledTablesSet = string[];
 
 const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const { toast } = useToast();
@@ -91,6 +92,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const [extraTables, setExtraTables] = useState<ExtraTable[]>([]);
   // Hidden default columns per table
   const [hiddenColumns, setHiddenColumns] = useState<HiddenColumnsMap>({});
+  const [disabledTables, setDisabledTables] = useState<DisabledTablesSet>([]);
 
   const [form, setForm] = useState({
     url: "", db_host: "", db_port: 3306, db_user: "", db_pass: "", db_name: "",
@@ -149,6 +151,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       setExtraColumns(extra.colunas_extra ?? {});
       setExtraTables(extra.tabelas_extra ?? []);
       setHiddenColumns(extra.colunas_ocultas ?? {});
+      setDisabledTables(extra.tabelas_desativadas ?? []);
     }
   }, [platform]);
 
@@ -254,6 +257,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     colunas_extra: extraColumns,
     tabelas_extra: extraTables,
     colunas_ocultas: hiddenColumns,
+    tabelas_desativadas: disabledTables,
   });
 
   const generateConfigPhp = () => {
@@ -560,6 +564,10 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
     </Button>
   );
 
+  const toggleTable = (key: string) => {
+    setDisabledTables(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
+
   const renderTableSection = (meta: typeof TABLE_META[0]) => {
     const Icon = meta.icon;
     const tableValue = (form as any)[meta.tableField] ?? meta.defaultTable;
@@ -567,61 +575,81 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
     const hidden = hiddenColumns[meta.key] ?? [];
     const visibleCols = defaultCols.filter(c => !hidden.includes(c.field));
     const extras = extraColumns[meta.key] ?? [];
+    const isDisabled = disabledTables.includes(meta.key);
 
     return (
-      <div key={meta.key} className="rounded-lg border border-border/50 p-3 space-y-2">
+      <div key={meta.key} className={`rounded-lg border p-3 space-y-2 transition-all ${isDisabled ? "border-border/30 opacity-50" : "border-border/50"}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
-            <p className="text-xs font-semibold text-foreground">{meta.label} → {tableValue}</p>
-          </div>
-          <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2 text-primary" onClick={() => addExtraColumn(meta.key)}>
-            <Plus className="w-3 h-3" /> Coluna
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          {/* Table name field */}
-          <MF label="Nome da Tabela" value={tableValue} field={meta.tableField} placeholder={meta.defaultTable} />
-
-          {/* Visible default columns */}
-          {visibleCols.map(col => (
-            <MF key={col.field} label={col.label} value={(form as any)[col.field] ?? col.placeholder} field={col.field} placeholder={col.placeholder}
-              onRemove={() => hideDefaultColumn(meta.key, col.field)} />
-          ))}
-
-          {/* Extra custom columns */}
-          {extras.map((ec, i) => (
-            <div key={`extra-${i}`} className="relative group">
-              <div className="flex items-center gap-1">
-                <Input value={ec.label} onChange={e => updateExtraColumn(meta.key, i, "label", e.target.value)}
-                  className="bg-secondary h-5 text-[9px] font-mono flex-1 border-dashed" placeholder="Nome do campo" />
-              </div>
-              <div className="flex gap-1 mt-0.5">
-                <Input value={ec.column} onChange={e => updateExtraColumn(meta.key, i, "column", e.target.value)}
-                  className="bg-accent/20 h-7 text-[11px] font-mono flex-1 border-dashed border-primary/30" placeholder="nome_coluna" />
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => removeExtraColumn(meta.key, i)}>
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground">{meta.label} → {tableValue}</p>
+              <p className="text-[9px] text-muted-foreground leading-tight mt-0.5">{meta.desc}</p>
             </div>
-          ))}
+          </div>
+          <div className="flex gap-1">
+            {!isDisabled && (
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2 text-primary" onClick={() => addExtraColumn(meta.key)}>
+                <Plus className="w-3 h-3" /> Coluna
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" className={`h-6 text-[10px] px-2 ${isDisabled ? "text-neon-green" : "text-destructive"}`} onClick={() => toggleTable(meta.key)}>
+              {isDisabled ? <><Plus className="w-3 h-3 mr-1" /> Ativar</> : <><Trash2 className="w-3 h-3 mr-1" /> Desativar</>}
+            </Button>
+          </div>
         </div>
 
-        {/* Show hidden columns restore */}
-        {hidden.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            <span className="text-[9px] text-muted-foreground">Ocultas:</span>
-            {hidden.map(field => {
-              const col = defaultCols.find(c => c.field === field);
-              return (
-                <button key={field} onClick={() => showDefaultColumn(meta.key, field)}
-                  className="text-[9px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/40 transition-colors">
-                  + {col?.label ?? field}
-                </button>
-              );
-            })}
-          </div>
+        {!isDisabled && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <MF label="Nome da Tabela" value={tableValue} field={meta.tableField} placeholder={meta.defaultTable} />
+              {visibleCols.map(col => (
+                <div key={col.field} className="relative group">
+                  <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    {col.label}
+                    <span className="text-[8px] text-muted-foreground/60 italic hidden group-hover:inline">— {col.desc}</span>
+                  </Label>
+                  <div className="flex gap-1">
+                    <Input value={(form as any)[col.field] ?? col.placeholder} onChange={e => setForm(p => ({ ...p, [col.field]: e.target.value }))}
+                      className="bg-secondary h-7 text-[11px] font-mono flex-1" placeholder={col.placeholder} />
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive" onClick={() => hideDefaultColumn(meta.key, col.field)}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {extras.map((ec, i) => (
+                <div key={`extra-${i}`} className="relative group">
+                  <div className="flex items-center gap-1">
+                    <Input value={ec.label} onChange={e => updateExtraColumn(meta.key, i, "label", e.target.value)}
+                      className="bg-secondary h-5 text-[9px] font-mono flex-1 border-dashed" placeholder="Nome do campo" />
+                  </div>
+                  <div className="flex gap-1 mt-0.5">
+                    <Input value={ec.column} onChange={e => updateExtraColumn(meta.key, i, "column", e.target.value)}
+                      className="bg-accent/20 h-7 text-[11px] font-mono flex-1 border-dashed border-primary/30" placeholder="nome_coluna" />
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => removeExtraColumn(meta.key, i)}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {hidden.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                <span className="text-[9px] text-muted-foreground">Removidas (clique para restaurar):</span>
+                {hidden.map(field => {
+                  const col = defaultCols.find(c => c.field === field);
+                  return (
+                    <button key={field} onClick={() => showDefaultColumn(meta.key, field)}
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/40 transition-colors">
+                      + {col?.label ?? field}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -713,13 +741,17 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
           {/* Mapping Tab */}
           <TabsContent value="mapping" className="space-y-3 mt-4">
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <TableProperties className="w-4 h-4 text-primary" />
-                <p className="text-xs font-bold text-foreground">Mapeamento Flexível</p>
+                <p className="text-xs font-bold text-foreground">Mapeamento Completo — Tabelas & Colunas</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">
-                Configure cada tabela e coluna. Use <strong className="text-foreground">+ Coluna</strong> para adicionar colunas extras e <strong className="text-foreground">✕</strong> para remover as que não precisa.
-              </p>
+              <div className="text-[10px] text-muted-foreground space-y-1">
+                <p>Cada tabela abaixo representa uma funcionalidade do painel. Configure o nome exato da tabela e colunas do banco da plataforma.</p>
+                <p>• <strong className="text-foreground">Desativar tabela</strong> — se a plataforma não tem essa tabela, clique em "Desativar" e a API ignora.</p>
+                <p>• <strong className="text-foreground">+ Coluna</strong> — adiciona uma coluna extra que a plataforma tem além das padrão.</p>
+                <p>• <strong className="text-foreground">✕ na coluna</strong> — remove a coluna se a plataforma não usa (ex: sem campo de telefone).</p>
+                <p>• <strong className="text-foreground">+ Adicionar Nova Tabela</strong> — para tabelas que não existem no padrão (ex: bônus, eventos, etc).</p>
+              </div>
             </div>
 
             {/* Built-in tables */}
