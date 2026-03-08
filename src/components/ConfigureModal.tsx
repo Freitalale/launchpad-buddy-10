@@ -1170,7 +1170,7 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v5.7 — Mapeamento Autoritativo + Scanner Completo</p>
+              <p className="text-xs text-muted-foreground">API v5.8 — Mapeamento Híbrido (mapping_cache.json + Direct Mapping)</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
@@ -1205,17 +1205,17 @@ async function testAll(){
                 <CopyButton text={apiKey} field="api_key" />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={handleTestApi} disabled={testing || !form.url}
                 className={`gap-2 h-8 text-xs flex-1 ${testResult === "success" ? "border-neon-green/60 text-neon-green" : testResult === "error" ? "border-neon-red/60 text-neon-red" : ""}`}>
                 {testing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <TestTube className="w-3 h-3" />}
                 {testing ? "Testando..." : testResult === "success" ? "API OK!" : "Testar API"}
               </Button>
-              <Button variant="outline" size="sm" onClick={handleTestMappingEndpoint} disabled={!apiKey} className="gap-2 h-8 text-xs">
-                <Zap className="w-3 h-3" /> Endpoint
+              <Button variant="outline" size="sm" onClick={handlePushMapping} disabled={!form.url} className="gap-2 h-8 text-xs border-accent/50 text-accent hover:bg-accent/10">
+                <Zap className="w-3 h-3" /> Sync Mapping
               </Button>
               <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || !form.url} className="gap-2 h-8 text-xs">
-                {syncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Sync
+                {syncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Sync Dados
               </Button>
             </div>
             {testDetails.length > 0 && (
