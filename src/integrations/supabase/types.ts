@@ -198,6 +198,7 @@ export type Database = {
       }
       plataformas: {
         Row: {
+          api_key: string | null
           categoria: Database["public"]["Enums"]["platform_category"]
           coluna_created_at: string | null
           coluna_id_usuario: string | null
@@ -237,6 +238,7 @@ export type Database = {
           webhook_telegram: string | null
         }
         Insert: {
+          api_key?: string | null
           categoria?: Database["public"]["Enums"]["platform_category"]
           coluna_created_at?: string | null
           coluna_id_usuario?: string | null
@@ -276,6 +278,7 @@ export type Database = {
           webhook_telegram?: string | null
         }
         Update: {
+          api_key?: string | null
           categoria?: Database["public"]["Enums"]["platform_category"]
           coluna_created_at?: string | null
           coluna_id_usuario?: string | null
