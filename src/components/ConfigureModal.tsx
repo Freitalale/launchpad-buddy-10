@@ -1326,13 +1326,38 @@ async function testAll(){
                               )}
                             </div>
                             <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2 text-primary" onClick={() => {
-                              // Click to use this table - fill in the closest mapping field
+                              // Click to use this table - fill in the closest mapping field + auto-map columns
                               const targetKey = detectedAs ?? prompt(`Usar "${tableName}" como tabela de:\n\nusuarios, depositos, saques, saldo, afiliados`);
                               if (targetKey) {
                                 const field = TABLE_FIELD_MAP[targetKey];
                                 if (field) {
-                                  setForm(p => ({ ...p, [field]: tableName }));
-                                  toast({ title: `✅ "${tableName}" → ${targetKey}` });
+                                  const newForm = { ...form, [field]: tableName };
+                                  // Auto-map columns from scanned data
+                                  const colMap = SUGGESTION_TO_FORM[targetKey];
+                                  const scannedCols = tableData.columns.map(c => c.name);
+                                  if (colMap) {
+                                    const colKeywords: Record<string, string[]> = {
+                                      id: ["id", "uid", "pk", "ID"],
+                                      nome: ["name", "nome", "username", "display_name", "nickname", "login"],
+                                      email: ["email", "mail", "e_mail"],
+                                      telefone: ["phone", "telefone", "celular", "whatsapp", "tel", "mobile"],
+                                      user_id: ["user_id", "usuario_id", "player_id", "uid", "member_id", "fk_user"],
+                                      valor: ["amount", "value", "valor", "total", "deposit_amount", "withdraw_amount", "price"],
+                                      pix: ["pix", "pix_key", "chave_pix", "document", "cpf", "payment_key", "payment_method"],
+                                      status: ["status", "state", "situacao", "payment_status", "estado"],
+                                      created_at: ["created_at", "date", "data", "timestamp", "dt_created", "created", "data_criacao"],
+                                      saldo: ["balance", "saldo", "amount", "valor", "credit", "credito", "wallet_balance"],
+                                      cooperation_expired: ["cooperation_expired", "expired", "expirado", "is_expired"],
+                                    };
+                                    for (const [colKey, formField] of Object.entries(colMap)) {
+                                      const keywords = colKeywords[colKey] ?? [colKey];
+                                      const found = scannedCols.find(sc => keywords.some(kw => sc.toLowerCase() === kw.toLowerCase()));
+                                      if (found) (newForm as any)[formField] = found;
+                                    }
+                                  }
+                                  setForm(newForm);
+                                  const mappedCount = Object.keys(colMap ?? {}).length;
+                                  toast({ title: `✅ "${tableName}" → ${targetKey}`, description: `Tabela e ${mappedCount} colunas mapeadas automaticamente. Revise no Mapeamento.` });
                                 }
                               }
                             }}>
