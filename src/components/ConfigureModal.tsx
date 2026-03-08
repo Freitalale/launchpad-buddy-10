@@ -741,13 +741,17 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
           {/* Mapping Tab */}
           <TabsContent value="mapping" className="space-y-3 mt-4">
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <TableProperties className="w-4 h-4 text-primary" />
-                <p className="text-xs font-bold text-foreground">Mapeamento Flexível</p>
+                <p className="text-xs font-bold text-foreground">Mapeamento Completo — Tabelas & Colunas</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">
-                Configure cada tabela e coluna. Use <strong className="text-foreground">+ Coluna</strong> para adicionar colunas extras e <strong className="text-foreground">✕</strong> para remover as que não precisa.
-              </p>
+              <div className="text-[10px] text-muted-foreground space-y-1">
+                <p>Cada tabela abaixo representa uma funcionalidade do painel. Configure o nome exato da tabela e colunas do banco da plataforma.</p>
+                <p>• <strong className="text-foreground">Desativar tabela</strong> — se a plataforma não tem essa tabela, clique em "Desativar" e a API ignora.</p>
+                <p>• <strong className="text-foreground">+ Coluna</strong> — adiciona uma coluna extra que a plataforma tem além das padrão.</p>
+                <p>• <strong className="text-foreground">✕ na coluna</strong> — remove a coluna se a plataforma não usa (ex: sem campo de telefone).</p>
+                <p>• <strong className="text-foreground">+ Adicionar Nova Tabela</strong> — para tabelas que não existem no padrão (ex: bônus, eventos, etc).</p>
+              </div>
             </div>
 
             {/* Built-in tables */}
