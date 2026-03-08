@@ -5,7 +5,7 @@ import type { Plataforma } from "@/hooks/usePlatforms";
 import { usePlatformApi, type ApiDeposito, type ApiSaque } from "@/hooks/usePlatformApi";
 import { useQueryClient } from "@tanstack/react-query";
 
-const SYNC_INTERVAL = 5_000; // 5 seconds — real-time sync
+const SYNC_INTERVAL = 30_000; // 30 seconds — balanced sync
 const ALERT_THRESHOLD = 120_000; // 2 min offline → alert
 
 interface PlatformSyncState {
