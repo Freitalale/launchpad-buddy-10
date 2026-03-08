@@ -897,6 +897,63 @@ async function testAll(){
     } catch (e: any) { toast({ title: "❌ Erro", description: e.message, variant: "destructive" }); }
   };
 
+  const handleVerifyApi = async () => {
+    if (!form.url) {
+      toast({ title: "URL necessária", variant: "destructive" });
+      return;
+    }
+    setVerifying(true);
+    setVerifyResult(null);
+    const apiUrl = `${form.url.replace(/\/$/, "")}/api.php`;
+    const endpoints = [
+      { name: "health", action: "health" },
+      { name: "stats", action: "stats" },
+      { name: "depositos", action: "depositos" },
+      { name: "saques", action: "saques" },
+      { name: "diagnostico", action: "diagnostico" },
+    ];
+    let version = "desconhecida";
+    const results: { name: string; status: string; detail: string }[] = [];
+    for (const ep of endpoints) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(`${apiUrl}?action=${ep.action}`, { signal: controller.signal });
+        clearTimeout(timeout);
+        const txt = await res.text();
+        let json: any;
+        try { json = JSON.parse(txt); } catch { results.push({ name: ep.name, status: "error", detail: "Resposta não é JSON" }); continue; }
+        if (json.error) {
+          results.push({ name: ep.name, status: "error", detail: json.error });
+        } else {
+          if (json.version) version = json.version;
+          if (ep.name === "health") {
+            const tables = json.tables ?? {};
+            const allExist = Object.values(tables).every((t: any) => t.exists);
+            results.push({ name: ep.name, status: allExist ? "ok" : "warning", detail: `v${json.version ?? "?"} — ${allExist ? "Todas tabelas OK" : "Algumas tabelas faltam"}` });
+          } else if (ep.name === "stats") {
+            results.push({ name: ep.name, status: "ok", detail: `Usuários: ${json.total_usuarios ?? 0} | Saldo: R$${Number(json.saldo_total ?? 0).toFixed(2)}` });
+          } else if (ep.name === "depositos" || ep.name === "saques") {
+            const count = Array.isArray(json) ? json.length : 0;
+            results.push({ name: ep.name, status: count > 0 ? "ok" : "warning", detail: `${count} registros retornados` });
+          } else if (ep.name === "diagnostico") {
+            const diag = json.diag ?? json.diagnostico ?? {};
+            if (json.version) version = json.version;
+            results.push({ name: ep.name, status: "ok", detail: `Diagnóstico OK — v${json.version ?? version}` });
+          }
+        }
+      } catch (e: any) {
+        results.push({ name: ep.name, status: "error", detail: e.name === "AbortError" ? "Timeout (8s)" : e.message });
+      }
+    }
+    setVerifyResult({ version, endpoints: results });
+    const allOk = results.every(r => r.status === "ok");
+    toast(allOk
+      ? { title: `✅ API v${version} verificada!`, description: "Todos os endpoints funcionando" }
+      : { title: `⚠️ API v${version}`, description: "Alguns endpoints com problemas", variant: "destructive" });
+    setVerifying(false);
+  };
+
   const handleSync = async () => { setSyncing(true); await api.syncPlatformData({ ...platform, url: form.url }); setSyncing(false); };
 
   const handleSave = async () => {
