@@ -199,7 +199,15 @@ export type Database = {
       plataformas: {
         Row: {
           categoria: Database["public"]["Enums"]["platform_category"]
+          coluna_created_at: string | null
+          coluna_id_usuario: string | null
+          coluna_nome_usuario: string | null
+          coluna_pix: string | null
           coluna_saldo: string | null
+          coluna_status: string | null
+          coluna_user_id_fk: string | null
+          coluna_valor_deposito: string | null
+          coluna_valor_saque: string | null
           cooperacao_dias: number | null
           cooperacao_expira: string | null
           cor: string | null
@@ -216,7 +224,9 @@ export type Database = {
           saldo_total: number | null
           status: Database["public"]["Enums"]["platform_status"]
           tabela_afiliados: string | null
+          tabela_depositos: string | null
           tabela_saldo: string | null
+          tabela_saques: string | null
           tabela_usuarios: string | null
           total_afiliados: number | null
           total_usuarios: number | null
@@ -228,7 +238,15 @@ export type Database = {
         }
         Insert: {
           categoria?: Database["public"]["Enums"]["platform_category"]
+          coluna_created_at?: string | null
+          coluna_id_usuario?: string | null
+          coluna_nome_usuario?: string | null
+          coluna_pix?: string | null
           coluna_saldo?: string | null
+          coluna_status?: string | null
+          coluna_user_id_fk?: string | null
+          coluna_valor_deposito?: string | null
+          coluna_valor_saque?: string | null
           cooperacao_dias?: number | null
           cooperacao_expira?: string | null
           cor?: string | null
@@ -245,7 +263,9 @@ export type Database = {
           saldo_total?: number | null
           status?: Database["public"]["Enums"]["platform_status"]
           tabela_afiliados?: string | null
+          tabela_depositos?: string | null
           tabela_saldo?: string | null
+          tabela_saques?: string | null
           tabela_usuarios?: string | null
           total_afiliados?: number | null
           total_usuarios?: number | null
@@ -257,7 +277,15 @@ export type Database = {
         }
         Update: {
           categoria?: Database["public"]["Enums"]["platform_category"]
+          coluna_created_at?: string | null
+          coluna_id_usuario?: string | null
+          coluna_nome_usuario?: string | null
+          coluna_pix?: string | null
           coluna_saldo?: string | null
+          coluna_status?: string | null
+          coluna_user_id_fk?: string | null
+          coluna_valor_deposito?: string | null
+          coluna_valor_saque?: string | null
           cooperacao_dias?: number | null
           cooperacao_expira?: string | null
           cor?: string | null
@@ -274,7 +302,9 @@ export type Database = {
           saldo_total?: number | null
           status?: Database["public"]["Enums"]["platform_status"]
           tabela_afiliados?: string | null
+          tabela_depositos?: string | null
           tabela_saldo?: string | null
+          tabela_saques?: string | null
           tabela_usuarios?: string | null
           total_afiliados?: number | null
           total_usuarios?: number | null
