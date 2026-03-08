@@ -1535,15 +1535,14 @@ async function testAll(){
             )}
           </TabsContent>
 
-          {/* Generate Tab */}
           <TabsContent value="generate" className="space-y-4 mt-4">
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.5 — Mapeamento Autoritativo</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.7 — Mapeamento Autoritativo</p>
               </div>
               <p className="text-[10px] text-muted-foreground">O que você configurar no Mapeamento é exatamente o que a API vai usar. Sem surpresas.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.5: Suas tabelas = lei + try/catch global + diagnóstico completo</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.7: Suas tabelas = lei + try/catch global + diagnóstico de saldo + zero fallbacks</p>
             </div>
 
             {/* Verify API Version */}
@@ -1586,9 +1585,10 @@ async function testAll(){
             </div>
 
             <div className="border-t border-border/50 pt-3">
-              <p className="text-xs font-bold text-foreground mb-2">📦 Gerar & Baixar Arquivos Atualizados</p>
+              <p className="text-xs font-bold text-foreground mb-2">📦 Arquivos Disponíveis</p>
             </div>
 
+            {/* Download all button */}
             <Button variant="outline" size="sm" onClick={() => {
               const files = [
                 { name: "config.php", content: generateConfigPhp() },
@@ -1604,30 +1604,42 @@ async function testAll(){
               toast({ title: "📥 Baixando 5 arquivos", description: "config.php + api.php + test_api.html + telegram_webhook.php + webhook_pix.php" });
             }} className="w-full gap-2 h-10 text-sm font-bold border-neon-green/30 text-neon-green hover:bg-neon-green/10"
               style={{ background: "linear-gradient(135deg, hsl(142 76% 36% / 0.1), hsl(142 70% 45% / 0.1))" }}>
-              <Download className="w-4 h-4" /> Gerar & Baixar Todos (5 arquivos)
+              <Download className="w-4 h-4" /> Baixar Todos (5 arquivos)
             </Button>
 
+            {/* Individual files with separate Generate Preview / Download */}
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v5.5 Autoritativo", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "test_api.html", label: "📄 test_api.html — v5.5", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v5.7 Autoritativo", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "test_api.html", label: "📄 test_api.html — v5.7", gen: generateTestHtml, field: "test_html", type: "text/html" },
               { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
               { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
-            ].map(f => (
-              <div key={f.name} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-foreground">{f.label}</p>
-                  <div className="flex gap-1">
-                    <CopyButton text={f.gen()} field={f.field} />
-                    <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2" onClick={() => {
-                      const blob = new Blob([f.gen()], { type: f.type }); const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
-                    }}><Download className="w-3 h-3" /> Baixar</Button>
+            ].map(f => {
+              const [showPreview, setShowPreview] = useState(false);
+              return (
+                <div key={f.name} className="space-y-2 rounded-lg border border-border/50 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-foreground">{f.label}</p>
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 border-primary/30 text-primary hover:bg-primary/10" onClick={() => setShowPreview(!showPreview)}>
+                        <Code className="w-3 h-3" /> {showPreview ? "Esconder" : "Gerar Preview"}
+                      </Button>
+                      <CopyButton text={f.gen()} field={f.field} />
+                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 border-neon-green/30 text-neon-green hover:bg-neon-green/10" onClick={() => {
+                        const blob = new Blob([f.gen()], { type: f.type }); const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
+                        toast({ title: `📥 ${f.name} baixado!` });
+                      }}>
+                        <Download className="w-3 h-3" /> Baixar
+                      </Button>
+                    </div>
                   </div>
+                  {showPreview && (
+                    <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono whitespace-pre max-h-60">{f.gen()}</pre>
+                  )}
                 </div>
-                <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono whitespace-pre max-h-40">{f.gen()}</pre>
-              </div>
-            ))}
+              );
+            })}
           </TabsContent>
 
           {/* Webhooks Tab */}
