@@ -865,7 +865,7 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v4.0 — Auto-Detect + Mapeamento Inteligente</p>
+              <p className="text-xs text-muted-foreground">API v5.0 — Standalone + Auto-Detect + Diagnóstico</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
@@ -1149,11 +1149,12 @@ async function testAll(){
           {/* Generate Tab */}
           <TabsContent value="generate" className="space-y-4 mt-4">
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
-              <div className="flex items-center gap-2 mb-1">
+             <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v4.0</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.0 — Standalone</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">Inclui scan_db, auto-detect, tabelas extras. Copie e suba na hospedagem.</p>
+              <p className="text-[10px] text-muted-foreground">Mapeamento já hardcoded no código. Não depende do painel estar online. Copie e suba na hospedagem.</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ Novo: endpoint <code>diagnostico</code> mostra se tabelas/colunas existem no banco.</p>
             </div>
 
             <Button variant="outline" size="sm" onClick={() => {
