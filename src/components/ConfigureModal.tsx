@@ -365,7 +365,7 @@ $port = ${form.db_port || 3306};
     const L = (s: string) => lines.push(s);
 
     L('<?php');
-    L('// api.php — API Standalone v5.3 (Bulletproof Ultra)');
+    L('// api.php — API Standalone v5.4 (Auto-Fallback)');
     L('// Plataforma: ' + platform.nome);
     L('// Gerado em: ' + new Date().toISOString());
     L('// 100% à prova de erros — NUNCA retorna HTML, sempre JSON');
@@ -481,7 +481,7 @@ $port = ${form.db_port || 3306};
     L('        if ($exists) { $r = @$conn->query("SELECT COUNT(*) as t FROM `$t`"); if ($r) $cnt = (int)$r->fetch_assoc()["t"]; }');
     L('        $diag[$key] = ["table"=>$t,"exists"=>$exists,"columns"=>$cols,"count"=>$cnt];');
     L('    }');
-    L('    echo json_encode(["ok"=>true,"version"=>"5.3.0","diag"=>$diag]); exit;');
+    L('    echo json_encode(["ok"=>true,"version"=>"5.4.0","diag"=>$diag]); exit;');
     L('}');
     L('');
     L('// ═══ HEALTH ═══');
@@ -490,7 +490,7 @@ $port = ${form.db_port || 3306};
     L('    foreach (["usuarios"=>$tb_usuarios,"depositos"=>$tb_depositos,"saques"=>$tb_saques,"saldo"=>$tb_saldo,"afiliados"=>$tb_afiliados] as $key=>$t) {');
     L('        $checks[$key] = ["table"=>$t,"exists"=>table_exists($conn, $t)];');
     L('    }');
-    L('    echo json_encode(["ok"=>true,"version"=>"5.3.0","db"=>true,"time"=>date("c"),"tables"=>$checks,"features"=>["scan_db","diagnostico","standalone","column_validation"]]); exit;');
+    L('    echo json_encode(["ok"=>true,"version"=>"5.4.0","db"=>true,"time"=>date("c"),"tables"=>$checks,"features"=>["scan_db","diagnostico","standalone","column_validation","auto_fallback"]]); exit;');
     L('}');
     L('');
     L('// ═══ STATS ═══');
@@ -622,11 +622,11 @@ $port = ${form.db_port || 3306};
     L('    echo json_encode(["ok"=>true,"diagnostico"=>$diag]); exit;');
     L('}');
     L('');
-    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.3.0"]);');
+    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.4.0"]);');
     L('');
     L('} catch (Throwable $e) {');
     L('    http_response_code(200);');
-    L('    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"5.3.0"]);');
+    L('    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"5.4.0"]);');
     L('}');
     L('?>');
     return lines.join("\n");
@@ -1511,10 +1511,10 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.3 — Standalone Bulletproof Ultra</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.4 — Auto-Fallback</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">Mapeamento hardcoded. Inclui api.php, config.php, test_api.html, telegram_webhook.php e webhook_pix.php.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.3: Try/catch global + validação de colunas + auto-detect + diagnóstico completo</p>
+              <p className="text-[10px] text-muted-foreground">Mapeamento inteligente com detecção automática de tabelas alternativas.</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.4: Auto-fallback de tabelas (withdrawals→withdraws, wallets→balances) + try/catch + diagnóstico</p>
             </div>
 
             {/* Verify API Version */}
@@ -1580,8 +1580,8 @@ async function testAll(){
 
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v5.2 Bulletproof", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "test_api.html", label: "📄 test_api.html — v5.2", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v5.4 Auto-Fallback", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "test_api.html", label: "📄 test_api.html — v5.4", gen: generateTestHtml, field: "test_html", type: "text/html" },
               { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
               { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => (
