@@ -93,7 +93,11 @@ const RETRY_DELAY = 1_000;
 
 function getApiUrl(platform: Plataforma): string | null {
   if (!platform.url) return null;
-  const base = platform.url.replace(/\/$/, "");
+  let base = platform.url.replace(/\/$/, "");
+  // Always ensure protocol
+  if (!base.startsWith("http://") && !base.startsWith("https://")) {
+    base = `https://${base}`;
+  }
   if (base.endsWith("api.php")) return base;
   return `${base}/api.php`;
 }

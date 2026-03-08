@@ -96,7 +96,11 @@ serve(async (req) => {
       });
     }
 
-    const baseUrl = api_url.replace(/\/$/, "").replace(/\/api\.php$/, "") + "/api.php";
+    let rawUrl = api_url.replace(/\/$/, "").replace(/\/api\.php$/, "");
+    if (!rawUrl.startsWith("http://") && !rawUrl.startsWith("https://")) {
+      rawUrl = `https://${rawUrl}`;
+    }
+    const baseUrl = rawUrl + "/api.php";
 
     // Call ?action=scan_db on the remote api.php
     const controller = new AbortController();
