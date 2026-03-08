@@ -332,274 +332,203 @@ $port = ${form.db_port || 3306};
   };
 
   const generateApiPhp = () => {
-    // Build hardcoded values directly from form
-    const tbUsuarios = form.tabela_usuarios || "users";
-    const tbDepositos = form.tabela_depositos || "deposits";
-    const tbSaques = form.tabela_saques || "withdrawals";
-    const tbSaldo = form.tabela_saldo || "wallets";
-    const tbAfiliados = form.tabela_afiliados || "affiliates";
+    const tb = {
+      u: form.tabela_usuarios || "users",
+      d: form.tabela_depositos || "deposits",
+      s: form.tabela_saques || "withdrawals",
+      w: form.tabela_saldo || "wallets",
+      a: form.tabela_afiliados || "affiliates",
+    };
+    const col = {
+      uid: form.coluna_id_usuario || "id",
+      uname: form.coluna_nome_usuario || "name",
+      did: form.coluna_id_deposito || "id",
+      duid: form.coluna_user_id_deposito || "user_id",
+      dval: form.coluna_valor_deposito || "amount",
+      dpix: form.coluna_pix_deposito || "pix",
+      dst: form.coluna_status_deposito || "status",
+      ddate: form.coluna_created_at_deposito || "created_at",
+      sid: form.coluna_id_saque || "id",
+      suid: form.coluna_user_id_saque || "user_id",
+      sval: form.coluna_valor_saque || "amount",
+      spix: form.coluna_pix_saque || "pix",
+      sst: form.coluna_status_saque || "status",
+      sdate: form.coluna_created_at_saque || "created_at",
+      wuid: form.coluna_user_id_saldo || "user_id",
+      wbal: form.coluna_saldo || "balance",
+      aexp: form.coluna_cooperation_expired || "cooperation_expired",
+    };
 
-    return `<?php
-// api.php — API Standalone v5.0
-// Plataforma: ${platform.nome}
-// Gerado em: ${new Date().toISOString()}
-// IMPORTANTE: Este arquivo funciona SOZINHO. Não depende do painel online.
-// Basta subir config.php + api.php na hospedagem.
+    // Use regular string concatenation to avoid backtick escaping issues in template literals
+    const lines: string[] = [];
+    const L = (s: string) => lines.push(s);
 
-header("Content-Type: application/json; charset=utf-8");
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-if (\$_SERVER["REQUEST_METHOD"] === "OPTIONS") { http_response_code(200); exit; }
+    L('<?php');
+    L('// api.php — API Standalone v5.1');
+    L('// Plataforma: ' + platform.nome);
+    L('// Gerado em: ' + new Date().toISOString());
+    L('// IMPORTANTE: Este arquivo funciona SOZINHO.');
+    L('');
+    L('header("Content-Type: application/json; charset=utf-8");');
+    L('header("Access-Control-Allow-Origin: *");');
+    L('header("Access-Control-Allow-Methods: GET, POST, OPTIONS");');
+    L('header("Access-Control-Allow-Headers: Content-Type, Authorization");');
+    L('if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") { http_response_code(200); exit; }');
+    L('');
+    L("include 'config.php';");
+    L('$conn = new mysqli($host, $user, $pass, $db, $port);');
+    L('if ($conn->connect_error) {');
+    L('    http_response_code(500);');
+    L('    echo json_encode(["error" => "DB connection failed: " . $conn->connect_error]);');
+    L('    exit;');
+    L('}');
+    L('$conn->set_charset("utf8mb4");');
+    L('');
+    L('// ═══ MAPEAMENTO HARDCODED ═══');
+    L('$tb_usuarios  = "' + tb.u + '";');
+    L('$tb_depositos = "' + tb.d + '";');
+    L('$tb_saques    = "' + tb.s + '";');
+    L('$tb_saldo     = "' + tb.w + '";');
+    L('$tb_afiliados = "' + tb.a + '";');
+    L('');
+    L('$col_user_id   = "' + col.uid + '";');
+    L('$col_user_name = "' + col.uname + '";');
+    L('$col_dep_id     = "' + col.did + '";');
+    L('$col_dep_uid    = "' + col.duid + '";');
+    L('$col_dep_valor  = "' + col.dval + '";');
+    L('$col_dep_pix    = "' + col.dpix + '";');
+    L('$col_dep_status = "' + col.dst + '";');
+    L('$col_dep_date   = "' + col.ddate + '";');
+    L('$col_saq_id     = "' + col.sid + '";');
+    L('$col_saq_uid    = "' + col.suid + '";');
+    L('$col_saq_valor  = "' + col.sval + '";');
+    L('$col_saq_pix    = "' + col.spix + '";');
+    L('$col_saq_status = "' + col.sst + '";');
+    L('$col_saq_date   = "' + col.sdate + '";');
+    L('$col_wal_uid   = "' + col.wuid + '";');
+    L('$col_wal_saldo = "' + col.wbal + '";');
+    L('$col_aff_expired = "' + col.aexp + '";');
+    L('');
+    L('$action = $_GET["action"] ?? "";');
+    L('');
+    L('// ═══ SCAN_DB ═══');
+    L('if ($action === "scan_db") {');
+    L('    $tables_result = $conn->query("SHOW TABLES");');
+    L('    if (!$tables_result) { echo json_encode(["error" => $conn->error]); exit; }');
+    L('    $tables = [];');
+    L('    while ($row = $tables_result->fetch_array()) {');
+    L('        $tn = $row[0];');
+    L('        $cr = $conn->query("SHOW COLUMNS FROM `$tn`");');
+    L('        $columns = [];');
+    L('        if ($cr) { while ($c = $cr->fetch_assoc()) { $columns[] = ["name"=>$c["Field"],"type"=>$c["Type"],"key"=>$c["Key"]??"","nullable"=>$c["Null"]==="YES"]; } }');
+    L('        $tables[$tn] = ["columns" => $columns];');
+    L('    }');
+    L('    echo json_encode(["ok"=>true,"database"=>$db,"tables"=>$tables,"total"=>count($tables)]); exit;');
+    L('}');
+    L('');
+    L('// ═══ HEALTH ═══');
+    L('if ($action === "health") {');
+    L('    $checks = [];');
+    L('    foreach (["usuarios"=>$tb_usuarios,"depositos"=>$tb_depositos,"saques"=>$tb_saques,"saldo"=>$tb_saldo,"afiliados"=>$tb_afiliados] as $key=>$t) {');
+    L('        $r = $conn->query("SHOW TABLES LIKE \'$t\'");');
+    L('        $checks[$key] = ["table"=>$t,"exists"=>$r && $r->num_rows > 0];');
+    L('    }');
+    L('    echo json_encode(["ok"=>true,"version"=>"5.1.0","db"=>true,"time"=>date("c"),"tables"=>$checks,"features"=>["scan_db","standalone","hardcoded_mapping"]]); exit;');
+    L('}');
+    L('');
+    L('// ═══ STATS ═══');
+    L('if ($action === "stats") {');
+    L('    $result = ["total_usuarios"=>0,"total_afiliados"=>0,"saldo_total"=>0.0];');
+    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_usuarios`");');
+    L('    if ($r) $result["total_usuarios"] = (int)$r->fetch_assoc()["total"];');
+    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_afiliados`");');
+    L('    if ($r) $result["total_afiliados"] = (int)$r->fetch_assoc()["total"];');
+    L('    $r = @$conn->query("SELECT COALESCE(SUM(`$col_wal_saldo`),0) as total FROM `$tb_saldo`");');
+    L('    if ($r) $result["saldo_total"] = (float)$r->fetch_assoc()["total"];');
+    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_depositos`");');
+    L('    if ($r) $result["total_depositos"] = (int)$r->fetch_assoc()["total"];');
+    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_saques`");');
+    L('    if ($r) $result["total_saques"] = (int)$r->fetch_assoc()["total"];');
+    L('    echo json_encode($result); exit;');
+    L('}');
+    L('');
+    L('// ═══ DEPOSITOS ═══');
+    L('if ($action === "depositos") {');
+    L('    $sql = "SELECT u.`$col_user_name` as nome_usuario, d.`$col_dep_valor` as valor, d.`$col_dep_pix` as pix, d.`$col_dep_date` as created_at, d.`$col_dep_status` as status FROM `$tb_depositos` d LEFT JOIN `$tb_usuarios` u ON d.`$col_dep_uid` = u.`$col_user_id` ORDER BY d.`$col_dep_date` DESC LIMIT 500";');
+    L('    $result = @$conn->query($sql);');
+    L('    if (!$result) {');
+    L('        $e1 = $conn->error;');
+    L('        $sql2 = "SELECT `$col_dep_uid` as nome_usuario, `$col_dep_valor` as valor, `$col_dep_pix` as pix, `$col_dep_date` as created_at, `$col_dep_status` as status FROM `$tb_depositos` ORDER BY `$col_dep_date` DESC LIMIT 500";');
+    L('        $result = @$conn->query($sql2);');
+    L('        if (!$result) {');
+    L('            $e2 = $conn->error;');
+    L('            $result = @$conn->query("SELECT * FROM `$tb_depositos` LIMIT 500");');
+    L('            if (!$result) { echo json_encode(["error"=>"Queries falharam","t1"=>$e1,"t2"=>$e2,"t3"=>$conn->error]); exit; }');
+    L('        }');
+    L('    }');
+    L('    $rows = []; while ($row = $result->fetch_assoc()) $rows[] = $row;');
+    L('    echo json_encode($rows); exit;');
+    L('}');
+    L('');
+    L('// ═══ SAQUES ═══');
+    L('if ($action === "saques") {');
+    L('    $sql = "SELECT w.`$col_saq_id` as id, u.`$col_user_name` as nome_usuario, w.`$col_saq_valor` as valor, w.`$col_saq_pix` as pix, w.`$col_saq_date` as created_at, w.`$col_saq_status` as status FROM `$tb_saques` w LEFT JOIN `$tb_usuarios` u ON w.`$col_saq_uid` = u.`$col_user_id` ORDER BY w.`$col_saq_date` DESC LIMIT 500";');
+    L('    $result = @$conn->query($sql);');
+    L('    if (!$result) {');
+    L('        $e1 = $conn->error;');
+    L('        $sql2 = "SELECT `$col_saq_id` as id, `$col_saq_uid` as nome_usuario, `$col_saq_valor` as valor, `$col_saq_pix` as pix, `$col_saq_date` as created_at, `$col_saq_status` as status FROM `$tb_saques` ORDER BY `$col_saq_date` DESC LIMIT 500";');
+    L('        $result = @$conn->query($sql2);');
+    L('        if (!$result) {');
+    L('            $e2 = $conn->error;');
+    L('            $result = @$conn->query("SELECT * FROM `$tb_saques` LIMIT 500");');
+    L('            if (!$result) { echo json_encode(["error"=>"Queries falharam","t1"=>$e1,"t2"=>$e2,"t3"=>$conn->error]); exit; }');
+    L('        }');
+    L('    }');
+    L('    $rows = []; while ($row = $result->fetch_assoc()) $rows[] = $row;');
+    L('    echo json_encode($rows); exit;');
+    L('}');
+    L('');
+    L('// ═══ APROVAR/REJEITAR SAQUE ═══');
+    L('if ($action === "aprovar_saque") {');
+    L('    $id = intval($_POST["id"] ?? $_GET["id"] ?? 0);');
+    L('    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }');
+    L('    $conn->query("UPDATE `$tb_saques` SET `$col_saq_status`=\'aprovado\' WHERE `$col_saq_id`=$id");');
+    L('    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows]); exit;');
+    L('}');
+    L('if ($action === "rejeitar_saque") {');
+    L('    $id = intval($_POST["id"] ?? $_GET["id"] ?? 0);');
+    L('    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }');
+    L('    $conn->query("UPDATE `$tb_saques` SET `$col_saq_status`=\'rejeitado\' WHERE `$col_saq_id`=$id");');
+    L('    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows]); exit;');
+    L('}');
+    L('');
+    L('// ═══ REMOVER AFILIADOS ═══');
+    L('if ($action === "remover_afiliados") {');
+    L('    $conn->query("DELETE FROM `$tb_afiliados` WHERE `$col_aff_expired` = 1");');
+    L('    echo json_encode(["ok"=>true,"removed"=>$conn->affected_rows]); exit;');
+    L('}');
+    L('');
+    L('// ═══ DIAGNOSTICO ═══');
+    L('if ($action === "diagnostico") {');
+    L('    $diag = ["mapping"=>[],"tests"=>[]];');
+    L('    foreach (["usuarios"=>$tb_usuarios,"depositos"=>$tb_depositos,"saques"=>$tb_saques,"saldo"=>$tb_saldo,"afiliados"=>$tb_afiliados] as $key=>$t) {');
+    L('        $r = @$conn->query("SHOW TABLES LIKE \'$t\'");');
+    L('        $exists = $r && $r->num_rows > 0;');
+    L('        $cols = [];');
+    L('        if ($exists) { $cr = @$conn->query("SHOW COLUMNS FROM `$t`"); if ($cr) while ($c = $cr->fetch_assoc()) $cols[] = $c["Field"]; }');
+    L('        $diag["mapping"][$key] = ["table"=>$t,"exists"=>$exists,"columns"=>$cols];');
+    L('    }');
+    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_depositos`");');
+    L('    $diag["tests"]["depositos_count"] = $r ? (int)$r->fetch_assoc()["total"] : "ERRO: ".$conn->error;');
+    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_saques`");');
+    L('    $diag["tests"]["saques_count"] = $r ? (int)$r->fetch_assoc()["total"] : "ERRO: ".$conn->error;');
+    L('    echo json_encode(["ok"=>true,"diagnostico"=>$diag]); exit;');
+    L('}');
+    L('');
+    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.1.0"]);');
+    L('?>');
 
-include 'config.php';
-\$conn = new mysqli(\$host, \$user, \$pass, \$db, \$port);
-if (\$conn->connect_error) {
-    http_response_code(500);
-    echo json_encode(["error" => "Falha na conexão com o banco: " . \$conn->connect_error, "fix" => "Verifique host, usuário, senha e nome do banco no config.php"]);
-    exit;
-}
-\$conn->set_charset("utf8mb4");
-
-// ═══════════════════════════════════════════
-// MAPEAMENTO HARDCODED (gerado pelo painel)
-// ═══════════════════════════════════════════
-\$tb_usuarios  = "${tbUsuarios}";
-\$tb_depositos = "${tbDepositos}";
-\$tb_saques    = "${tbSaques}";
-\$tb_saldo     = "${tbSaldo}";
-\$tb_afiliados = "${tbAfiliados}";
-
-// Colunas de Usuários
-\$col_user_id   = "${form.coluna_id_usuario || "id"}";
-\$col_user_name = "${form.coluna_nome_usuario || "name"}";
-
-// Colunas de Depósitos
-\$col_dep_id     = "${form.coluna_id_deposito || "id"}";
-\$col_dep_uid    = "${form.coluna_user_id_deposito || "user_id"}";
-\$col_dep_valor  = "${form.coluna_valor_deposito || "amount"}";
-\$col_dep_pix    = "${form.coluna_pix_deposito || "pix"}";
-\$col_dep_status = "${form.coluna_status_deposito || "status"}";
-\$col_dep_date   = "${form.coluna_created_at_deposito || "created_at"}";
-
-// Colunas de Saques
-\$col_saq_id     = "${form.coluna_id_saque || "id"}";
-\$col_saq_uid    = "${form.coluna_user_id_saque || "user_id"}";
-\$col_saq_valor  = "${form.coluna_valor_saque || "amount"}";
-\$col_saq_pix    = "${form.coluna_pix_saque || "pix"}";
-\$col_saq_status = "${form.coluna_status_saque || "status"}";
-\$col_saq_date   = "${form.coluna_created_at_saque || "created_at"}";
-
-// Colunas de Saldo
-\$col_wal_uid   = "${form.coluna_user_id_saldo || "user_id"}";
-\$col_wal_saldo = "${form.coluna_saldo || "balance"}";
-
-// Colunas de Afiliados
-\$col_aff_expired = "${form.coluna_cooperation_expired || "cooperation_expired"}";
-
-\$action = \$_GET["action"] ?? "";
-
-// ═══════════════════════════════════════════
-// SCAN_DB — Escaneamento do banco (funciona sempre)
-// ═══════════════════════════════════════════
-if (\$action === "scan_db") {
-    \$tables_result = \$conn->query("SHOW TABLES");
-    if (!\$tables_result) { echo json_encode(["error" => "Não foi possível listar tabelas: " . \$conn->error]); exit; }
-    \$tables = [];
-    while (\$row = \$tables_result->fetch_array()) {
-        \$table_name = \$row[0];
-        \$cols_result = \$conn->query("SHOW COLUMNS FROM \\\`\$table_name\\\`");
-        \$columns = [];
-        if (\$cols_result) {
-            while (\$col = \$cols_result->fetch_assoc()) {
-                \$columns[] = ["name" => \$col["Field"], "type" => \$col["Type"], "key" => \$col["Key"] ?? "", "nullable" => \$col["Null"] === "YES"];
-            }
-        }
-        \$tables[\$table_name] = ["columns" => \$columns];
-    }
-    echo json_encode(["ok" => true, "database" => \$db, "tables" => \$tables, "total" => count(\$tables)]); exit;
-}
-
-// ═══════════════════════════════════════════
-// HEALTH — Status da API
-// ═══════════════════════════════════════════
-if (\$action === "health") {
-    \$checks = [];
-    // Verifica se tabelas existem
-    foreach (["usuarios" => \$tb_usuarios, "depositos" => \$tb_depositos, "saques" => \$tb_saques, "saldo" => \$tb_saldo, "afiliados" => \$tb_afiliados] as \$key => \$tb) {
-        \$r = \$conn->query("SHOW TABLES LIKE '\$tb'");
-        \$checks[\$key] = ["table" => \$tb, "exists" => \$r && \$r->num_rows > 0];
-    }
-    echo json_encode([
-        "ok" => true, "version" => "5.0.0", "db" => true, "time" => date("c"),
-        "tables" => \$checks,
-        "features" => ["scan_db","standalone","hardcoded_mapping"]
-    ]); exit;
-}
-
-// ═══════════════════════════════════════════
-// STATS — Estatísticas gerais
-// ═══════════════════════════════════════════
-if (\$action === "stats") {
-    \$result = ["total_usuarios" => 0, "total_afiliados" => 0, "saldo_total" => 0.0];
-    \$warnings = [];
-    
-    \$r = @\$conn->query("SELECT COUNT(*) as total FROM \\\`\$tb_usuarios\\\`");
-    if (\$r) \$result["total_usuarios"] = (int)\$r->fetch_assoc()["total"];
-    else \$warnings[] = "Tabela '\$tb_usuarios' não encontrada: " . \$conn->error;
-    
-    \$r = @\$conn->query("SELECT COUNT(*) as total FROM \\\`\$tb_afiliados\\\`");
-    if (\$r) \$result["total_afiliados"] = (int)\$r->fetch_assoc()["total"];
-    else \$warnings[] = "Tabela '\$tb_afiliados' não encontrada: " . \$conn->error;
-    
-    \$r = @\$conn->query("SELECT COALESCE(SUM(\\\`\$col_wal_saldo\\\`),0) as total FROM \\\`\$tb_saldo\\\`");
-    if (\$r) \$result["saldo_total"] = (float)\$r->fetch_assoc()["total"];
-    else \$warnings[] = "Tabela '\$tb_saldo' ou coluna '\$col_wal_saldo' não encontrada: " . \$conn->error;
-    
-    // Contadores extras
-    \$r = @\$conn->query("SELECT COUNT(*) as total FROM \\\`\$tb_depositos\\\`");
-    if (\$r) \$result["total_depositos"] = (int)\$r->fetch_assoc()["total"];
-    
-    \$r = @\$conn->query("SELECT COUNT(*) as total FROM \\\`\$tb_saques\\\`");
-    if (\$r) \$result["total_saques"] = (int)\$r->fetch_assoc()["total"];
-    
-    if (\$warnings) \$result["warnings"] = \$warnings;
-    echo json_encode(\$result); exit;
-}
-
-// ═══════════════════════════════════════════
-// DEPÓSITOS — Lista depósitos
-// ═══════════════════════════════════════════
-if (\$action === "depositos") {
-    // Tenta JOIN com usuários, se falhar faz sem JOIN
-    \$sql = "SELECT u.\\\`\$col_user_name\\\` as nome_usuario, d.\\\`\$col_dep_valor\\\` as valor, d.\\\`\$col_dep_pix\\\` as pix, d.\\\`\$col_dep_date\\\` as created_at, d.\\\`\$col_dep_status\\\` as status FROM \\\`\$tb_depositos\\\` d LEFT JOIN \\\`\$tb_usuarios\\\` u ON d.\\\`\$col_dep_uid\\\` = u.\\\`\$col_user_id\\\` ORDER BY d.\\\`\$col_dep_date\\\` DESC LIMIT 500";
-    \$result = @\$conn->query(\$sql);
-    
-    // Se falhar com JOIN, tenta sem
-    if (!\$result) {
-        \$error1 = \$conn->error;
-        \$sql2 = "SELECT \\\`\$col_dep_uid\\\` as nome_usuario, \\\`\$col_dep_valor\\\` as valor, \\\`\$col_dep_pix\\\` as pix, \\\`\$col_dep_date\\\` as created_at, \\\`\$col_dep_status\\\` as status FROM \\\`\$tb_depositos\\\` ORDER BY \\\`\$col_dep_date\\\` DESC LIMIT 500";
-        \$result = @\$conn->query(\$sql2);
-        
-        if (!\$result) {
-            // Tenta SELECT * como último recurso
-            \$error2 = \$conn->error;
-            \$sql3 = "SELECT * FROM \\\`\$tb_depositos\\\` LIMIT 500";
-            \$result = @\$conn->query(\$sql3);
-            
-            if (!\$result) {
-                echo json_encode([
-                    "error" => "Nenhuma query funcionou para depósitos",
-                    "tentativa_1" => ["query" => \$sql, "erro" => \$error1],
-                    "tentativa_2" => ["query" => \$sql2, "erro" => \$error2],
-                    "tentativa_3" => ["query" => \$sql3, "erro" => \$conn->error],
-                    "fix" => "Verifique: 1) Tabela '\$tb_depositos' existe? 2) Colunas '\$col_dep_valor', '\$col_dep_status' existem? Use action=scan_db para ver tabelas reais."
-                ]); exit;
-            }
-        }
-    }
-    
-    \$rows = []; while (\$row = \$result->fetch_assoc()) \$rows[] = \$row;
-    echo json_encode(\$rows); exit;
-}
-
-// ═══════════════════════════════════════════
-// SAQUES — Lista saques
-// ═══════════════════════════════════════════
-if (\$action === "saques") {
-    \$sql = "SELECT w.\\\`\$col_saq_id\\\` as id, u.\\\`\$col_user_name\\\` as nome_usuario, w.\\\`\$col_saq_valor\\\` as valor, w.\\\`\$col_saq_pix\\\` as pix, w.\\\`\$col_saq_date\\\` as created_at, w.\\\`\$col_saq_status\\\` as status FROM \\\`\$tb_saques\\\` w LEFT JOIN \\\`\$tb_usuarios\\\` u ON w.\\\`\$col_saq_uid\\\` = u.\\\`\$col_user_id\\\` ORDER BY w.\\\`\$col_saq_date\\\` DESC LIMIT 500";
-    \$result = @\$conn->query(\$sql);
-    
-    if (!\$result) {
-        \$error1 = \$conn->error;
-        \$sql2 = "SELECT \\\`\$col_saq_id\\\` as id, \\\`\$col_saq_uid\\\` as nome_usuario, \\\`\$col_saq_valor\\\` as valor, \\\`\$col_saq_pix\\\` as pix, \\\`\$col_saq_date\\\` as created_at, \\\`\$col_saq_status\\\` as status FROM \\\`\$tb_saques\\\` ORDER BY \\\`\$col_saq_date\\\` DESC LIMIT 500";
-        \$result = @\$conn->query(\$sql2);
-        
-        if (!\$result) {
-            \$error2 = \$conn->error;
-            \$sql3 = "SELECT * FROM \\\`\$tb_saques\\\` LIMIT 500";
-            \$result = @\$conn->query(\$sql3);
-            
-            if (!\$result) {
-                echo json_encode([
-                    "error" => "Nenhuma query funcionou para saques",
-                    "tentativa_1" => ["query" => \$sql, "erro" => \$error1],
-                    "tentativa_2" => ["query" => \$sql2, "erro" => \$error2],
-                    "tentativa_3" => ["query" => \$sql3, "erro" => \$conn->error],
-                    "fix" => "Verifique: 1) Tabela '\$tb_saques' existe? 2) Colunas corretas? Use action=scan_db para ver tabelas reais."
-                ]); exit;
-            }
-        }
-    }
-    
-    \$rows = []; while (\$row = \$result->fetch_assoc()) \$rows[] = \$row;
-    echo json_encode(\$rows); exit;
-}
-
-// ═══════════════════════════════════════════
-// APROVAR / REJEITAR SAQUE
-// ═══════════════════════════════════════════
-if (\$action === "aprovar_saque") {
-    \$id = intval(\$_POST["id"] ?? \$_GET["id"] ?? 0);
-    if (\$id <= 0) { echo json_encode(["ok" => false, "error" => "ID inválido"]); exit; }
-    \$conn->query("UPDATE \\\`\$tb_saques\\\` SET \\\`\$col_saq_status\\\`='aprovado' WHERE \\\`\$col_saq_id\\\`=\$id");
-    echo json_encode(["ok" => true, "affected" => \$conn->affected_rows]); exit;
-}
-
-if (\$action === "rejeitar_saque") {
-    \$id = intval(\$_POST["id"] ?? \$_GET["id"] ?? 0);
-    if (\$id <= 0) { echo json_encode(["ok" => false, "error" => "ID inválido"]); exit; }
-    \$conn->query("UPDATE \\\`\$tb_saques\\\` SET \\\`\$col_saq_status\\\`='rejeitado' WHERE \\\`\$col_saq_id\\\`=\$id");
-    echo json_encode(["ok" => true, "affected" => \$conn->affected_rows]); exit;
-}
-
-// ═══════════════════════════════════════════
-// REMOVER AFILIADOS EXPIRADOS
-// ═══════════════════════════════════════════
-if (\$action === "remover_afiliados") {
-    \$conn->query("DELETE FROM \\\`\$tb_afiliados\\\` WHERE \\\`\$col_aff_expired\\\` = 1");
-    echo json_encode(["ok" => true, "removed" => \$conn->affected_rows]); exit;
-}
-
-// ═══════════════════════════════════════════
-// DIAGNÓSTICO — Mostra mapeamento + testa queries
-// ═══════════════════════════════════════════
-if (\$action === "diagnostico") {
-    \$diag = ["mapping" => [], "tests" => []];
-    
-    \$tables_map = [
-        "usuarios" => \$tb_usuarios, "depositos" => \$tb_depositos, "saques" => \$tb_saques,
-        "saldo" => \$tb_saldo, "afiliados" => \$tb_afiliados
-    ];
-    
-    foreach (\$tables_map as \$key => \$tb) {
-        \$r = @\$conn->query("SHOW TABLES LIKE '\$tb'");
-        \$exists = \$r && \$r->num_rows > 0;
-        \$cols = [];
-        if (\$exists) {
-            \$cr = @\$conn->query("SHOW COLUMNS FROM \\\`\$tb\\\`");
-            if (\$cr) while (\$c = \$cr->fetch_assoc()) \$cols[] = \$c["Field"];
-        }
-        \$diag["mapping"][\$key] = ["table" => \$tb, "exists" => \$exists, "columns" => \$cols];
-    }
-    
-    // Test depositos query
-    \$r = @\$conn->query("SELECT COUNT(*) as total FROM \\\`\$tb_depositos\\\`");
-    \$diag["tests"]["depositos_count"] = \$r ? (int)\$r->fetch_assoc()["total"] : "ERRO: " . \$conn->error;
-    
-    // Test saques query
-    \$r = @\$conn->query("SELECT COUNT(*) as total FROM \\\`\$tb_saques\\\`");
-    \$diag["tests"]["saques_count"] = \$r ? (int)\$r->fetch_assoc()["total"] : "ERRO: " . \$conn->error;
-    
-    echo json_encode(["ok" => true, "diagnostico" => \$diag]); exit;
-}
-
-echo json_encode([
-    "error" => "Ação não reconhecida: " . \$action,
-    "available" => ["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],
-    "version" => "5.0.0"
-]);
-?>`;
+    return lines.join("\n");
   };
 
   const generateTestHtml = () => {
