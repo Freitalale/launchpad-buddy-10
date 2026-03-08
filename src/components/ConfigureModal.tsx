@@ -1299,22 +1299,22 @@ async function testAll(){
             </div>
           </TabsContent>
 
-          {/* Scanner Tab - NEW */}
+          {/* Scanner Tab */}
           <TabsContent value="scanner" className="space-y-4 mt-4">
             <div className="rounded-lg bg-gradient-to-r from-primary/10 to-chart-4/10 border border-primary/30 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" />
                 <div>
-                  <p className="text-sm font-bold text-foreground">🔍 Detector Automático de Banco</p>
-                  <p className="text-[10px] text-muted-foreground">Escaneia todas as tabelas e colunas do MySQL e detecta automaticamente o mapeamento ideal.</p>
+                  <p className="text-sm font-bold text-foreground">🔍 Scanner Completo do Banco de Dados</p>
+                  <p className="text-[10px] text-muted-foreground">Mostra TODAS as tabelas, colunas, tipos e quantidade de registros do MySQL remoto.</p>
                 </div>
               </div>
 
               <div className="rounded-lg bg-secondary/50 border border-border/50 p-3 space-y-1">
                 <p className="text-[10px] font-bold text-foreground">📋 Pré-requisitos:</p>
                 <p className="text-[9px] text-muted-foreground">1. Configure a URL na aba API</p>
-                <p className="text-[9px] text-muted-foreground">2. Suba o api.php v4.0 na hospedagem (aba Gerar → Baixar Todos)</p>
-                <p className="text-[9px] text-muted-foreground">3. O api.php v4.0 inclui o endpoint scan_db que lê as tabelas/colunas</p>
+                <p className="text-[9px] text-muted-foreground">2. Suba o api.php v5.4 na hospedagem (aba Gerar → Baixar Todos)</p>
+                <p className="text-[9px] text-muted-foreground">3. O Scanner usa o endpoint <code className="bg-background/50 px-1 rounded">?action=scan_db</code> do api.php</p>
               </div>
 
               <Button onClick={handleScanDatabase} disabled={scanning || !form.url}
@@ -1328,27 +1328,89 @@ async function testAll(){
             {/* Scan Results */}
             {scanResult && scanResult.ok && (
               <div className="space-y-3">
+                {/* Summary */}
                 <div className="rounded-lg border border-neon-green/40 bg-neon-green/5 p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-neon-green">✅ Banco: {scanResult.database} — {scanResult.total_tables} tabelas</p>
+                    <p className="text-xs font-bold text-neon-green">✅ Banco: {scanResult.database} — {scanResult.total_tables} tabelas encontradas</p>
                     <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowScanDetails(!showScanDetails)}>
-                      {showScanDetails ? "Ocultar" : "Ver todas"}
+                      {showScanDetails ? "Ocultar detalhes" : "📋 Ver todas tabelas"}
                     </Button>
                   </div>
 
-                  {showScanDetails && scanResult.all_tables && (
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {scanResult.all_tables.map(t => {
-                        const isDetected = Object.values(scanResult.suggestions ?? {}).some((s: any) => s?.table === t);
-                        return (
-                          <span key={t} className={`text-[9px] px-2 py-0.5 rounded border ${isDetected ? "border-neon-green/40 bg-neon-green/10 text-neon-green" : "border-border/50 bg-secondary text-muted-foreground"}`}>
-                            {t} ({scanResult.tables?.[t]?.columns?.length ?? 0} cols)
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
+                  {/* Quick overview - all tables with row counts */}
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {scanResult.all_tables?.map(t => {
+                      const tData = scanResult.tables?.[t];
+                      const rowCount = tData?.row_count ?? 0;
+                      const isDetected = Object.values(scanResult.suggestions ?? {}).some((s: any) => s?.table === t);
+                      return (
+                        <span key={t} className={`text-[9px] px-2 py-0.5 rounded border cursor-default ${
+                          isDetected ? "border-neon-green/40 bg-neon-green/10 text-neon-green font-bold" : 
+                          rowCount > 0 ? "border-primary/30 bg-primary/5 text-foreground" :
+                          "border-border/30 bg-secondary text-muted-foreground"
+                        }`}>
+                          {t} <span className="opacity-70">({rowCount} rows, {tData?.columns?.length ?? 0} cols)</span>
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
+
+                {/* Detailed table view */}
+                {showScanDetails && scanResult.tables && (
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                    {Object.entries(scanResult.tables).map(([tableName, tableData]) => {
+                      const isDetected = Object.entries(scanResult.suggestions ?? {}).find(([_, s]) => (s as any)?.table === tableName);
+                      const detectedAs = isDetected ? isDetected[0] : null;
+                      const meta = detectedAs ? TABLE_META.find(m => m.key === detectedAs) : null;
+                      return (
+                        <div key={tableName} className={`rounded-lg border p-3 space-y-2 ${
+                          detectedAs ? "border-neon-green/30 bg-neon-green/5" : "border-border/40 bg-secondary/30"
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {meta ? <meta.icon className={`w-3.5 h-3.5 ${meta.color}`} /> : <Database className="w-3.5 h-3.5 text-muted-foreground" />}
+                              <p className="text-xs font-bold text-foreground">{tableName}</p>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-mono">
+                                {tableData.row_count} registros
+                              </span>
+                              {detectedAs && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-neon-green/20 text-neon-green font-bold">
+                                  → {meta?.label ?? detectedAs}
+                                </span>
+                              )}
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2 text-primary" onClick={() => {
+                              // Click to use this table - fill in the closest mapping field
+                              const targetKey = detectedAs ?? prompt(`Usar "${tableName}" como tabela de:\n\nusuarios, depositos, saques, saldo, afiliados`);
+                              if (targetKey) {
+                                const field = TABLE_FIELD_MAP[targetKey];
+                                if (field) {
+                                  setForm(p => ({ ...p, [field]: tableName }));
+                                  toast({ title: `✅ "${tableName}" → ${targetKey}` });
+                                }
+                              }
+                            }}>
+                              Usar esta tabela
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {tableData.columns.map((col, ci) => (
+                              <span key={ci} className={`text-[8px] px-1.5 py-0.5 rounded border font-mono ${
+                                col.key === "PRI" ? "border-primary/40 bg-primary/10 text-primary font-bold" :
+                                col.key === "MUL" || col.key === "UNI" ? "border-chart-4/30 bg-chart-4/5 text-chart-4" :
+                                "border-border/30 bg-background/50 text-muted-foreground"
+                              }`}>
+                                {col.key === "PRI" ? "🔑 " : col.key === "MUL" ? "🔗 " : ""}{col.name}
+                                <span className="opacity-60 ml-0.5">({col.type})</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Suggestions */}
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
@@ -1361,6 +1423,7 @@ async function testAll(){
                     const meta = TABLE_META.find(m => m.key === key);
                     if (!meta) return null;
                     const Icon = meta.icon;
+                    const tData = suggestion ? scanResult.tables?.[suggestion.table] : null;
                     return (
                       <div key={key} className={`rounded-lg border p-2 ${suggestion ? "border-neon-green/30 bg-neon-green/5" : "border-border/30 bg-secondary/30"}`}>
                         <div className="flex items-center gap-2">
@@ -1368,7 +1431,7 @@ async function testAll(){
                           <p className="text-[10px] font-bold text-foreground">{meta.label}</p>
                           {suggestion ? (
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-neon-green/20 text-neon-green font-bold">
-                              {suggestion.table} — {suggestion.confidence}%
+                              {suggestion.table} — {tData?.row_count ?? 0} registros — {suggestion.confidence}%
                             </span>
                           ) : (
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive font-bold">Não detectado</span>
@@ -1378,7 +1441,7 @@ async function testAll(){
                           <div className="flex flex-wrap gap-1 mt-1">
                             {Object.entries(suggestion.columns).map(([colKey, colVal]) => (
                               <span key={colKey} className={`text-[8px] px-1 py-0.5 rounded ${colVal ? "bg-neon-green/10 text-neon-green border border-neon-green/20" : "bg-destructive/10 text-destructive border border-destructive/20"}`}>
-                                {colKey}: {colVal ?? "?"}
+                                {colKey}: {colVal ?? "❌ não encontrado"}
                               </span>
                             ))}
                           </div>
@@ -1391,7 +1454,7 @@ async function testAll(){
                     style={{ background: "linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%))" }}>
                     <CheckCircle className="w-3.5 h-3.5" /> Aplicar Mapeamento Detectado
                   </Button>
-                  <p className="text-[9px] text-muted-foreground text-center">Aplica as sugestões e preenche automaticamente tabelas + colunas. Revise na aba Mapeamento e clique Salvar.</p>
+                  <p className="text-[9px] text-muted-foreground text-center">Aplica as sugestões na aba Mapeamento. Depois revise e clique <strong>Salvar</strong>.</p>
                 </div>
               </div>
             )}
@@ -1402,8 +1465,8 @@ async function testAll(){
                 <p className="text-[10px] text-muted-foreground">{scanResult.error}</p>
                 <div className="text-[9px] text-muted-foreground space-y-1">
                   <p>Possíveis causas:</p>
-                  <p>• O api.php v4.0 não está instalado na hospedagem</p>
-                  <p>• O endpoint scan_db não está disponível (api.php antigo)</p>
+                  <p>• O api.php v5.4 não está instalado na hospedagem</p>
+                  <p>• O endpoint scan_db não está disponível</p>
                   <p>• A URL da plataforma está incorreta</p>
                   <p>• O servidor está offline ou bloqueando CORS</p>
                 </div>
