@@ -918,6 +918,91 @@ async function testAll(){
                 {testDetails.map((d, i) => <p key={i} className="text-[10px] font-mono text-muted-foreground">{d}</p>)}
               </div>
             )}
+
+            {/* Installation Guide - shows when API fails */}
+            {testResult === "error" && (
+              <div className="space-y-3">
+                <div className="rounded-xl border-2 border-destructive/40 bg-destructive/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-destructive" />
+                    <p className="text-sm font-bold text-destructive">⚠️ API não encontrada na hospedagem!</p>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p><strong className="text-foreground">O que está acontecendo:</strong> O painel tenta acessar <code className="bg-background/50 px-1 rounded">{form.url?.replace(/\/$/, "")}/api.php</code> mas o arquivo <strong>não existe</strong> no servidor.</p>
+                    <p><strong className="text-foreground">Solução:</strong> Você precisa criar 2 arquivos PHP na hospedagem. Siga os passos abaixo:</p>
+                  </div>
+                </div>
+
+                {/* Step-by-step */}
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-4">
+                  <p className="text-sm font-bold text-foreground">📋 Passo a Passo — Instalação em 3 minutos</p>
+                  
+                  {/* Step 1 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold" style={{ background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>1</span>
+                      <p className="text-xs font-bold text-foreground">Crie o arquivo <code className="bg-background/50 px-1 rounded text-primary">config.php</code></p>
+                    </div>
+                    <div className="relative">
+                      <pre className="bg-background/80 border border-border/50 rounded-lg p-3 text-[10px] font-mono text-foreground overflow-x-auto max-h-40">{generateConfigPhp()}</pre>
+                      <Button variant="ghost" size="sm" className="absolute top-1 right-1 h-6 text-[10px] gap-1 bg-background/80" 
+                        onClick={() => { navigator.clipboard.writeText(generateConfigPhp()); toast({ title: "✅ config.php copiado!" }); }}>
+                        <Copy className="w-3 h-3" /> Copiar
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold" style={{ background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>2</span>
+                      <p className="text-xs font-bold text-foreground">Crie o arquivo <code className="bg-background/50 px-1 rounded text-primary">api.php</code></p>
+                    </div>
+                    <div className="relative">
+                      <pre className="bg-background/80 border border-border/50 rounded-lg p-3 text-[10px] font-mono text-foreground overflow-x-auto max-h-60">{generateApiPhp().slice(0, 800)}...{"\n\n// (arquivo completo - clique Copiar)"}</pre>
+                      <Button variant="ghost" size="sm" className="absolute top-1 right-1 h-6 text-[10px] gap-1 bg-background/80"
+                        onClick={() => { navigator.clipboard.writeText(generateApiPhp()); toast({ title: "✅ api.php copiado!", description: "Arquivo completo copiado para a área de transferência" }); }}>
+                        <Copy className="w-3 h-3" /> Copiar Tudo
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold" style={{ background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>3</span>
+                      <p className="text-xs font-bold text-foreground">Suba os 2 arquivos na hospedagem</p>
+                    </div>
+                    <div className="bg-background/80 border border-border/50 rounded-lg p-3 text-[10px] text-muted-foreground space-y-1">
+                      <p>📁 Acesse o <strong className="text-foreground">Gerenciador de Arquivos</strong> da hospedagem (cPanel, Hostinger, etc)</p>
+                      <p>📂 Vá até a pasta <code className="bg-secondary px-1 rounded text-primary">public_html/</code> (raiz do site)</p>
+                      <p>📄 Crie ou faça upload de <code className="text-primary">config.php</code> e <code className="text-primary">api.php</code></p>
+                      <p>🌐 Teste acessando: <a href={`${form.url?.replace(/\/$/, "")}/api.php?action=health`} target="_blank" className="text-primary underline">{form.url?.replace(/\/$/, "")}/api.php?action=health</a></p>
+                      <p>✅ Se aparecer <code className="bg-secondary px-1 rounded text-accent">{"{"}"ok":true,"version":"5.0.0"{"}"}</code> está funcionando!</p>
+                    </div>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="flex items-center gap-2 rounded-lg bg-accent/10 border border-accent/30 p-3">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold" style={{ background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>4</span>
+                    <p className="text-xs text-foreground">Volte aqui e clique <strong className="text-primary">Testar API</strong> novamente. Deve ficar tudo ✅</p>
+                  </div>
+                </div>
+
+                {/* Quick download all */}
+                <Button className="w-full gap-2 h-10 text-sm font-bold" style={{ background: "var(--gradient-primary)" }}
+                  onClick={() => {
+                    [{ name: "config.php", content: generateConfigPhp() }, { name: "api.php", content: generateApiPhp() }, { name: "test_api.html", content: generateTestHtml() }]
+                      .forEach((f, i) => setTimeout(() => {
+                        const blob = new Blob([f.content], { type: "text/plain;charset=utf-8" });
+                        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = f.name; a.click();
+                      }, i * 300));
+                    toast({ title: "📦 3 arquivos baixados!", description: "config.php + api.php + test_api.html" });
+                  }}>
+                  <Download className="w-4 h-4" /> Baixar Todos os Arquivos (3)
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
           {/* Database Tab */}
