@@ -5,8 +5,8 @@ import type { Plataforma } from "@/hooks/usePlatforms";
 import { usePlatformApi, type ApiDeposito, type ApiSaque } from "@/hooks/usePlatformApi";
 import { useQueryClient } from "@tanstack/react-query";
 
-const SYNC_INTERVAL = 30_000; // 30 seconds — balanced sync
-const ALERT_THRESHOLD = 120_000; // 2 min offline → alert
+const SYNC_INTERVAL = 30_000;
+const ALERT_THRESHOLD = 120_000;
 
 interface PlatformSyncState {
   platform_id: string;
@@ -20,6 +20,25 @@ interface PlatformSyncState {
   errorMessage?: string;
   depositsSynced?: number;
   saquesSynced?: number;
+}
+
+/** Normalize English statuses to Portuguese */
+function normalizeStatus(status: string | null | undefined): string {
+  if (!status) return "pendente";
+  const s = status.toLowerCase().trim();
+  const map: Record<string, string> = {
+    pending: "pendente",
+    approved: "aprovado",
+    rejected: "rejeitado",
+    completed: "aprovado",
+    declined: "rejeitado",
+    canceled: "rejeitado",
+    cancelled: "rejeitado",
+    denied: "rejeitado",
+    paid: "aprovado",
+    processing: "pendente",
+  };
+  return map[s] ?? s;
 }
 
 export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
@@ -36,7 +55,6 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
   const syncDepositsToSupabase = async (platform: Plataforma, deposits: ApiDeposito[], userId: string) => {
     if (!deposits.length) return 0;
     let synced = 0;
-    // Batch insert with ON CONFLICT on the unique constraint (ignores duplicates)
     const batch = deposits.slice(0, 500).map(dep => ({
       user_id: userId,
       plataforma_id: platform.id,
@@ -44,23 +62,23 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
       nome_usuario: dep.nome_usuario || "Desconhecido",
       valor: Number(dep.valor) || 0,
       pix: dep.pix || null,
-      status: dep.status || "pendente",
+      status: normalizeStatus(dep.status),
       created_at: dep.created_at || new Date().toISOString(),
     }));
-    
-    // Insert in chunks of 50 to avoid payload limits
+
     for (let i = 0; i < batch.length; i += 50) {
       const chunk = batch.slice(i, i + 50);
       try {
-        const { error, count } = await supabase.from("depositos").upsert(chunk, {
+        const { error } = await supabase.from("depositos").upsert(chunk, {
           onConflict: "user_id,plataforma_id,nome_usuario,valor,created_at",
           ignoreDuplicates: true,
-          count: 'exact',
         });
-        if (!error) synced += chunk.length;
-      } catch {
-        // Skip chunk errors
-      }
+        if (error) {
+          console.error(`[AutoSync] Erro depositos chunk ${i}:`, error.message);
+        } else {
+          synced += chunk.length;
+        }
+      } catch { /* skip */ }
     }
     return synced;
   };
@@ -75,10 +93,10 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
       nome_usuario: saq.nome_usuario || "Desconhecido",
       valor: Number(saq.valor) || 0,
       pix: saq.pix || null,
-      status: saq.status || "pendente",
+      status: normalizeStatus(saq.status),
       created_at: saq.created_at || new Date().toISOString(),
     }));
-    
+
     for (let i = 0; i < batch.length; i += 50) {
       const chunk = batch.slice(i, i + 50);
       try {
@@ -86,10 +104,12 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
           onConflict: "user_id,plataforma_id,nome_usuario,valor,created_at",
           ignoreDuplicates: true,
         });
-        if (!error) synced += chunk.length;
-      } catch {
-        // Skip chunk errors
-      }
+        if (error) {
+          console.error(`[AutoSync] Erro saques chunk ${i}:`, error.message);
+        } else {
+          synced += chunk.length;
+        }
+      } catch { /* skip */ }
     }
     return synced;
   };
@@ -112,44 +132,57 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
           fromCache: false,
         };
 
-        // Fetch stats, deposits, and saques in parallel
         const [statsResult, depositsResult, saquesResult] = await Promise.all([
           api.fetchStats(p),
           api.fetchDepositos(p),
           api.fetchSaques(p),
         ]);
 
+        // Log saques errors explicitly
+        if (saquesResult.error) {
+          console.error(`[AutoSync] ❌ Saques ERRO em ${p.nome}:`, saquesResult.error.message, saquesResult.error.cause);
+        }
+        if (depositsResult.error) {
+          console.error(`[AutoSync] ❌ Depositos ERRO em ${p.nome}:`, depositsResult.error.message);
+        }
+
+        console.log(`[AutoSync] ${p.nome}: depositos=${depositsResult.data.length}, saques=${saquesResult.data.length}`);
+
         state.fromCache = statsResult.fromCache;
         state.errorMessage = statsResult.error?.message;
 
-        if (statsResult.data) {
+        // Sync deposits and saques even if stats fail (as long as we got data)
+        const hasAnyData = statsResult.data || depositsResult.data.length > 0 || saquesResult.data.length > 0;
+
+        if (hasAnyData) {
           state.status = statsResult.fromCache ? "unstable" : "online";
           state.lastSync = new Date().toISOString();
           offlineTimersRef.current.delete(p.id);
 
-          // Update platform stats in DB — ensure saldo_total is a valid number
-          const saldoValue = Number(statsResult.data.saldo_total) || 0;
-          const updatePayload = {
-            total_usuarios: statsResult.data.total_usuarios ?? 0,
-            total_afiliados: statsResult.data.total_afiliados ?? 0,
-            saldo_total: saldoValue,
-            status: "online" as const,
-            ultimo_sync: new Date().toISOString(),
-          };
-          
-          const { error: updateError } = await supabase.from("plataformas").update(updatePayload).eq("id", p.id);
-          if (updateError) {
-            console.error(`[AutoSync] Erro ao atualizar plataforma ${p.nome}:`, updateError.message);
-          } else {
-            console.log(`[AutoSync] ${p.nome}: usuarios=${updatePayload.total_usuarios}, saldo=R$${saldoValue.toFixed(2)}`);
+          if (statsResult.data) {
+            const saldoValue = Number(statsResult.data.saldo_total) || 0;
+            const updatePayload = {
+              total_usuarios: statsResult.data.total_usuarios ?? 0,
+              total_afiliados: statsResult.data.total_afiliados ?? 0,
+              saldo_total: saldoValue,
+              status: "online" as const,
+              ultimo_sync: new Date().toISOString(),
+            };
+            const { error: updateError } = await supabase.from("plataformas").update(updatePayload).eq("id", p.id);
+            if (updateError) {
+              console.error(`[AutoSync] Erro atualizar plataforma ${p.nome}:`, updateError.message);
+            } else {
+              console.log(`[AutoSync] ${p.nome}: usuarios=${updatePayload.total_usuarios}, saldo=R$${saldoValue.toFixed(2)}`);
+            }
           }
 
-          // Sync deposits and withdrawals to Supabase
           if (depositsResult.data.length > 0) {
             state.depositsSynced = await syncDepositsToSupabase(p, depositsResult.data, user.id);
+            console.log(`[AutoSync] ${p.nome}: ${state.depositsSynced} depositos sincronizados`);
           }
           if (saquesResult.data.length > 0) {
             state.saquesSynced = await syncSaquesToSupabase(p, saquesResult.data, user.id);
+            console.log(`[AutoSync] ${p.nome}: ${state.saquesSynced} saques sincronizados`);
           }
         } else {
           state.status = "offline";
@@ -182,15 +215,12 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
                 body: {
                   bot_token: telegramConfig.bot_token,
                   chat_id: telegramConfig.chat_id,
-                  message: `🚨 <b>PLATAFORMA OFFLINE</b>\n\n📍 Plataforma: ${p.nome}\n⏱ Offline há: ${Math.round(offlineDuration / 1000)}s\n❌ Erro: ${statsResult.error?.message ?? "Sem resposta"}\n\n💡 Verifique o servidor da hospedagem.`,
+                  message: `🚨 <b>PLATAFORMA OFFLINE</b>\n\n📍 ${p.nome}\n⏱ Offline há: ${Math.round(offlineDuration / 1000)}s\n❌ ${statsResult.error?.message ?? "Sem resposta"}`,
                 },
               });
             }
 
-            await supabase.from("plataformas").update({
-              status: "offline" as const,
-            }).eq("id", p.id);
-
+            await supabase.from("plataformas").update({ status: "offline" as const }).eq("id", p.id);
             await supabase.from("logs").insert({
               user_id: user.id,
               acao: "API Offline Detectada",
@@ -219,12 +249,8 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
 
   useEffect(() => {
     if (!enabled || !user || platforms.length === 0) return;
-
-    // Initial sync after small delay
     const initialTimeout = setTimeout(syncAll, 2000);
-
     intervalRef.current = setInterval(syncAll, SYNC_INTERVAL);
-
     return () => {
       clearTimeout(initialTimeout);
       if (intervalRef.current) clearInterval(intervalRef.current);
