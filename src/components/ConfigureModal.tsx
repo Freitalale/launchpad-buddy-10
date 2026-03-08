@@ -365,7 +365,7 @@ $port = ${form.db_port || 3306};
     const L = (s: string) => lines.push(s);
 
     L('<?php');
-    L('// api.php — API Standalone v5.6 (Direct Mapping — Zero Fallbacks)');
+    L('// api.php — API Standalone v5.7 (Direct Mapping — Zero Fallbacks + Saldo Debug)');
     L('// Plataforma: ' + platform.nome);
     L('// Gerado em: ' + new Date().toISOString());
     L('// O mapeamento que VOCÊ configurou é LEI — sem auto-override');
@@ -1075,7 +1075,7 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v5.5 — Mapeamento Autoritativo + Scanner Completo</p>
+              <p className="text-xs text-muted-foreground">API v5.7 — Mapeamento Autoritativo + Scanner Completo</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
