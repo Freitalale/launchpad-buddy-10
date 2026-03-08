@@ -1420,27 +1420,35 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.0 — Standalone</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.2 — Standalone Bulletproof</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">Mapeamento já hardcoded no código. Não depende do painel estar online. Copie e suba na hospedagem.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ Novo: endpoint <code>diagnostico</code> mostra se tabelas/colunas existem no banco.</p>
+              <p className="text-[10px] text-muted-foreground">Mapeamento hardcoded. Inclui api.php, config.php, test_api.html, telegram_webhook.php e webhook_pix.php.</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.2: Validação de colunas em tempo real + auto-detect + diagnóstico completo</p>
             </div>
 
             <Button variant="outline" size="sm" onClick={() => {
-              [{ name: "config.php", content: generateConfigPhp() }, { name: "api.php", content: generateApiPhp() }, { name: "test_api.html", content: generateTestHtml() }]
-                .forEach((f, i) => setTimeout(() => {
-                  const blob = new Blob([f.content], { type: "text/plain;charset=utf-8" });
-                  const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
-                }, i * 300));
-              toast({ title: "📥 Baixando 3 arquivos" });
+              const files = [
+                { name: "config.php", content: generateConfigPhp() },
+                { name: "api.php", content: generateApiPhp() },
+                { name: "test_api.html", content: generateTestHtml() },
+                { name: "telegram_webhook.php", content: generateTelegramWebhook() },
+                { name: "webhook_pix.php", content: generateWebhookPix() },
+              ];
+              files.forEach((f, i) => setTimeout(() => {
+                const blob = new Blob([f.content], { type: "text/plain;charset=utf-8" });
+                const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
+              }, i * 300));
+              toast({ title: "📥 Baixando 5 arquivos", description: "config.php + api.php + test_api.html + telegram_webhook.php + webhook_pix.php" });
             }} className="w-full gap-2 h-9 text-xs border-neon-green/30 text-neon-green hover:bg-neon-green/10">
-              <Download className="w-3.5 h-3.5" /> Baixar Todos (config.php + api.php + test_api.html)
+              <Download className="w-3.5 h-3.5" /> Baixar Todos (5 arquivos)
             </Button>
 
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
               { name: "api.php", label: "📄 api.php — v5.2 Bulletproof", gen: generateApiPhp, field: "api_php", type: "text/plain" },
               { name: "test_api.html", label: "📄 test_api.html — v5.2", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
+              { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => (
               <div key={f.name} className="space-y-2">
                 <div className="flex items-center justify-between">
