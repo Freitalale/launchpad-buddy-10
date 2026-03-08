@@ -365,7 +365,7 @@ $port = ${form.db_port || 3306};
     const L = (s: string) => lines.push(s);
 
     L('<?php');
-    L('// api.php — API Standalone v5.5 (Authoritative Mapping)');
+    L('// api.php — API Standalone v5.6 (Direct Mapping — Zero Fallbacks)');
     L('// Plataforma: ' + platform.nome);
     L('// Gerado em: ' + new Date().toISOString());
     L('// O mapeamento que VOCÊ configurou é LEI — sem auto-override');
