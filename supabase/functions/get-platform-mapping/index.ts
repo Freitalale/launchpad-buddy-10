@@ -22,53 +22,73 @@ serve(async (req) => {
       });
     }
 
-    // Use service role to bypass RLS
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: platform, error } = await supabase
+    const { data: p, error } = await supabase
       .from("plataformas")
-      .select("id, nome, tabela_usuarios, tabela_depositos, tabela_saques, tabela_saldo, tabela_afiliados, coluna_id_usuario, coluna_nome_usuario, coluna_user_id_fk, coluna_valor_deposito, coluna_valor_saque, coluna_pix, coluna_status, coluna_created_at, coluna_saldo")
+      .select("*")
       .eq("api_key", apiKey)
       .maybeSingle();
 
     if (error) {
       return new Response(JSON.stringify({ ok: false, error: error.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (!platform) {
-      return new Response(JSON.stringify({ ok: false, error: "Plataforma não encontrada. Verifique a api_key." }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (!p) {
+      return new Response(JSON.stringify({ ok: false, error: "Plataforma não encontrada." }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const mapping = {
       ok: true,
-      platform_id: platform.id,
-      platform_name: platform.nome,
+      platform_id: p.id,
+      platform_name: p.nome,
       tables: {
-        usuarios: platform.tabela_usuarios ?? "users",
-        depositos: platform.tabela_depositos ?? "deposits",
-        saques: platform.tabela_saques ?? "withdrawals",
-        saldo: platform.tabela_saldo ?? "wallets",
-        afiliados: platform.tabela_afiliados ?? "affiliates",
+        usuarios: p.tabela_usuarios ?? "users",
+        depositos: p.tabela_depositos ?? "deposits",
+        saques: p.tabela_saques ?? "withdrawals",
+        saldo: p.tabela_saldo ?? "wallets",
+        afiliados: p.tabela_afiliados ?? "affiliates",
       },
       columns: {
-        id_usuario: platform.coluna_id_usuario ?? "id",
-        nome_usuario: platform.coluna_nome_usuario ?? "name",
-        user_id_fk: platform.coluna_user_id_fk ?? "user_id",
-        valor_deposito: platform.coluna_valor_deposito ?? "amount",
-        valor_saque: platform.coluna_valor_saque ?? "amount",
-        pix: platform.coluna_pix ?? "pix",
-        status: platform.coluna_status ?? "status",
-        created_at: platform.coluna_created_at ?? "created_at",
-        saldo: platform.coluna_saldo ?? "balance",
+        usuarios: {
+          id: p.coluna_id_usuario ?? "id",
+          nome: p.coluna_nome_usuario ?? "name",
+          email: p.coluna_email_usuario ?? "email",
+          telefone: p.coluna_telefone_usuario ?? "phone",
+        },
+        depositos: {
+          id: p.coluna_id_deposito ?? "id",
+          user_id: p.coluna_user_id_deposito ?? p.coluna_user_id_fk ?? "user_id",
+          valor: p.coluna_valor_deposito ?? "amount",
+          pix: p.coluna_pix_deposito ?? p.coluna_pix ?? "pix",
+          status: p.coluna_status_deposito ?? p.coluna_status ?? "status",
+          created_at: p.coluna_created_at_deposito ?? p.coluna_created_at ?? "created_at",
+        },
+        saques: {
+          id: p.coluna_id_saque ?? "id",
+          user_id: p.coluna_user_id_saque ?? p.coluna_user_id_fk ?? "user_id",
+          valor: p.coluna_valor_saque ?? "amount",
+          pix: p.coluna_pix_saque ?? p.coluna_pix ?? "pix",
+          status: p.coluna_status_saque ?? p.coluna_status ?? "status",
+          created_at: p.coluna_created_at_saque ?? p.coluna_created_at ?? "created_at",
+        },
+        saldo: {
+          user_id: p.coluna_user_id_saldo ?? "user_id",
+          saldo: p.coluna_saldo ?? "balance",
+        },
+        afiliados: {
+          id: p.coluna_id_afiliado ?? "id",
+          nome: p.coluna_nome_afiliado ?? "name",
+          user_id: p.coluna_user_id_afiliado ?? "user_id",
+          cooperation_expired: p.coluna_cooperation_expired ?? "cooperation_expired",
+        },
       },
       updated_at: new Date().toISOString(),
     };
@@ -78,8 +98,7 @@ serve(async (req) => {
     });
   } catch (error) {
     return new Response(JSON.stringify({ ok: false, error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
