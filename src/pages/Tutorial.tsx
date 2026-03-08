@@ -50,11 +50,11 @@ $cache_ttl  = 60; // Tempo de cache em segundos (60 = 1 minuto)
 
 const apiPhpCode = `<?php
 // =====================================================
-// api.php — API Dinâmica Controlada pelo Painel v3.0
+// api.php — API Dinâmica v3.1 — Mapeamento por Tabela
 // =====================================================
-// ⚡ Este arquivo NÃO precisa ser editado manualmente!
-// ⚡ Todas as tabelas e colunas são lidas do painel.
-// ⚡ Mude no painel → a API muda automaticamente.
+// Este arquivo NÃO precisa ser editado manualmente.
+// Todas as tabelas e colunas são lidas do painel.
+// Cada tabela tem suas próprias colunas configuradas.
 // =====================================================
 
 header("Content-Type: application/json");
@@ -62,258 +62,135 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 
-if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
-    http_response_code(200);
-    exit;
-}
+if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") { http_response_code(200); exit; }
 
 include 'config.php';
 
-// ── Conexão MySQL ──
 $conn = new mysqli($host, $user, $pass, $db);
-if ($conn->connect_error) {
-    echo json_encode(["error" => "Falha na conexão: " . $conn->connect_error]);
-    exit;
-}
+if ($conn->connect_error) { echo json_encode(["error" => "Falha: " . $conn->connect_error]); exit; }
 $conn->set_charset("utf8mb4");
 
-// =====================================================
-// SISTEMA DE MAPEAMENTO DINÂMICO
-// Busca os nomes de tabelas/colunas do painel com cache
-// =====================================================
+// ── Mapeamento Dinâmico com Cache ──
 function getMapping() {
     global $painel_url, $cache_file, $cache_ttl;
-    
-    // 1. Verificar cache local
     if (file_exists($cache_file)) {
         $cache = json_decode(file_get_contents($cache_file), true);
         if ($cache && isset($cache["_cached_at"]) && (time() - $cache["_cached_at"]) < $cache_ttl) {
-            $cache["_from_cache"] = true;
-            return $cache;
+            $cache["_from_cache"] = true; return $cache;
         }
     }
-    
-    // 2. Buscar do painel
     $ctx = stream_context_create(["http" => ["timeout" => 5]]);
     $response = @file_get_contents($painel_url, false, $ctx);
-    
     if ($response === false) {
-        // Painel offline — usar último cache disponível
         if (file_exists($cache_file)) {
             $cache = json_decode(file_get_contents($cache_file), true);
-            if ($cache) {
-                $cache["_from_cache"] = true;
-                $cache["_warning"] = "Painel temporariamente offline. Usando último cache.";
-                return $cache;
-            }
+            if ($cache) { $cache["_from_cache"] = true; $cache["_warning"] = "Painel offline."; return $cache; }
         }
-        return null; // Sem cache e sem painel
+        return null;
     }
-    
-    // 3. Salvar cache e retornar
     $data = json_decode($response, true);
     if ($data && isset($data["ok"]) && $data["ok"]) {
         $data["_cached_at"] = time();
         file_put_contents($cache_file, json_encode($data));
-        $data["_from_cache"] = false;
-        return $data;
+        $data["_from_cache"] = false; return $data;
     }
-    
     return null;
 }
 
 $mapping = getMapping();
+if (!$mapping) { echo json_encode(["error" => "Mapeamento indisponível."]); exit; }
 
-if (!$mapping) {
-    echo json_encode([
-        "error" => "Não foi possível obter o mapeamento do painel.",
-        "causa" => "Verifique se a api_key está correta no config.php e se o painel está online.",
-        "painel_url" => $painel_url
-    ]);
-    exit;
-}
-
-// ── Extrair nomes de tabelas e colunas ──
+// ── Tabelas ──
 $t = $mapping["tables"];
-$c = $mapping["columns"];
+$tb_usuarios  = $t["usuarios"]  ?? "users";
+$tb_depositos = $t["depositos"] ?? "deposits";
+$tb_saques    = $t["saques"]    ?? "withdrawals";
+$tb_saldo     = $t["saldo"]     ?? "wallets";
+$tb_afiliados = $t["afiliados"] ?? "affiliates";
 
-$tabela_usuarios   = $t["usuarios"]   ?? "users";
-$tabela_depositos  = $t["depositos"]  ?? "deposits";
-$tabela_saques     = $t["saques"]     ?? "withdrawals";
-$tabela_saldo      = $t["saldo"]      ?? "wallets";
-$tabela_afiliados  = $t["afiliados"]  ?? "affiliates";
+// ── Colunas por Tabela ──
+$cu = $mapping["columns"]["usuarios"]  ?? [];
+$cd = $mapping["columns"]["depositos"] ?? [];
+$cs = $mapping["columns"]["saques"]    ?? [];
+$cw = $mapping["columns"]["saldo"]     ?? [];
+$ca = $mapping["columns"]["afiliados"] ?? [];
 
-$col_id_usuario      = $c["id_usuario"]      ?? "id";
-$col_nome_usuario    = $c["nome_usuario"]    ?? "name";
-$col_user_id_fk      = $c["user_id_fk"]      ?? "user_id";
-$col_valor_deposito  = $c["valor_deposito"]  ?? "amount";
-$col_valor_saque     = $c["valor_saque"]     ?? "amount";
-$col_pix             = $c["pix"]             ?? "pix";
-$col_status          = $c["status"]          ?? "status";
-$col_created_at      = $c["created_at"]      ?? "created_at";
-$col_saldo           = $c["saldo"]           ?? "balance";
+$col_user_id    = $cu["id"]       ?? "id";
+$col_user_name  = $cu["nome"]     ?? "name";
+$col_dep_id     = $cd["id"]       ?? "id";
+$col_dep_uid    = $cd["user_id"]  ?? "user_id";
+$col_dep_valor  = $cd["valor"]    ?? "amount";
+$col_dep_pix    = $cd["pix"]      ?? "pix";
+$col_dep_status = $cd["status"]   ?? "status";
+$col_dep_date   = $cd["created_at"] ?? "created_at";
+$col_saq_id     = $cs["id"]       ?? "id";
+$col_saq_uid    = $cs["user_id"]  ?? "user_id";
+$col_saq_valor  = $cs["valor"]    ?? "amount";
+$col_saq_pix    = $cs["pix"]      ?? "pix";
+$col_saq_status = $cs["status"]   ?? "status";
+$col_saq_date   = $cs["created_at"] ?? "created_at";
+$col_wal_uid    = $cw["user_id"]  ?? "user_id";
+$col_wal_saldo  = $cw["saldo"]    ?? "balance";
+$col_aff_expired = $ca["cooperation_expired"] ?? "cooperation_expired";
 
 $action = $_GET["action"] ?? "";
 
-// =====================================================
-// ENDPOINT: health
-// =====================================================
 if ($action === "health") {
-    echo json_encode([
-        "ok"             => true,
-        "version"        => "3.0.0-dynamic",
-        "db"             => true,
-        "mapping_source" => $mapping["_from_cache"] ? "cache" : "painel",
-        "warning"        => $mapping["_warning"] ?? null,
-        "tables"         => $t,
-        "columns"        => $c,
-        "time"           => date("Y-m-d H:i:s")
-    ]);
-    exit;
+    echo json_encode(["ok"=>true,"version"=>"3.1.0","db"=>true,
+        "mapping_source"=>$mapping["_from_cache"]?"cache":"painel",
+        "tables"=>$t,"time"=>date("c")]); exit;
 }
 
-// =====================================================
-// ENDPOINT: stats
-// =====================================================
 if ($action === "stats") {
-    $r1 = $conn->query("SELECT COUNT(*) as total FROM \\\`$tabela_usuarios\\\`");
-    $r2 = $conn->query("SELECT COUNT(*) as total FROM \\\`$tabela_afiliados\\\`");
-    $r3 = $conn->query("SELECT COALESCE(SUM(\\\`$col_saldo\\\`), 0) as total FROM \\\`$tabela_saldo\\\`");
-    
-    $errors = [];
-    if (!$r1) $errors[] = "Tabela '$tabela_usuarios' não encontrada: " . $conn->error;
-    if (!$r2) $errors[] = "Tabela '$tabela_afiliados' não encontrada: " . $conn->error;
-    if (!$r3) $errors[] = "Tabela '$tabela_saldo' ou coluna '$col_saldo': " . $conn->error;
-    
-    if (!empty($errors)) {
-        echo json_encode([
-            "error"    => "Erro no mapeamento",
-            "detalhes" => $errors,
-            "causa"    => "Verifique os nomes de tabelas/colunas no painel."
-        ]);
-        exit;
-    }
-    
-    echo json_encode([
-        "total_usuarios"  => (int)$r1->fetch_assoc()["total"],
-        "total_afiliados" => (int)$r2->fetch_assoc()["total"],
-        "saldo_total"     => (float)$r3->fetch_assoc()["total"]
-    ]);
-    exit;
+    $r1 = $conn->query("SELECT COUNT(*) as total FROM \\\`$tb_usuarios\\\`");
+    $r2 = $conn->query("SELECT COUNT(*) as total FROM \\\`$tb_afiliados\\\`");
+    $r3 = $conn->query("SELECT COALESCE(SUM(\\\`$col_wal_saldo\\\`),0) as total FROM \\\`$tb_saldo\\\`");
+    $err = [];
+    if (!$r1) $err[] = "Tabela '$tb_usuarios': ".$conn->error;
+    if (!$r2) $err[] = "Tabela '$tb_afiliados': ".$conn->error;
+    if (!$r3) $err[] = "Tabela '$tb_saldo'/'$col_wal_saldo': ".$conn->error;
+    if ($err) { echo json_encode(["error"=>"Mapeamento","detalhes"=>$err]); exit; }
+    echo json_encode(["total_usuarios"=>(int)$r1->fetch_assoc()["total"],
+        "total_afiliados"=>(int)$r2->fetch_assoc()["total"],
+        "saldo_total"=>(float)$r3->fetch_assoc()["total"]]); exit;
 }
 
-// =====================================================
-// ENDPOINT: depositos
-// =====================================================
 if ($action === "depositos") {
-    $sql = "SELECT u.\\\`$col_nome_usuario\\\` as nome_usuario, 
-                   d.\\\`$col_valor_deposito\\\` as valor, 
-                   d.\\\`$col_pix\\\` as pix, 
-                   d.\\\`$col_created_at\\\` as created_at, 
-                   d.\\\`$col_status\\\` as status
-            FROM \\\`$tabela_depositos\\\` d
-            JOIN \\\`$tabela_usuarios\\\` u ON d.\\\`$col_user_id_fk\\\` = u.\\\`$col_id_usuario\\\`
-            ORDER BY d.\\\`$col_created_at\\\` DESC
-            LIMIT 500";
-    
+    $sql = "SELECT u.\\\`$col_user_name\\\` as nome_usuario, d.\\\`$col_dep_valor\\\` as valor, d.\\\`$col_dep_pix\\\` as pix, d.\\\`$col_dep_date\\\` as created_at, d.\\\`$col_dep_status\\\` as status FROM \\\`$tb_depositos\\\` d JOIN \\\`$tb_usuarios\\\` u ON d.\\\`$col_dep_uid\\\` = u.\\\`$col_user_id\\\` ORDER BY d.\\\`$col_dep_date\\\` DESC LIMIT 500";
     $result = $conn->query($sql);
-    if (!$result) {
-        echo json_encode([
-            "error" => "Erro SQL: " . $conn->error,
-            "causa" => "Verifique o mapeamento no painel.",
-            "query" => $sql
-        ]);
-        exit;
-    }
-
-    $rows = [];
-    while ($row = $result->fetch_assoc()) {
-        $rows[] = [
-            "nome_usuario" => $row["nome_usuario"],
-            "valor"        => (float)$row["valor"],
-            "pix"          => $row["pix"],
-            "created_at"   => $row["created_at"],
-            "status"       => $row["status"]
-        ];
-    }
-    echo json_encode($rows);
-    exit;
+    if (!$result) { echo json_encode(["error"=>$conn->error,"query"=>$sql]); exit; }
+    $rows = []; while ($row = $result->fetch_assoc()) $rows[] = $row;
+    echo json_encode($rows); exit;
 }
 
-// =====================================================
-// ENDPOINT: saques
-// =====================================================
 if ($action === "saques") {
-    $sql = "SELECT w.id, 
-                   u.\\\`$col_nome_usuario\\\` as nome_usuario, 
-                   w.\\\`$col_valor_saque\\\` as valor, 
-                   w.\\\`$col_pix\\\` as pix, 
-                   w.\\\`$col_created_at\\\` as created_at, 
-                   w.\\\`$col_status\\\` as status
-            FROM \\\`$tabela_saques\\\` w
-            JOIN \\\`$tabela_usuarios\\\` u ON w.\\\`$col_user_id_fk\\\` = u.\\\`$col_id_usuario\\\`
-            ORDER BY w.\\\`$col_created_at\\\` DESC
-            LIMIT 500";
-    
+    $sql = "SELECT w.\\\`$col_saq_id\\\` as id, u.\\\`$col_user_name\\\` as nome_usuario, w.\\\`$col_saq_valor\\\` as valor, w.\\\`$col_saq_pix\\\` as pix, w.\\\`$col_saq_date\\\` as created_at, w.\\\`$col_saq_status\\\` as status FROM \\\`$tb_saques\\\` w JOIN \\\`$tb_usuarios\\\` u ON w.\\\`$col_saq_uid\\\` = u.\\\`$col_user_id\\\` ORDER BY w.\\\`$col_saq_date\\\` DESC LIMIT 500";
     $result = $conn->query($sql);
-    if (!$result) {
-        echo json_encode([
-            "error" => "Erro SQL: " . $conn->error,
-            "causa" => "Verifique o mapeamento no painel.",
-            "query" => $sql
-        ]);
-        exit;
-    }
-
-    $rows = [];
-    while ($row = $result->fetch_assoc()) {
-        $rows[] = [
-            "id"           => (int)$row["id"],
-            "nome_usuario" => $row["nome_usuario"],
-            "valor"        => (float)$row["valor"],
-            "pix"          => $row["pix"],
-            "created_at"   => $row["created_at"],
-            "status"       => $row["status"]
-        ];
-    }
-    echo json_encode($rows);
-    exit;
+    if (!$result) { echo json_encode(["error"=>$conn->error,"query"=>$sql]); exit; }
+    $rows = []; while ($row = $result->fetch_assoc()) $rows[] = $row;
+    echo json_encode($rows); exit;
 }
 
-// =====================================================
-// ENDPOINT: aprovar_saque
-// =====================================================
 if ($action === "aprovar_saque") {
     $id = intval($_POST["id"] ?? 0);
-    if ($id <= 0) { echo json_encode(["ok" => false, "error" => "ID inválido"]); exit; }
-    $stmt = $conn->prepare("UPDATE \\\`$tabela_saques\\\` SET \\\`$col_status\\\`='aprovado' WHERE id=?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    echo json_encode(["ok" => true, "message" => "Saque aprovado"]);
-    exit;
+    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
+    $stmt = $conn->prepare("UPDATE \\\`$tb_saques\\\` SET \\\`$col_saq_status\\\`='aprovado' WHERE \\\`$col_saq_id\\\`=?");
+    $stmt->bind_param("i", $id); $stmt->execute();
+    echo json_encode(["ok"=>true]); exit;
 }
 
-// =====================================================
-// ENDPOINT: rejeitar_saque
-// =====================================================
 if ($action === "rejeitar_saque") {
     $id = intval($_POST["id"] ?? 0);
-    if ($id <= 0) { echo json_encode(["ok" => false, "error" => "ID inválido"]); exit; }
-    $stmt = $conn->prepare("UPDATE \\\`$tabela_saques\\\` SET \\\`$col_status\\\`='rejeitado' WHERE id=?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    echo json_encode(["ok" => true, "message" => "Saque rejeitado"]);
-    exit;
+    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
+    $stmt = $conn->prepare("UPDATE \\\`$tb_saques\\\` SET \\\`$col_saq_status\\\`='rejeitado' WHERE \\\`$col_saq_id\\\`=?");
+    $stmt->bind_param("i", $id); $stmt->execute();
+    echo json_encode(["ok"=>true]); exit;
 }
 
-// =====================================================
-// ENDPOINT: remover_afiliados
-// =====================================================
 if ($action === "remover_afiliados") {
-    $stmt = $conn->prepare("DELETE FROM \\\`$tabela_afiliados\\\` WHERE cooperation_expired = 1");
+    $stmt = $conn->prepare("DELETE FROM \\\`$tb_afiliados\\\` WHERE \\\`$col_aff_expired\\\` = 1");
     $stmt->execute();
-    echo json_encode(["ok" => true, "removed" => $stmt->affected_rows]);
-    exit;
+    echo json_encode(["ok"=>true,"removed"=>$stmt->affected_rows]); exit;
 }
 
 echo json_encode(["error" => "Ação não reconhecida: " . $action]);
