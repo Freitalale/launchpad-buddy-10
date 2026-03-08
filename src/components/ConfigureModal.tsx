@@ -364,7 +364,93 @@ echo json_encode(["error" => "Ação não reconhecida: " . $action]);
 ?>`;
   };
 
-  const handleTestApi = async () => {
+  const generateTestHtml = () => {
+    const apiUrl = form.url ? `${form.url.replace(/\/$/, "")}/api.php` : "https://seusite.com/api.php";
+    return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Teste API — ${platform.nome}</title>
+    <style>
+        body { font-family: monospace; background: #0a0a0f; color: #e0e0e0; padding: 20px; }
+        h1 { color: #00c4ff; }
+        button { background: #00c4ff; color: #000; border: none; padding: 8px 16px; 
+                 margin: 4px; cursor: pointer; border-radius: 6px; font-weight: bold; }
+        button:hover { background: #00a0dd; }
+        .error { color: #ff4444; }
+        .success { color: #00d67c; }
+        pre { background: #111; padding: 15px; border-radius: 8px; overflow-x: auto; 
+              border: 1px solid #222; max-height: 400px; }
+        input { width: 500px; padding: 8px; background: #111; color: #fff; border: 1px solid #333; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <h1>🔌 Teste de Conexão — ${platform.nome}</h1>
+    <p>API configurada automaticamente pelo painel. Teste cada endpoint:</p>
+    
+    <input id="apiUrl" value="${apiUrl}" />
+    <br><br>
+
+    <button onclick="testEndpoint('health')">🏥 Health</button>
+    <button onclick="testEndpoint('stats')">📊 Stats</button>
+    <button onclick="testEndpoint('depositos')">💰 Depósitos</button>
+    <button onclick="testEndpoint('saques')">💸 Saques</button>
+    <button onclick="testAll()">🚀 Testar Todos</button>
+    
+    <div id="status" style="margin: 10px 0; padding: 10px;"></div>
+    <pre id="result">Clique em um botão para testar...</pre>
+
+    <script>
+    function getApi() { return document.getElementById("apiUrl").value; }
+    
+    async function testEndpoint(action) {
+        const statusEl = document.getElementById("status");
+        const resultEl = document.getElementById("result");
+        statusEl.innerHTML = "⏳ Testando " + action + "...";
+        try {
+            const t0 = performance.now();
+            const r = await fetch(getApi() + "?action=" + action);
+            const ms = Math.round(performance.now() - t0);
+            const data = await r.json();
+            
+            if (data.error) {
+                statusEl.innerHTML = '<span class="error">❌ ' + action + ' — ERRO: ' + data.error + '</span>';
+            } else if (data.mapping_source) {
+                statusEl.innerHTML = '<span class="success">✅ ' + action + ' — OK (' + ms + 'ms) | Mapeamento: ' + data.mapping_source + '</span>';
+            } else {
+                statusEl.innerHTML = '<span class="success">✅ ' + action + ' — OK (' + ms + 'ms)</span>';
+            }
+            resultEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            statusEl.innerHTML = '<span class="error">❌ ' + action + ' — ERRO: ' + e.message + '</span>';
+            resultEl.textContent = "Erro: " + e.message;
+        }
+    }
+    
+    async function testAll() {
+        const actions = ["health", "stats", "depositos", "saques"];
+        let results = {};
+        let allOk = true;
+        for (const action of actions) {
+            try {
+                const r = await fetch(getApi() + "?action=" + action);
+                const data = await r.json();
+                results[action] = { ok: !data.error, data };
+                if (data.error) allOk = false;
+            } catch (e) {
+                results[action] = { ok: false, error: e.message };
+                allOk = false;
+            }
+        }
+        document.getElementById("status").innerHTML = allOk 
+            ? '<span class="success">✅ Todos os endpoints funcionando!</span>'
+            : '<span class="error">⚠️ Alguns endpoints falharam</span>';
+        document.getElementById("result").textContent = JSON.stringify(results, null, 2);
+    }
+    </script>
+</body>
+</html>`;
+  };
     setTesting(true);
     setTestResult(null);
     setTestDetails([]);
