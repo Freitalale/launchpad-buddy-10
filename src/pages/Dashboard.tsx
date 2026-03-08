@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, TrendingUp, Wifi, Server, Handshake, DollarSign, HeartCrack, Filter, ArrowUpRight, Headphones, Calendar } from "lucide-react";
+import {
+  Users, TrendingUp, Wifi, Server, Handshake, DollarSign, HeartCrack, Filter,
+  ArrowUpRight, Headphones, Calendar, RefreshCw, AlertTriangle, Clock, Database, Zap
+} from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar
@@ -8,6 +11,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import StatsCard from "@/components/StatsCard";
 import ExportButtons from "@/components/ExportButtons";
 import CooperationBadge from "@/components/CooperationBadge";
@@ -16,7 +20,8 @@ import { useDepositos } from "@/hooks/useDepositos";
 import { useSaques } from "@/hooks/useSaques";
 import { useSacs } from "@/hooks/useSacs";
 import { useExpiringCooperations, getCooperationInfo } from "@/hooks/useCooperation";
-import { format, subDays, isAfter, isBefore, startOfDay, endOfDay, subYears } from "date-fns";
+import { useAutoSync } from "@/hooks/useAutoSync";
+import { format, subDays, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 
 const categoryLabels: Record<string, string> = {
   chinese: "Chinesa", brazilian: "Brasileira", esports: "E-Sports",
@@ -33,6 +38,7 @@ const Dashboard = () => {
   const { data: saques = [] } = useSaques();
   const { data: sacs = [] } = useSacs();
   const expiringCoops = useExpiringCooperations(platforms);
+  const { syncStates, lastGlobalSync, syncing, syncNow } = useAutoSync(platforms);
   const [filterDays, setFilterDays] = useState("30");
   const [filterPlat, setFilterPlat] = useState("all");
   const [customFrom, setCustomFrom] = useState("");
@@ -45,9 +51,7 @@ const Dashboard = () => {
       return { from: startOfDay(new Date(customFrom)), to: endOfDay(new Date(customTo)) };
     }
     const days = filterDays === "0" ? 0 : filterDays === "1" ? 1 : Number(filterDays);
-    if (filterDays === "0") {
-      return { from: startOfDay(new Date()), to: endOfDay(new Date()) };
-    }
+    if (filterDays === "0") return { from: startOfDay(new Date()), to: endOfDay(new Date()) };
     if (filterDays === "1") {
       const yesterday = subDays(new Date(), 1);
       return { from: startOfDay(yesterday), to: endOfDay(yesterday) };
@@ -56,7 +60,6 @@ const Dashboard = () => {
   };
 
   const { from: dateFrom, to: dateTo } = getDateRange();
-
   const inRange = (dateStr: string) => {
     const d = new Date(dateStr);
     return isAfter(d, dateFrom) && isBefore(d, dateTo);
@@ -81,16 +84,14 @@ const Dashboard = () => {
   const totalDepositos = filteredDepositos.reduce((s, d) => s + Number(d.valor), 0);
   const totalSaques = filteredSaques.reduce((s, d) => s + Number(d.valor), 0);
 
-  const stats = {
-    totalPlatforms: platforms.length,
-    onlinePlatforms: platforms.filter(p => p.status === "online").length,
-    offlinePlatforms: platforms.filter(p => p.status === "offline").length,
-    errorPlatforms: platforms.filter(p => p.status === "error" || p.status === "warning").length,
-    totalUsers: platforms.reduce((s, p) => s + (p.total_usuarios ?? 0), 0),
-    totalAffiliates: platforms.reduce((s, p) => s + (p.total_afiliados ?? 0), 0),
-    totalBalance: platforms.reduce((s, p) => s + Number(p.saldo_total ?? 0), 0),
-    activeCooperations: platforms.filter(p => p.cooperacao_dias !== null && !getCooperationInfo(p).expired).length,
-  };
+  // Consolidated stats from all platforms
+  const onlinePlatforms = platforms.filter(p => p.status === "online").length;
+  const offlinePlatforms = platforms.filter(p => p.status === "offline").length;
+  const errorPlatforms = platforms.filter(p => p.status === "error" || p.status === "warning").length;
+  const totalUsers = platforms.reduce((s, p) => s + (p.total_usuarios ?? 0), 0);
+  const totalAffiliates = platforms.reduce((s, p) => s + (p.total_afiliados ?? 0), 0);
+  const totalBalance = platforms.reduce((s, p) => s + Number(p.saldo_total ?? 0), 0);
+  const activeCooperations = platforms.filter(p => p.cooperacao_dias !== null && !getCooperationInfo(p).expired).length;
 
   const pieData = Object.entries(
     platforms.reduce((acc, p) => { acc[p.categoria] = (acc[p.categoria] || 0) + (p.total_usuarios ?? 0); return acc; }, {} as Record<string, number>)
@@ -123,6 +124,11 @@ const Dashboard = () => {
     Saldo: Number(p.saldo_total ?? 0),
   }));
 
+  // Auto-sync status bar
+  const syncOnlineCount = Array.from(syncStates.values()).filter(s => s.status === "online").length;
+  const syncOfflineCount = Array.from(syncStates.values()).filter(s => s.status === "offline").length;
+  const hasCachedData = Array.from(syncStates.values()).some(s => s.fromCache);
+
   if (isLoading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /></div>;
 
   return (
@@ -130,10 +136,41 @@ const Dashboard = () => {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-black text-foreground">Dashboard <span className="gradient-text">Global</span></h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Visão consolidada em tempo real</p>
+          <p className="text-muted-foreground text-sm mt-0.5">Visão consolidada em tempo real — {platforms.length} plataformas</p>
         </div>
-        <ExportButtons data={exportData} filename="dashboard_plataformas" title="Master Painel Pro — Relatório" />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={syncNow} disabled={syncing} className="h-8 text-xs gap-1.5">
+            <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Sincronizando..." : "Sync Agora"}
+          </Button>
+          <ExportButtons data={exportData} filename="dashboard_plataformas" title="Master Painel Pro — Relatório" />
+        </div>
       </motion.div>
+
+      {/* Auto-Sync Status Bar */}
+      {lastGlobalSync && (
+        <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${
+            syncOfflineCount > 0 ? "border-destructive/30 bg-destructive/5" :
+            hasCachedData ? "border-amber-400/30 bg-amber-400/5" :
+            "border-accent/30 bg-accent/5"
+          }`}>
+          <div className={`w-2 h-2 rounded-full ${syncing ? "bg-primary animate-pulse" : syncOfflineCount > 0 ? "bg-destructive" : "bg-accent"}`} />
+          <div className="flex-1 flex items-center gap-3 text-xs">
+            <span className="font-semibold text-foreground">
+              {syncing ? "⟳ Sincronizando..." :
+               syncOfflineCount > 0 ? `⚠️ ${syncOfflineCount} plataforma(s) offline` :
+               hasCachedData ? "📦 Dados exibidos do cache — API temporariamente instável" :
+               "✅ Todas APIs respondendo"}
+            </span>
+            <span className="text-muted-foreground flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              Último sync: {new Date(lastGlobalSync).toLocaleTimeString("pt-BR")}
+            </span>
+          </div>
+          <span className="text-[10px] text-muted-foreground font-mono">Auto: 30s</span>
+        </motion.div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
@@ -173,8 +210,8 @@ const Dashboard = () => {
 
       {expiringCoops.length > 0 && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-neon-red/30 p-4 space-y-2" style={{ background: "hsl(var(--neon-red) / 0.05)" }}>
-          <p className="text-sm font-bold text-neon-red flex items-center gap-2"><HeartCrack className="w-4 h-4" /> Cooperações Expirando / Expiradas</p>
+          className="rounded-xl border border-destructive/30 p-4 space-y-2" style={{ background: "hsl(var(--destructive) / 0.05)" }}>
+          <p className="text-sm font-bold text-destructive flex items-center gap-2"><HeartCrack className="w-4 h-4" /> Cooperações Expirando / Expiradas</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {expiringCoops.map(({ platform: p, cooperation }) => (
               <div key={p.id} className="flex items-center gap-3 p-2 rounded-lg bg-background/50 border border-border/50">
@@ -191,10 +228,10 @@ const Dashboard = () => {
 
       {/* Main Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <StatsCard title="Total de Plataformas" value={stats.totalPlatforms} subtitle={`${stats.onlinePlatforms} online`} icon={Server} color="blue" delay={0} />
-        <StatsCard title="Usuários Totais" value={formatUsers(stats.totalUsers)} subtitle="Todas plataformas" icon={Users} color="green" delay={0.05} />
-        <StatsCard title="Saldo Consolidado" value={formatBalance(stats.totalBalance)} subtitle="Soma de todas" icon={DollarSign} color="amber" delay={0.1} />
-        <StatsCard title="Cooperações Ativas" value={stats.activeCooperations} subtitle="Em vigor" icon={Handshake} color="purple" delay={0.15} />
+        <StatsCard title="Total de Plataformas" value={platforms.length} subtitle={`${onlinePlatforms} online · ${offlinePlatforms} offline`} icon={Server} color="blue" delay={0} />
+        <StatsCard title="Usuários Totais" value={formatUsers(totalUsers)} subtitle="Todas plataformas" icon={Users} color="green" delay={0.05} />
+        <StatsCard title="Saldo Consolidado" value={formatBalance(totalBalance)} subtitle="Soma de todas" icon={DollarSign} color="amber" delay={0.1} />
+        <StatsCard title="Cooperações Ativas" value={activeCooperations} subtitle="Em vigor" icon={Handshake} color="purple" delay={0.15} />
       </div>
 
       {/* Financial Stats */}
@@ -202,7 +239,7 @@ const Dashboard = () => {
         <StatsCard title="Depósitos" value={formatBalance(totalDepositos)} subtitle={`${filteredDepositos.length} no período`} icon={DollarSign} color="green" delay={0.2} />
         <StatsCard title="Saques" value={formatBalance(totalSaques)} subtitle={`${filteredSaques.length} no período`} icon={ArrowUpRight} color="amber" delay={0.25} />
         <StatsCard title="SACs Pendentes" value={filteredSacs.filter(s => s.status === "pendente").length} subtitle={`${filteredSacs.length} total`} icon={Headphones} color="purple" delay={0.3} />
-        <StatsCard title="Plataformas Online" value={stats.onlinePlatforms} subtitle={`${stats.errorPlatforms} com erro`} icon={Wifi} color="blue" delay={0.35} />
+        <StatsCard title="APIs Online" value={onlinePlatforms} subtitle={`${errorPlatforms} com erro`} icon={Wifi} color="blue" delay={0.35} />
       </div>
 
       {/* Charts */}
@@ -259,7 +296,7 @@ const Dashboard = () => {
         </motion.div>
       )}
 
-      {/* Platform Status */}
+      {/* Platform Status with Sync Info */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
         className="rounded-xl border border-border/60 overflow-hidden" style={{ background: "hsl(var(--card))" }}>
         <div className="p-4 border-b border-border/50 flex items-center justify-between">
@@ -270,30 +307,40 @@ const Dashboard = () => {
           <div className="text-center py-8 text-muted-foreground text-sm">Nenhuma plataforma cadastrada</div>
         ) : (
           <div className="divide-y divide-border/30">
-            {platforms.map((p, i) => (
-              <motion.div key={p.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 + i * 0.03 }}
-                className="flex items-center gap-4 px-4 py-3 hover:bg-secondary/30 transition-colors">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0"
-                  style={{ background: `${p.cor ?? "#00c4ff"}15` }}>
-                  {p.logo && (p.logo.startsWith("http") || p.logo.startsWith("/")) ? <img src={p.logo} className="w-full h-full object-cover" alt="" /> : <span className="text-sm">{p.logo}</span>}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-foreground truncate">{p.nome}</p>
-                  <p className="text-[10px] text-muted-foreground">{p.url ?? ""}</p>
-                </div>
-                <span className={`flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-lg border ${
-                  p.status === "online" ? "bg-neon-green/10 text-neon-green border-neon-green/20" :
-                  p.status === "error" ? "bg-neon-red/10 text-neon-red border-neon-red/20" :
-                  p.status === "warning" ? "bg-neon-amber/10 text-neon-amber border-neon-amber/20" :
-                  "bg-muted text-muted-foreground border-border"
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    p.status === "online" ? "status-online" : p.status === "error" ? "status-error" : p.status === "warning" ? "status-warning" : "status-offline"
-                  }`} />
-                  {p.status === "online" ? "Online" : p.status === "error" ? "Erro" : p.status === "warning" ? "Atenção" : "Offline"}
-                </span>
-              </motion.div>
-            ))}
+            {platforms.map((p, i) => {
+              const syncState = syncStates.get(p.id);
+              return (
+                <motion.div key={p.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 + i * 0.03 }}
+                  className="flex items-center gap-4 px-4 py-3 hover:bg-secondary/30 transition-colors">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0"
+                    style={{ background: `${p.cor ?? "#00c4ff"}15` }}>
+                    {p.logo && (p.logo.startsWith("http") || p.logo.startsWith("/")) ? <img src={p.logo} className="w-full h-full object-cover" alt="" /> : <span className="text-sm">{p.logo}</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">{p.nome}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {syncState?.fromCache ? "📦 Cache" : ""} {p.url ?? ""}
+                    </p>
+                  </div>
+                  {syncState && syncState.errorMessage && (
+                    <span className="text-[9px] text-destructive max-w-[200px] truncate hidden md:block">
+                      {syncState.errorMessage}
+                    </span>
+                  )}
+                  <span className={`flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-lg border ${
+                    p.status === "online" ? "bg-accent/10 text-accent border-accent/20" :
+                    p.status === "error" ? "bg-destructive/10 text-destructive border-destructive/20" :
+                    p.status === "warning" ? "bg-amber-400/10 text-amber-400 border-amber-400/20" :
+                    "bg-muted text-muted-foreground border-border"
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      p.status === "online" ? "status-online" : p.status === "error" ? "status-error" : p.status === "warning" ? "status-warning" : "status-offline"
+                    }`} />
+                    {p.status === "online" ? "Online" : p.status === "error" ? "Erro" : p.status === "warning" ? "Atenção" : "Offline"}
+                  </span>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </motion.div>

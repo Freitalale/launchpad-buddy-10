@@ -1,14 +1,14 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Plus, Upload } from "lucide-react";
+import { X, Plus, Upload, CheckCircle, XCircle, RefreshCw, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCreatePlatform } from "@/hooks/usePlatforms";
 import { useCreateLog } from "@/hooks/useLogs";
-import { useCreateNotification } from "@/hooks/useNotifications";
 import { useLogoUpload } from "@/hooks/useLogoUpload";
+import { usePlatformApi } from "@/hooks/usePlatformApi";
 import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -25,6 +25,15 @@ const categoryOptions: { value: PlatformCategory; label: string }[] = [
 
 const logoOptions = ["🎮", "🐉", "🐯", "🇧🇷", "👑", "🎰", "🔥", "🐼", "⚽", "🎲", "💎", "🏆"];
 
+interface DiscoveryResult {
+  health: boolean;
+  stats: boolean;
+  depositos: boolean;
+  saques: boolean;
+  latency: number;
+  details: string[];
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -34,11 +43,13 @@ const AddPlatformModal = ({ open, onClose }: Props) => {
   const { toast } = useToast();
   const createPlatform = useCreatePlatform();
   const createLog = useCreateLog();
-  const createNotification = useCreateNotification();
   const { uploadLogo, uploading } = useLogoUpload();
+  const api = usePlatformApi();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [discovering, setDiscovering] = useState(false);
+  const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
 
   const [form, setForm] = useState({
     nome: "", url: "", categoria: "other" as PlatformCategory, logo: "🎮", cor: "#00c4ff",
@@ -57,23 +68,68 @@ const AddPlatformModal = ({ open, onClose }: Props) => {
     setLogoPreview(URL.createObjectURL(file));
   };
 
+  const handleAutoDiscovery = async () => {
+    if (!form.url) return;
+    setDiscovering(true);
+    setDiscoveryResult(null);
+
+    const baseUrl = form.url.replace(/\/$/, "");
+    const apiUrl = baseUrl.endsWith("api.php") ? baseUrl : `${baseUrl}/api.php`;
+
+    const details: string[] = [];
+
+    const [health, stats, depositos, saques] = await Promise.all([
+      api.testEndpoint(apiUrl, "health"),
+      api.testEndpoint(apiUrl, "stats"),
+      api.testEndpoint(apiUrl, "depositos"),
+      api.testEndpoint(apiUrl, "saques"),
+    ]);
+
+    if (health.ok) details.push(`✅ health — ${health.latency_ms}ms`);
+    else details.push(`❌ health — ${health.error}`);
+
+    if (stats.ok) details.push(`✅ stats — ${stats.latency_ms}ms${stats.data ? ` · ${stats.data.total_usuarios} usuários` : ""}`);
+    else details.push(`❌ stats — ${stats.error}`);
+
+    if (depositos.ok) details.push(`✅ depositos — ${depositos.count ?? 0} registros`);
+    else details.push(`❌ depositos — ${depositos.error}`);
+
+    if (saques.ok) details.push(`✅ saques — ${saques.count ?? 0} registros`);
+    else details.push(`❌ saques — ${saques.error}`);
+
+    const maxLatency = Math.max(
+      health.latency_ms ?? 0, stats.latency_ms ?? 0,
+      depositos.latency_ms ?? 0, saques.latency_ms ?? 0
+    );
+
+    setDiscoveryResult({
+      health: health.ok, stats: stats.ok,
+      depositos: depositos.ok, saques: saques.ok,
+      latency: maxLatency, details,
+    });
+
+    setDiscovering(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nome.trim()) return;
     try {
-      const result = await createPlatform.mutateAsync(form);
+      const initialStatus = discoveryResult?.stats ? "online" : "offline";
+      const result = await createPlatform.mutateAsync({ ...form, status: initialStatus as any });
       if (logoFile && result?.id) {
         const logoUrl = await uploadLogo(logoFile, result.id);
         const { supabase } = await import("@/integrations/supabase/client");
         await supabase.from("plataformas").update({ logo: logoUrl }).eq("id", result.id);
       }
       await createLog.mutateAsync({
-        acao: "Plataforma Criada", detalhes: `${form.nome} adicionada`,
+        acao: "Plataforma Criada", detalhes: `${form.nome} adicionada — status: ${initialStatus}`,
         plataforma_nome: form.nome, tipo: "success",
       });
-      toast({ title: "Plataforma criada!", description: `${form.nome} adicionada.` });
+      toast({ title: "Plataforma criada!", description: `${form.nome} adicionada como ${initialStatus}.` });
       setLogoFile(null);
       setLogoPreview(null);
+      setDiscoveryResult(null);
       onClose();
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
@@ -81,6 +137,8 @@ const AddPlatformModal = ({ open, onClose }: Props) => {
   };
 
   if (!open) return null;
+
+  const allEndpointsOk = discoveryResult && discoveryResult.health && discoveryResult.stats && discoveryResult.depositos && discoveryResult.saques;
 
   return (
     <AnimatePresence>
@@ -93,7 +151,7 @@ const AddPlatformModal = ({ open, onClose }: Props) => {
           <div className="flex items-center justify-between p-6 border-b border-border/50">
             <div>
               <h2 className="font-bold text-lg text-foreground">Nova Plataforma</h2>
-              <p className="text-xs text-muted-foreground">Adicione uma nova plataforma</p>
+              <p className="text-xs text-muted-foreground">Adicione e teste automaticamente</p>
             </div>
             <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground w-8 h-8">
               <X className="w-4 h-4" />
@@ -106,10 +164,6 @@ const AddPlatformModal = ({ open, onClose }: Props) => {
                 <Input value={form.nome} onChange={e => update("nome", e.target.value)} className="bg-secondary border-border h-9 text-sm" placeholder="Nome" required />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">URL</Label>
-                <Input value={form.url} onChange={e => update("url", e.target.value)} className="bg-secondary border-border h-9 text-sm" placeholder="https://..." />
-              </div>
-              <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Categoria</Label>
                 <Select value={form.categoria} onValueChange={v => update("categoria", v)}>
                   <SelectTrigger className="bg-secondary border-border h-9 text-sm"><SelectValue /></SelectTrigger>
@@ -118,15 +172,50 @@ const AddPlatformModal = ({ open, onClose }: Props) => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cor</Label>
-                <div className="flex gap-2 items-center">
-                  <input type="color" value={form.cor} onChange={e => update("cor", e.target.value)}
-                    className="w-9 h-9 rounded-lg border border-border cursor-pointer bg-transparent" />
-                  <Input value={form.cor} onChange={e => update("cor", e.target.value)} className="bg-secondary border-border h-9 text-sm mono flex-1" />
+            </div>
+
+            {/* URL + Auto Discovery */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">URL da API</Label>
+              <div className="flex gap-2">
+                <Input value={form.url} onChange={e => { update("url", e.target.value); setDiscoveryResult(null); }}
+                  className="bg-secondary border-border h-9 text-sm font-mono flex-1" placeholder="https://dominio.com" />
+                <Button type="button" variant="outline" size="sm" onClick={handleAutoDiscovery}
+                  disabled={discovering || !form.url} className="h-9 text-xs gap-1.5 whitespace-nowrap">
+                  {discovering ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Globe className="w-3 h-3" />}
+                  {discovering ? "Testando..." : "Auto Detectar"}
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Endpoint: {form.url ? `${form.url.replace(/\/$/, "")}/api.php` : "—"}</p>
+            </div>
+
+            {/* Discovery Results */}
+            {discoveryResult && (
+              <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+                className={`rounded-lg border p-3 space-y-1.5 ${
+                  allEndpointsOk ? "border-accent/30 bg-accent/5" : "border-destructive/30 bg-destructive/5"
+                }`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className={`text-[11px] font-bold ${allEndpointsOk ? "text-accent" : "text-destructive"}`}>
+                    {allEndpointsOk ? "✅ API validada com sucesso!" : "⚠️ Problemas encontrados"}
+                  </p>
+                  <span className="text-[10px] font-mono text-muted-foreground">{discoveryResult.latency}ms</span>
                 </div>
+                {discoveryResult.details.map((d, i) => (
+                  <p key={i} className="text-[10px] font-mono text-muted-foreground">{d}</p>
+                ))}
+              </motion.div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cor</Label>
+              <div className="flex gap-2 items-center">
+                <input type="color" value={form.cor} onChange={e => update("cor", e.target.value)}
+                  className="w-9 h-9 rounded-lg border border-border cursor-pointer bg-transparent" />
+                <Input value={form.cor} onChange={e => update("cor", e.target.value)} className="bg-secondary border-border h-9 text-sm mono flex-1" />
               </div>
             </div>
+
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Logo / Ícone</Label>
               <div className="flex gap-1 flex-wrap">
@@ -144,10 +233,11 @@ const AddPlatformModal = ({ open, onClose }: Props) => {
               </Button>
               {logoPreview && <img src={logoPreview} alt="Preview" className="w-10 h-10 rounded-xl object-cover border border-primary/30" />}
             </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" onClick={onClose} className="border-border h-9 text-sm">Cancelar</Button>
               <Button type="submit" disabled={createPlatform.isPending || uploading} className="h-9 text-sm gap-2"
-                style={{ background: "linear-gradient(135deg, hsl(var(--neon-blue)), hsl(220 100% 60%))" }}>
+                style={{ background: "var(--gradient-primary)" }}>
                 {(createPlatform.isPending || uploading) ? (
                   <div className="w-4 h-4 border-2 border-background/40 border-t-background rounded-full animate-spin" />
                 ) : <Plus className="w-3.5 h-3.5" />}
