@@ -257,6 +257,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     colunas_extra: extraColumns,
     tabelas_extra: extraTables,
     colunas_ocultas: hiddenColumns,
+    tabelas_desativadas: disabledTables,
   });
 
   const generateConfigPhp = () => {
