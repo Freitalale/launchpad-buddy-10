@@ -151,6 +151,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       setExtraColumns(extra.colunas_extra ?? {});
       setExtraTables(extra.tabelas_extra ?? []);
       setHiddenColumns(extra.colunas_ocultas ?? {});
+      setDisabledTables(extra.tabelas_desativadas ?? []);
     }
   }, [platform]);
 
