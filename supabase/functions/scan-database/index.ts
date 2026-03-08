@@ -23,7 +23,7 @@ const DEPOSIT_COL_HINTS: Record<string, string[]> = {
   id: ["id", "deposit_id", "transaction_id", "payment_id"],
   user_id: ["user_id", "player_id", "uid", "member_id", "cliente_id", "account_id", "fk_user"],
   valor: ["amount", "value", "valor", "total", "deposit_amount", "payment_amount", "quantia"],
-  pix: ["pix", "pix_key", "chave_pix", "payment_method", "metodo", "payment_key", "key_pix"],
+  pix: ["pix", "pix_key", "chave_pix", "payment_method", "metodo", "payment_key", "key_pix", "document", "cpf"],
   status: ["status", "state", "situacao", "payment_status", "deposit_status"],
   created_at: ["created_at", "date", "data", "created", "timestamp", "dt_created", "data_criacao", "payment_date", "deposit_date"],
 };
@@ -32,7 +32,7 @@ const WITHDRAWAL_COL_HINTS: Record<string, string[]> = {
   id: ["id", "withdrawal_id", "saque_id", "cashout_id", "payout_id"],
   user_id: ["user_id", "player_id", "uid", "member_id", "cliente_id", "account_id", "fk_user"],
   valor: ["amount", "value", "valor", "total", "withdraw_amount", "saque_valor", "quantia"],
-  pix: ["pix", "pix_key", "chave_pix", "wallet_address", "payment_key", "key_pix", "conta_destino"],
+  pix: ["pix", "pix_key", "chave_pix", "wallet_address", "payment_key", "key_pix", "conta_destino", "document", "cpf"],
   status: ["status", "state", "situacao", "withdrawal_status", "saque_status"],
   created_at: ["created_at", "date", "data", "created", "timestamp", "dt_created", "data_criacao", "withdrawal_date", "saque_date"],
 };
@@ -61,12 +61,10 @@ function matchTable(tableName: string, hints: string[]): number {
 }
 
 function matchColumn(columns: string[], hints: string[]): string | null {
-  // Exact match first
   for (const hint of hints) {
     const exact = columns.find(c => c.toLowerCase() === hint);
     if (exact) return exact;
   }
-  // Partial match
   for (const hint of hints) {
     const partial = columns.find(c => c.toLowerCase().includes(hint));
     if (partial) return partial;
@@ -104,7 +102,7 @@ serve(async (req) => {
 
     // Call ?action=scan_db on the remote api.php
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 15000);
     
     const res = await fetch(`${baseUrl}?action=scan_db`, { signal: controller.signal });
     clearTimeout(timeout);
@@ -112,7 +110,7 @@ serve(async (req) => {
     if (!res.ok) {
       return new Response(JSON.stringify({ 
         ok: false, 
-        error: `API retornou HTTP ${res.status}. Certifique-se de que o api.php v4.0 está instalado com o endpoint scan_db.` 
+        error: `API retornou HTTP ${res.status}. Certifique-se de que o api.php v5.4 está instalado com o endpoint scan_db.` 
       }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -126,16 +124,12 @@ serve(async (req) => {
       });
     }
 
-    const tables: Record<string, { columns: { name: string; type: string }[] }> = scanData.tables ?? {};
+    const tables: Record<string, { columns: any[]; count?: number }> = scanData.tables ?? {};
     const tableNames = Object.keys(tables);
 
     // Auto-detect best matches
     const scored: Record<string, { table: string; score: number; columns: Record<string, string | null> }[]> = {
-      usuarios: [],
-      depositos: [],
-      saques: [],
-      saldo: [],
-      afiliados: [],
+      usuarios: [], depositos: [], saques: [], saldo: [], afiliados: [],
     };
 
     const hintMaps: Record<string, { tableHints: string[]; colHints: Record<string, string[]> }> = {
@@ -147,21 +141,16 @@ serve(async (req) => {
     };
 
     for (const tableName of tableNames) {
-      const colNames = tables[tableName].columns.map(c => c.name);
+      const colNames = tables[tableName].columns.map((c: any) => typeof c === "string" ? c : c.name);
 
       for (const [category, { tableHints, colHints }] of Object.entries(hintMaps)) {
         const tableScore = matchTable(tableName, tableHints);
-        // Also check column presence to boost score
         const detectedCols = detectColumns(colNames, colHints);
         const colMatchCount = Object.values(detectedCols).filter(v => v !== null).length;
         const totalScore = tableScore + colMatchCount * 2;
 
         if (totalScore > 0) {
-          scored[category].push({
-            table: tableName,
-            score: totalScore,
-            columns: detectedCols,
-          });
+          scored[category].push({ table: tableName, score: totalScore, columns: detectedCols });
         }
       }
     }
@@ -170,7 +159,6 @@ serve(async (req) => {
     const suggestions: Record<string, { table: string; confidence: number; columns: Record<string, string | null> } | null> = {};
     const usedTables = new Set<string>();
 
-    // Sort each category by score descending and pick best non-duplicate
     for (const category of ["usuarios", "depositos", "saques", "saldo", "afiliados"]) {
       scored[category].sort((a, b) => b.score - a.score);
       const best = scored[category].find(s => !usedTables.has(s.table));
@@ -186,16 +174,25 @@ serve(async (req) => {
       }
     }
 
+    // Build detailed table info with REAL row counts
+    const detailedTables: Record<string, { columns: any[]; row_count: number }> = {};
+    for (const t of tableNames) {
+      const colData = tables[t].columns.map((c: any) => {
+        if (typeof c === "string") return { name: c, type: "unknown" };
+        return { name: c.name, type: c.type ?? "unknown", key: c.key ?? "", nullable: c.nullable ?? true };
+      });
+      // Use the count from scan_db response (the PHP endpoint returns it)
+      detailedTables[t] = {
+        columns: colData,
+        row_count: tables[t].count ?? 0,
+      };
+    }
+
     const result = {
       ok: true,
       database: scanData.database ?? "unknown",
       total_tables: tableNames.length,
-      tables: Object.fromEntries(
-        tableNames.map(t => [t, {
-          columns: tables[t].columns,
-          row_count: tables[t].columns.length,
-        }])
-      ),
+      tables: detailedTables,
       all_tables: tableNames,
       suggestions,
       scan_time: new Date().toISOString(),
@@ -206,7 +203,7 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
-    const msg = error.name === "AbortError" ? "Timeout ao conectar na API (10s)" : error.message;
+    const msg = error.name === "AbortError" ? "Timeout ao conectar na API (15s)" : error.message;
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
