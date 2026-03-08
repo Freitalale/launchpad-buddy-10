@@ -62,12 +62,12 @@ const DEFAULT_COLUMNS: Record<string, { field: string; label: string; placeholde
   ],
 };
 
-const TABLE_META: { key: string; icon: any; color: string; tableField: string; defaultTable: string; label: string }[] = [
-  { key: "usuarios", icon: Users, color: "text-primary", tableField: "tabela_usuarios", defaultTable: "users", label: "Usuários" },
-  { key: "depositos", icon: ArrowDownCircle, color: "text-neon-green", tableField: "tabela_depositos", defaultTable: "deposits", label: "Depósitos" },
-  { key: "saques", icon: ArrowUpCircle, color: "text-neon-amber", tableField: "tabela_saques", defaultTable: "withdrawals", label: "Saques" },
-  { key: "saldo", icon: Wallet, color: "text-chart-4", tableField: "tabela_saldo", defaultTable: "wallets", label: "Saldo" },
-  { key: "afiliados", icon: UserCheck, color: "text-chart-5", tableField: "tabela_afiliados", defaultTable: "affiliates", label: "Afiliados" },
+const TABLE_META: { key: string; icon: any; color: string; tableField: string; defaultTable: string; label: string; desc: string }[] = [
+  { key: "usuarios", icon: Users, color: "text-primary", tableField: "tabela_usuarios", defaultTable: "users", label: "Usuários", desc: "Tabela principal de usuários. O painel usa para contar usuários, exibir nomes em depósitos/saques/SAC." },
+  { key: "depositos", icon: ArrowDownCircle, color: "text-neon-green", tableField: "tabela_depositos", defaultTable: "deposits", label: "Depósitos", desc: "Tabela de depósitos. O painel lista, filtra por status, mostra valores e PIX na tela de Depósitos." },
+  { key: "saques", icon: ArrowUpCircle, color: "text-neon-amber", tableField: "tabela_saques", defaultTable: "withdrawals", label: "Saques", desc: "Tabela de saques. Permite listar, aprovar e rejeitar saques pelo painel." },
+  { key: "saldo", icon: Wallet, color: "text-chart-4", tableField: "tabela_saldo", defaultTable: "wallets", label: "Saldo/Carteira", desc: "Tabela de saldos. Soma o saldo total de todos os usuários no Dashboard." },
+  { key: "afiliados", icon: UserCheck, color: "text-chart-5", tableField: "tabela_afiliados", defaultTable: "affiliates", label: "Afiliados", desc: "Tabela de afiliados. Controla cooperação, conta afiliados e permite remoção automática dos expirados." },
 ];
 
 // Track which default columns are hidden per table
