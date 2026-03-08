@@ -598,10 +598,192 @@ $port = ${form.db_port || 3306};
     L('    echo json_encode(["ok"=>true,"diagnostico"=>$diag]); exit;');
     L('}');
     L('');
-    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.1.0"]);');
+    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.2.0"]);');
     L('?>');
 
     return lines.join("\n");
+  };
+
+  const generateTelegramWebhook = () => {
+    return `<?php
+// telegram_webhook.php — Webhook de Notificações Telegram
+// Plataforma: ${platform.nome}
+// Gerado em: ${new Date().toISOString()}
+
+error_reporting(0);
+ini_set("display_errors", "0");
+header("Content-Type: application/json; charset=utf-8");
+header("Access-Control-Allow-Origin: *");
+
+include 'config.php';
+$conn = new mysqli($host, $user, $pass, $db, $port);
+if ($conn->connect_error) {
+    echo json_encode(["error" => "DB connection failed"]); exit;
+}
+$conn->set_charset("utf8mb4");
+
+// Configuração do Telegram
+$bot_token = $_GET["bot_token"] ?? "";
+$chat_id   = $_GET["chat_id"] ?? "";
+$event     = $_GET["event"] ?? "";
+
+if (!$bot_token || !$chat_id) {
+    echo json_encode(["error" => "bot_token e chat_id são obrigatórios"]); exit;
+}
+
+function sendTelegram($bot_token, $chat_id, $message) {
+    $url = "https://api.telegram.org/bot{$bot_token}/sendMessage";
+    $data = ["chat_id" => $chat_id, "text" => $message, "parse_mode" => "HTML"];
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    $result = curl_exec($ch);
+    curl_close($ch);
+    return json_decode($result, true);
+}
+
+// Receber dados via POST (webhook de plataforma)
+$input = json_decode(file_get_contents("php://input"), true) ?? $_POST;
+
+if ($event === "deposito" || ($input["type"] ?? "") === "deposit") {
+    $nome = $input["user_name"] ?? $input["nome"] ?? "Desconhecido";
+    $valor = $input["amount"] ?? $input["valor"] ?? 0;
+    $msg = "💰 <b>NOVO DEPÓSITO</b>\\n\\n👤 Usuário: {$nome}\\n💵 Valor: R\$ " . number_format((float)$valor, 2, ",", ".") . "\\n📍 Plataforma: ${platform.nome}";
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+if ($event === "saque" || ($input["type"] ?? "") === "withdrawal") {
+    $nome = $input["user_name"] ?? $input["nome"] ?? "Desconhecido";
+    $valor = $input["amount"] ?? $input["valor"] ?? 0;
+    $msg = "💸 <b>NOVO SAQUE</b>\\n\\n👤 Usuário: {$nome}\\n💵 Valor: R\$ " . number_format((float)$valor, 2, ",", ".") . "\\n📍 Plataforma: ${platform.nome}";
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+if ($event === "novo_usuario" || ($input["type"] ?? "") === "new_user") {
+    $nome = $input["user_name"] ?? $input["nome"] ?? "Novo Usuário";
+    $msg = "👤 <b>NOVO USUÁRIO</b>\\n\\n🆕 Nome: {$nome}\\n📍 Plataforma: ${platform.nome}";
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+if ($event === "test") {
+    $msg = "🔔 <b>TESTE DE NOTIFICAÇÃO</b>\\n\\n✅ Webhook configurado com sucesso!\\n📍 Plataforma: ${platform.nome}\\n⏰ " . date("d/m/Y H:i:s");
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+echo json_encode(["error" => "Evento não reconhecido", "available" => ["deposito", "saque", "novo_usuario", "test"]]);
+?>`;
+  };
+
+  const generateWebhookPix = () => {
+    const tb = {
+      d: form.tabela_depositos || "deposits",
+      s: form.tabela_saques || "withdrawals",
+      u: form.tabela_usuarios || "users",
+    };
+    const col = {
+      duid: form.coluna_user_id_deposito || "user_id",
+      dval: form.coluna_valor_deposito || "amount",
+      dpix: form.coluna_pix_deposito || "pix",
+      dst: form.coluna_status_deposito || "status",
+      suid: form.coluna_user_id_saque || "user_id",
+      sval: form.coluna_valor_saque || "amount",
+      spix: form.coluna_pix_saque || "pix",
+      sst: form.coluna_status_saque || "status",
+    };
+    return `<?php
+// webhook_pix.php — Webhook para Gateway de Pagamento PIX
+// Plataforma: ${platform.nome}
+// Gerado em: ${new Date().toISOString()}
+// Recebe callbacks de gateways PIX e atualiza o banco de dados
+
+error_reporting(0);
+ini_set("display_errors", "0");
+header("Content-Type: application/json; charset=utf-8");
+header("Access-Control-Allow-Origin: *");
+
+include 'config.php';
+$conn = new mysqli($host, $user, $pass, $db, $port);
+if ($conn->connect_error) {
+    http_response_code(500);
+    echo json_encode(["error" => "DB connection failed"]); exit;
+}
+$conn->set_charset("utf8mb4");
+
+// Receber dados do gateway
+$input = json_decode(file_get_contents("php://input"), true) ?? $_POST;
+$action = $_GET["action"] ?? $input["action"] ?? "";
+
+// ═══ CONFIRMAR DEPÓSITO PIX ═══
+if ($action === "confirmar_deposito") {
+    $user_id = intval($input["user_id"] ?? 0);
+    $valor = floatval($input["valor"] ?? $input["amount"] ?? 0);
+    $pix = $conn->real_escape_string($input["pix"] ?? $input["document"] ?? "");
+    $tx_id = $conn->real_escape_string($input["tx_id"] ?? $input["transaction_id"] ?? "");
+    
+    if ($user_id <= 0 || $valor <= 0) {
+        echo json_encode(["ok" => false, "error" => "user_id e valor são obrigatórios"]); exit;
+    }
+    
+    $sql = "INSERT INTO \`${tb.d}\` (\`${col.duid}\`, \`${col.dval}\`, \`${col.dpix}\`, \`${col.dst}\`) VALUES ($user_id, $valor, '$pix', 'aprovado')";
+    $r = @$conn->query($sql);
+    
+    if ($r) {
+        echo json_encode(["ok" => true, "id" => $conn->insert_id, "message" => "Depósito confirmado"]);
+    } else {
+        echo json_encode(["ok" => false, "error" => $conn->error]);
+    }
+    exit;
+}
+
+// ═══ CONFIRMAR SAQUE PIX ═══
+if ($action === "confirmar_saque") {
+    $user_id = intval($input["user_id"] ?? 0);
+    $valor = floatval($input["valor"] ?? $input["amount"] ?? 0);
+    $pix = $conn->real_escape_string($input["pix"] ?? $input["document"] ?? "");
+    
+    if ($user_id <= 0 || $valor <= 0) {
+        echo json_encode(["ok" => false, "error" => "user_id e valor são obrigatórios"]); exit;
+    }
+    
+    $sql = "INSERT INTO \`${tb.s}\` (\`${col.suid}\`, \`${col.sval}\`, \`${col.spix}\`, \`${col.sst}\`) VALUES ($user_id, $valor, '$pix', 'pendente')";
+    $r = @$conn->query($sql);
+    
+    if ($r) {
+        echo json_encode(["ok" => true, "id" => $conn->insert_id, "message" => "Saque registrado como pendente"]);
+    } else {
+        echo json_encode(["ok" => false, "error" => $conn->error]);
+    }
+    exit;
+}
+
+// ═══ CALLBACK GATEWAY ═══
+if ($action === "callback" || $action === "webhook") {
+    // Formato genérico de callback de gateway PIX
+    $status = $input["status"] ?? $input["payment_status"] ?? "";
+    $tx_id = $input["tx_id"] ?? $input["transaction_id"] ?? $input["id"] ?? "";
+    $type = $input["type"] ?? "deposit";
+    
+    $log = date("c") . " | callback | status=$status | tx=$tx_id | type=$type";
+    @file_put_contents("webhook_log.txt", $log . "\\n", FILE_APPEND);
+    
+    echo json_encode(["ok" => true, "received" => true, "status" => $status]);
+    exit;
+}
+
+echo json_encode([
+    "ok" => true,
+    "version" => "1.0.0",
+    "platform" => "${platform.nome}",
+    "available_actions" => ["confirmar_deposito", "confirmar_saque", "callback"],
+    "usage" => "POST com JSON body contendo action, user_id, valor, pix"
+]);
+?>`;
   };
 
   const generateTestHtml = () => {
