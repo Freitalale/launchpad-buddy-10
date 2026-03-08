@@ -11,7 +11,26 @@ serve(async (req) => {
   }
 
   try {
-    const { db_host, db_port, db_user, db_pass, db_name, tabela_usuarios, tabela_afiliados, tabela_saldo, coluna_saldo } = await req.json();
+    const body = await req.json();
+    const {
+      db_host, db_port, db_user, db_pass, db_name,
+      // Table mapping
+      tabela_usuarios = "users",
+      tabela_afiliados = "affiliates",
+      tabela_saldo = "wallets",
+      tabela_depositos = "deposits",
+      tabela_saques = "withdrawals",
+      // Column mapping
+      coluna_saldo = "balance",
+      coluna_id_usuario = "id",
+      coluna_nome_usuario = "name",
+      coluna_valor_deposito = "amount",
+      coluna_valor_saque = "amount",
+      coluna_pix = "pix",
+      coluna_status = "status",
+      coluna_created_at = "created_at",
+      coluna_user_id_fk = "user_id",
+    } = body;
 
     if (!db_host || !db_user || !db_pass || !db_name) {
       return new Response(JSON.stringify({ ok: false, error: "Dados de conexão incompletos" }), {
@@ -20,42 +39,29 @@ serve(async (req) => {
       });
     }
 
-    // Return API endpoint info for the platform to implement
-    // This edge function serves as a proxy pattern reference
+    // Generate dynamic api.php code based on mapping
+    const apiPhpCode = generateApiPhp({
+      tabela_usuarios, tabela_afiliados, tabela_saldo, tabela_depositos, tabela_saques,
+      coluna_saldo, coluna_id_usuario, coluna_nome_usuario,
+      coluna_valor_deposito, coluna_valor_saque, coluna_pix, coluna_status, coluna_created_at, coluna_user_id_fk,
+    });
+
     const apiInfo = {
       ok: true,
-      message: "Para conectar ao banco MySQL externo, configure a API na hospedagem da plataforma.",
-      required_endpoints: [
-        {
-          method: "GET",
-          path: "/api/stats",
-          description: "Retorna total_usuarios, total_afiliados, saldo_total",
-          response: { total_usuarios: 0, total_afiliados: 0, saldo_total: 0 }
-        },
-        {
-          method: "GET", 
-          path: "/api/depositos",
-          description: "Lista depósitos recentes",
-          response: [{ nome_usuario: "", valor: 0, pix: "", created_at: "", status: "pendente" }]
-        },
-        {
-          method: "GET",
-          path: "/api/saques",
-          description: "Lista saques pendentes",
-          response: [{ nome_usuario: "", valor: 0, pix: "", created_at: "", status: "pendente" }]
-        },
-        {
-          method: "POST",
-          path: "/api/saques/:id/aprovar",
-          description: "Aprova um saque"
-        },
-        {
-          method: "POST",
-          path: "/api/saques/:id/rejeitar",
-          description: "Rejeita um saque"
-        }
-      ],
-      db_config: { db_host, db_port: db_port || 3306, db_user, db_name, tabela_usuarios: tabela_usuarios || "users", tabela_afiliados: tabela_afiliados || "affiliates", tabela_saldo: tabela_saldo || "wallets", coluna_saldo: coluna_saldo || "balance" }
+      message: "Mapeamento dinâmico configurado. Use o api.php gerado abaixo.",
+      mapping: {
+        tables: { tabela_usuarios, tabela_afiliados, tabela_saldo, tabela_depositos, tabela_saques },
+        columns: { coluna_saldo, coluna_id_usuario, coluna_nome_usuario, coluna_valor_deposito, coluna_valor_saque, coluna_pix, coluna_status, coluna_created_at, coluna_user_id_fk },
+      },
+      generated_queries: {
+        stats: `SELECT COUNT(*) as total FROM ${tabela_usuarios}`,
+        stats_affiliates: `SELECT COUNT(*) as total FROM ${tabela_afiliados}`,
+        stats_balance: `SELECT SUM(${coluna_saldo}) as total FROM ${tabela_saldo}`,
+        depositos: `SELECT u.${coluna_nome_usuario} as nome_usuario, d.${coluna_valor_deposito} as valor, d.${coluna_pix} as pix, d.${coluna_created_at} as created_at, d.${coluna_status} as status FROM ${tabela_depositos} d JOIN ${tabela_usuarios} u ON d.${coluna_user_id_fk} = u.${coluna_id_usuario} ORDER BY d.${coluna_created_at} DESC LIMIT 100`,
+        saques: `SELECT u.${coluna_nome_usuario} as nome_usuario, w.${coluna_valor_saque} as valor, w.${coluna_pix} as pix, w.${coluna_created_at} as created_at, w.${coluna_status} as status, w.${coluna_id_usuario} as id FROM ${tabela_saques} w JOIN ${tabela_usuarios} u ON w.${coluna_user_id_fk} = u.${coluna_id_usuario} ORDER BY w.${coluna_created_at} DESC LIMIT 100`,
+      },
+      generated_api_php: apiPhpCode,
+      db_config: { db_host, db_port: db_port || 3306, db_user, db_name },
     };
 
     return new Response(JSON.stringify(apiInfo), {
@@ -68,3 +74,56 @@ serve(async (req) => {
     });
   }
 });
+
+function generateApiPhp(m: Record<string, string>): string {
+  return `<?php
+header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
+include 'config.php';
+$conn = new mysqli($host, $user, $pass, $db);
+if ($conn->connect_error) { echo json_encode(["error" => "DB connection failed"]); exit; }
+$action = $_GET["action"] ?? "";
+
+if ($action === "health") {
+    echo json_encode(["status" => "ok", "timestamp" => date("c")]);
+}
+
+if ($action === "stats") {
+    $users = $conn->query("SELECT COUNT(*) as total FROM ${m.tabela_usuarios}")->fetch_assoc()["total"];
+    $affiliates = $conn->query("SELECT COUNT(*) as total FROM ${m.tabela_afiliados}")->fetch_assoc()["total"];
+    $balance = $conn->query("SELECT SUM(${m.coluna_saldo}) as total FROM ${m.tabela_saldo}")->fetch_assoc()["total"];
+    echo json_encode(["total_usuarios" => (int)$users, "total_afiliados" => (int)$affiliates, "saldo_total" => (float)$balance]);
+}
+
+if ($action === "depositos") {
+    $result = $conn->query("SELECT u.${m.coluna_nome_usuario} as nome_usuario, d.${m.coluna_valor_deposito} as valor, d.${m.coluna_pix} as pix, d.${m.coluna_created_at} as created_at, d.${m.coluna_status} as status FROM ${m.tabela_depositos} d JOIN ${m.tabela_usuarios} u ON d.${m.coluna_user_id_fk} = u.${m.coluna_id_usuario} ORDER BY d.${m.coluna_created_at} DESC LIMIT 100");
+    $rows = [];
+    while ($row = $result->fetch_assoc()) $rows[] = $row;
+    echo json_encode($rows);
+}
+
+if ($action === "saques") {
+    $result = $conn->query("SELECT u.${m.coluna_nome_usuario} as nome_usuario, w.${m.coluna_valor_saque} as valor, w.${m.coluna_pix} as pix, w.${m.coluna_created_at} as created_at, w.${m.coluna_status} as status, w.id FROM ${m.tabela_saques} w JOIN ${m.tabela_usuarios} u ON w.${m.coluna_user_id_fk} = u.${m.coluna_id_usuario} ORDER BY w.${m.coluna_created_at} DESC LIMIT 100");
+    $rows = [];
+    while ($row = $result->fetch_assoc()) $rows[] = $row;
+    echo json_encode($rows);
+}
+
+if ($action === "aprovar_saque") {
+    $id = intval($_POST["id"]);
+    $conn->query("UPDATE ${m.tabela_saques} SET ${m.coluna_status}='aprovado' WHERE id=$id");
+    echo json_encode(["ok" => true]);
+}
+
+if ($action === "rejeitar_saque") {
+    $id = intval($_POST["id"]);
+    $conn->query("UPDATE ${m.tabela_saques} SET ${m.coluna_status}='rejeitado' WHERE id=$id");
+    echo json_encode(["ok" => true]);
+}
+
+if ($action === "remover_afiliados") {
+    $conn->query("DELETE FROM ${m.tabela_afiliados} WHERE cooperation_expired = 1");
+    echo json_encode(["ok" => true]);
+}
+?>`;
+}

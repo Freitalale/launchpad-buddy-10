@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight, Code, FileText, Globe, Copy, CheckCircle } from "lucide-react";
+import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight, Code, FileText, Globe, Copy, CheckCircle, TableProperties } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -597,7 +597,62 @@ const sections = [
     ),
   },
   {
-    icon: Shield, color: "neon-blue", title: "9. Segurança e Checklist Final",
+    icon: TableProperties, color: "neon-purple", title: "9. Mapeamento Dinâmico de Tabelas",
+    description: "Como configurar nomes diferentes de tabelas e colunas para cada plataforma",
+    content: (
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">O <strong className="text-foreground">Mapeamento Dinâmico</strong> permite integrar qualquer banco de dados sem alterar o código da API. Cada plataforma pode ter nomes diferentes de tabelas e colunas.</p>
+        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
+          <p className="text-[11px] font-bold text-foreground">📐 Como funciona:</p>
+          {[
+            "1. Vá em Plataformas → Configurar → aba Mapeamento",
+            "2. Configure os nomes reais das tabelas do banco (ex: transactions em vez de deposits)",
+            "3. Configure os nomes reais das colunas (ex: balance_amount em vez de balance)",
+            "4. Clique em 'Testar Estrutura do Banco' para validar",
+            "5. O api.php usará automaticamente os nomes configurados nas queries SQL",
+          ].map((t, i) => (
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
+          ))}
+        </div>
+        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
+          <p className="text-[11px] font-bold text-foreground">📋 Tabelas configuráveis:</p>
+          {[
+            "Tabela de Usuários → padrão: users",
+            "Tabela de Depósitos → padrão: deposits",
+            "Tabela de Saques → padrão: withdrawals",
+            "Tabela de Saldo → padrão: wallets",
+            "Tabela de Afiliados → padrão: affiliates",
+          ].map((t, i) => (
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-cyan mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground font-mono">{t}</p></div>
+          ))}
+        </div>
+        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
+          <p className="text-[11px] font-bold text-foreground">📋 Colunas configuráveis:</p>
+          {[
+            "ID do Usuário → padrão: id",
+            "Nome do Usuário → padrão: name",
+            "FK User ID → padrão: user_id",
+            "Valor Depósito → padrão: amount",
+            "Valor Saque → padrão: amount",
+            "Chave PIX → padrão: pix",
+            "Status → padrão: status",
+            "Data Criação → padrão: created_at",
+            "Saldo → padrão: balance",
+          ].map((t, i) => (
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-purple mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground font-mono">{t}</p></div>
+          ))}
+        </div>
+        <div className="rounded-lg bg-primary/5 border border-primary/20 p-2 mt-2">
+          <p className="text-[10px] text-primary font-semibold">💡 Exemplo: Se o banco usa "transactions" em vez de "deposits" e "balance_amount" em vez de "balance", basta mapear no painel — sem alterar código.</p>
+        </div>
+        <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-2">
+          <p className="text-[10px] text-destructive font-semibold">⚠️ Se o mapeamento estiver errado, o diagnóstico mostrará: "coluna 'X' não encontrada na tabela 'Y'. Verifique o mapeamento de colunas."</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    icon: Shield, color: "neon-blue", title: "10. Segurança e Checklist Final",
     description: "Boas práticas de segurança e checklist de verificação",
     content: (
       <div className="space-y-3">
