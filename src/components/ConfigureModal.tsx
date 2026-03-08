@@ -112,6 +112,8 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const [testingStructure, setTestingStructure] = useState(false);
   const [structureResult, setStructureResult] = useState<string[]>([]);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{ version: string; endpoints: { name: string; status: string; detail: string }[] } | null>(null);
 
   // Scanner state
   const [scanning, setScanning] = useState(false);
