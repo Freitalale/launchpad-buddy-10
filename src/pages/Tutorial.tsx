@@ -341,7 +341,7 @@ const sections = [
     description: "Como o painel controla automaticamente a API sem editar código PHP",
     content: (
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">O Master Painel Pro v3.0 usa um sistema de <strong className="text-foreground">mapeamento dinâmico</strong>: a API busca os nomes de tabelas e colunas diretamente do painel, sem precisar editar código PHP.</p>
+        <p className="text-xs text-muted-foreground">O Master Painel Pro v3.1 usa um sistema de <strong className="text-foreground">mapeamento dinâmico por tabela</strong>: a API busca os nomes de tabelas e colunas (separados por tabela) diretamente do painel.</p>
         <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3 space-y-2">
           <p className="text-[11px] font-bold text-neon-green">⚡ Fluxo Dinâmico:</p>
           {[
