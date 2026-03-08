@@ -205,6 +205,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     }
     setScanning(true);
     setScanResult(null);
+    try {
       let apiUrl = form.url;
       if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
         apiUrl = `https://${apiUrl}`;
