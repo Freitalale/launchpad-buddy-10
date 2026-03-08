@@ -109,16 +109,24 @@ const Login = () => {
 
             <Button type="submit" disabled={loading} className="w-full h-11 font-semibold text-sm transition-all duration-300"
               style={{ background: "linear-gradient(135deg, hsl(var(--neon-blue)), hsl(220 100% 60%))", boxShadow: "0 0 20px hsl(var(--neon-blue) / 0.3)" }}>
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-background/40 border-t-background rounded-full animate-spin" />
-                  {mode === "login" ? "Autenticando..." : "Criando conta..."}
-                </div>
-              ) : mode === "login" ? (
-                <><Shield className="w-4 h-4 mr-2" /> Entrar no Painel</>
-              ) : (
-                <><UserPlus className="w-4 h-4 mr-2" /> Criar Conta</>
-              )}
+              <span className="flex items-center justify-center gap-2">
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-background/40 border-t-background rounded-full animate-spin inline-block" />
+                    <span>{mode === "login" ? "Autenticando..." : "Criando conta..."}</span>
+                  </>
+                ) : mode === "login" ? (
+                  <>
+                    <Shield className="w-4 h-4" />
+                    <span>Entrar no Painel</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4" />
+                    <span>Criar Conta</span>
+                  </>
+                )}
+              </span>
             </Button>
           </form>
 
