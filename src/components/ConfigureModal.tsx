@@ -112,7 +112,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const [testingStructure, setTestingStructure] = useState(false);
   const [structureResult, setStructureResult] = useState<string[]>([]);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
+  const [previewFiles, setPreviewFiles] = useState<Record<string, boolean>>({});
   const [verifyResult, setVerifyResult] = useState<{ version: string; endpoints: { name: string; status: string; detail: string }[] } | null>(null);
 
   // Scanner state
@@ -1615,14 +1615,14 @@ async function testAll(){
               { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
               { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => {
-              const [showPreview, setShowPreview] = useState(false);
+              const isPreviewOpen = previewFiles[f.name] ?? false;
               return (
                 <div key={f.name} className="space-y-2 rounded-lg border border-border/50 p-3">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-bold text-foreground">{f.label}</p>
                     <div className="flex gap-1">
-                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 border-primary/30 text-primary hover:bg-primary/10" onClick={() => setShowPreview(!showPreview)}>
-                        <Code className="w-3 h-3" /> {showPreview ? "Esconder" : "Gerar Preview"}
+                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 border-primary/30 text-primary hover:bg-primary/10" onClick={() => setPreviewFiles(p => ({ ...p, [f.name]: !isPreviewOpen }))}>
+                        <Code className="w-3 h-3" /> {isPreviewOpen ? "Esconder" : "Gerar Preview"}
                       </Button>
                       <CopyButton text={f.gen()} field={f.field} />
                       <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 border-neon-green/30 text-neon-green hover:bg-neon-green/10" onClick={() => {
@@ -1634,7 +1634,7 @@ async function testAll(){
                       </Button>
                     </div>
                   </div>
-                  {showPreview && (
+                  {isPreviewOpen && (
                     <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono whitespace-pre max-h-60">{f.gen()}</pre>
                   )}
                 </div>
