@@ -426,6 +426,7 @@ export type Database = {
           detalhes: string | null
           id: string
           nome_usuario: string
+          original_id: string | null
           pix: string | null
           plataforma_id: string | null
           plataforma_nome: string | null
@@ -438,6 +439,7 @@ export type Database = {
           detalhes?: string | null
           id?: string
           nome_usuario: string
+          original_id?: string | null
           pix?: string | null
           plataforma_id?: string | null
           plataforma_nome?: string | null
@@ -450,6 +452,7 @@ export type Database = {
           detalhes?: string | null
           id?: string
           nome_usuario?: string
+          original_id?: string | null
           pix?: string | null
           plataforma_id?: string | null
           plataforma_nome?: string | null
