@@ -49,6 +49,7 @@ serve(async (req) => {
     const extraCols = extra.colunas_extra ?? {};
     const extraTables = extra.tabelas_extra ?? [];
     const hiddenCols = extra.colunas_ocultas ?? {};
+    const disabledTables: string[] = extra.tabelas_desativadas ?? [];
 
     // Build per-table column mappings (include extras, exclude hidden)
     const buildColumns = (tableKey: string, defaults: Record<string, string>) => {
