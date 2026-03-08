@@ -17,8 +17,7 @@ serve(async (req) => {
 
     if (!apiKey) {
       return new Response(JSON.stringify({ ok: false, error: "api_key é obrigatório" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -45,6 +44,51 @@ serve(async (req) => {
       });
     }
 
+    // Parse extras
+    const extra = p.mapeamento_extra ?? {};
+    const extraCols = extra.colunas_extra ?? {};
+    const extraTables = extra.tabelas_extra ?? [];
+    const hiddenCols = extra.colunas_ocultas ?? {};
+
+    // Build per-table column mappings (include extras, exclude hidden)
+    const buildColumns = (tableKey: string, defaults: Record<string, string>) => {
+      const hidden = hiddenCols[tableKey] ?? [];
+      const result: Record<string, string> = {};
+      
+      // Add defaults (skip hidden by checking if field name is in hidden list)
+      for (const [key, value] of Object.entries(defaults)) {
+        // hidden stores field names like "coluna_email_usuario", we need to check
+        const isHidden = hidden.some((h: string) => h.includes(key) || h === `coluna_${key}`);
+        if (!isHidden) {
+          result[key] = value;
+        }
+      }
+
+      // Add extras
+      const tableExtras = extraCols[tableKey] ?? [];
+      for (const ec of tableExtras) {
+        if (ec.label && ec.column) {
+          result[ec.label] = ec.column;
+        }
+      }
+
+      return result;
+    };
+
+    // Build extra tables mapping
+    const extraTablesMapping: Record<string, { table_name: string; columns: Record<string, string> }> = {};
+    for (const et of extraTables) {
+      if (et.tableName) {
+        const cols: Record<string, string> = {};
+        for (const col of (et.columns ?? [])) {
+          if (col.label && col.column) {
+            cols[col.label] = col.column;
+          }
+        }
+        extraTablesMapping[et.key] = { table_name: et.tableName, columns: cols };
+      }
+    }
+
     const mapping = {
       ok: true,
       platform_id: p.id,
@@ -57,39 +101,40 @@ serve(async (req) => {
         afiliados: p.tabela_afiliados ?? "affiliates",
       },
       columns: {
-        usuarios: {
+        usuarios: buildColumns("usuarios", {
           id: p.coluna_id_usuario ?? "id",
           nome: p.coluna_nome_usuario ?? "name",
           email: p.coluna_email_usuario ?? "email",
           telefone: p.coluna_telefone_usuario ?? "phone",
-        },
-        depositos: {
+        }),
+        depositos: buildColumns("depositos", {
           id: p.coluna_id_deposito ?? "id",
           user_id: p.coluna_user_id_deposito ?? p.coluna_user_id_fk ?? "user_id",
           valor: p.coluna_valor_deposito ?? "amount",
           pix: p.coluna_pix_deposito ?? p.coluna_pix ?? "pix",
           status: p.coluna_status_deposito ?? p.coluna_status ?? "status",
           created_at: p.coluna_created_at_deposito ?? p.coluna_created_at ?? "created_at",
-        },
-        saques: {
+        }),
+        saques: buildColumns("saques", {
           id: p.coluna_id_saque ?? "id",
           user_id: p.coluna_user_id_saque ?? p.coluna_user_id_fk ?? "user_id",
           valor: p.coluna_valor_saque ?? "amount",
           pix: p.coluna_pix_saque ?? p.coluna_pix ?? "pix",
           status: p.coluna_status_saque ?? p.coluna_status ?? "status",
           created_at: p.coluna_created_at_saque ?? p.coluna_created_at ?? "created_at",
-        },
-        saldo: {
+        }),
+        saldo: buildColumns("saldo", {
           user_id: p.coluna_user_id_saldo ?? "user_id",
           saldo: p.coluna_saldo ?? "balance",
-        },
-        afiliados: {
+        }),
+        afiliados: buildColumns("afiliados", {
           id: p.coluna_id_afiliado ?? "id",
           nome: p.coluna_nome_afiliado ?? "name",
           user_id: p.coluna_user_id_afiliado ?? "user_id",
           cooperation_expired: p.coluna_cooperation_expired ?? "cooperation_expired",
-        },
+        }),
       },
+      extra_tables: extraTablesMapping,
       updated_at: new Date().toISOString(),
     };
 
