@@ -214,7 +214,7 @@ const testHtmlCode = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <h1>🔌 Teste de Conexão — API Master Painel Pro v3.0</h1>
+    <h1>🔌 Teste de Conexão — API Master Painel Pro v3.1</h1>
     <p>Configure a URL da API abaixo e teste cada endpoint:</p>
     
     <input id="apiUrl" value="https://suaplataforma.com/api.php" 
@@ -622,7 +622,7 @@ const sections = [
           {[
             "Banco MySQL criado",
             "config.php com credenciais + $painel_url + api_key",
-            "api.php v3.0 hospedado e acessível via HTTPS",
+            "api.php v3.1 hospedado e acessível via HTTPS",
             "Plataforma adicionada no painel com URL correta",
             "Mapeamento de tabelas/colunas configurado no painel",
             "Botão 'Testar Endpoint' → mapeamento retornado com sucesso",
@@ -671,7 +671,7 @@ const Tutorial = () => {
           <RefreshCw className="w-4 h-4 text-neon-green" />
           <p className="text-xs font-bold text-foreground">⚡ Mude no painel → a API muda sozinha</p>
         </div>
-        <p className="text-[10px] text-muted-foreground">O api.php v3.0 não tem nomes de tabelas no código. Ele busca tudo do painel via endpoint. Altere o mapeamento no painel → a API se adapta automaticamente em até 60 segundos.</p>
+        <p className="text-[10px] text-muted-foreground">O api.php v3.1 organiza colunas por tabela. Altere o mapeamento no painel → a API se adapta em até 60 segundos.</p>
       </motion.div>
 
       <div className="space-y-3">
