@@ -1176,14 +1176,20 @@ async function testAll(){
                 {/* Quick download all */}
                 <Button className="w-full gap-2 h-10 text-sm font-bold" style={{ background: "var(--gradient-primary)" }}
                   onClick={() => {
-                    [{ name: "config.php", content: generateConfigPhp() }, { name: "api.php", content: generateApiPhp() }, { name: "test_api.html", content: generateTestHtml() }]
-                      .forEach((f, i) => setTimeout(() => {
-                        const blob = new Blob([f.content], { type: "text/plain;charset=utf-8" });
-                        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = f.name; a.click();
-                      }, i * 300));
-                    toast({ title: "📦 3 arquivos baixados!", description: "config.php + api.php + test_api.html" });
+                    const files = [
+                      { name: "config.php", content: generateConfigPhp() },
+                      { name: "api.php", content: generateApiPhp() },
+                      { name: "test_api.html", content: generateTestHtml() },
+                      { name: "telegram_webhook.php", content: generateTelegramWebhook() },
+                      { name: "webhook_pix.php", content: generateWebhookPix() },
+                    ];
+                    files.forEach((f, i) => setTimeout(() => {
+                      const blob = new Blob([f.content], { type: "text/plain;charset=utf-8" });
+                      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = f.name; a.click();
+                    }, i * 300));
+                    toast({ title: "📦 5 arquivos baixados!", description: "config.php + api.php + test_api.html + telegram_webhook.php + webhook_pix.php" });
                   }}>
-                  <Download className="w-4 h-4" /> Baixar Todos os Arquivos (3)
+                  <Download className="w-4 h-4" /> Baixar Todos os Arquivos (5)
                 </Button>
               </div>
             )}
