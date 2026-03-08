@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Database, Server, Settings as SettingsIcon, Save, TestTube, RefreshCw, CheckCircle, AlertCircle, Wifi, Zap, Globe, TableProperties, Columns3 } from "lucide-react";
+import { Database, Server, Settings as SettingsIcon, Save, TestTube, RefreshCw, CheckCircle, AlertCircle, Wifi, Zap, Globe, TableProperties, Columns3, Copy, Code, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const [testDetails, setTestDetails] = useState<string[]>([]);
   const [testingStructure, setTestingStructure] = useState(false);
   const [structureResult, setStructureResult] = useState<string[]>([]);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     url: "", db_host: "", db_port: 3306, db_user: "", db_pass: "", db_name: "",
@@ -69,6 +70,300 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
 
   if (!platform) return null;
 
+  const apiKey = (platform as any).api_key ?? "";
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const mappingEndpoint = `${supabaseUrl}/functions/v1/get-platform-mapping?api_key=${apiKey}`;
+
+  const handleCopy = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    toast({ title: "Copiado!" });
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const generateConfigPhp = () => {
+    return `<?php
+// =====================================================
+// config.php — Gerado automaticamente pelo Painel
+// =====================================================
+// Credenciais do banco MySQL
+$host = "${form.db_host || "localhost"}";
+$user = "${form.db_user || "seu_usuario_db"}";
+$pass = "${form.db_pass || "sua_senha_db"}";
+$db   = "${form.db_name || "nome_do_banco"}";
+
+// ── Conexão com o Painel (Mapeamento Dinâmico) ──
+$painel_url = "${mappingEndpoint}";
+$cache_file = __DIR__ . "/mapping_cache.json";
+$cache_ttl  = 60; // segundos
+?>`;
+  };
+
+  const generateApiPhp = () => {
+    return `<?php
+// =====================================================
+// api.php — API Dinâmica Controlada pelo Painel
+// =====================================================
+// Este arquivo NÃO precisa ser editado manualmente.
+// Todas as tabelas e colunas são lidas do painel.
+// Mude no painel → a API muda automaticamente.
+// =====================================================
+
+header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+
+if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
+    http_response_code(200);
+    exit;
+}
+
+include 'config.php';
+
+// ── Conexão MySQL ──
+$conn = new mysqli($host, $user, $pass, $db);
+if ($conn->connect_error) {
+    echo json_encode(["error" => "Falha na conexão: " . $conn->connect_error]);
+    exit;
+}
+$conn->set_charset("utf8mb4");
+
+// ── Buscar Mapeamento do Painel (com cache) ──
+function getMapping() {
+    global $painel_url, $cache_file, $cache_ttl;
+    
+    // Verificar cache
+    if (file_exists($cache_file)) {
+        $cache = json_decode(file_get_contents($cache_file), true);
+        if ($cache && isset($cache["_cached_at"]) && (time() - $cache["_cached_at"]) < $cache_ttl) {
+            $cache["_from_cache"] = true;
+            return $cache;
+        }
+    }
+    
+    // Buscar do painel
+    $ctx = stream_context_create(["http" => ["timeout" => 5]]);
+    $response = @file_get_contents($painel_url, false, $ctx);
+    
+    if ($response === false) {
+        // Painel offline — usar último cache
+        if (file_exists($cache_file)) {
+            $cache = json_decode(file_get_contents($cache_file), true);
+            if ($cache) {
+                $cache["_from_cache"] = true;
+                $cache["_warning"] = "Painel temporariamente offline. Usando último cache.";
+                return $cache;
+            }
+        }
+        return null;
+    }
+    
+    $data = json_decode($response, true);
+    if ($data && isset($data["ok"]) && $data["ok"]) {
+        $data["_cached_at"] = time();
+        file_put_contents($cache_file, json_encode($data));
+        $data["_from_cache"] = false;
+        return $data;
+    }
+    
+    return null;
+}
+
+$mapping = getMapping();
+
+if (!$mapping) {
+    echo json_encode([
+        "error" => "Não foi possível obter o mapeamento do painel.",
+        "causa" => "Verifique se a api_key está correta no config.php e se o painel está online.",
+        "painel_url" => $painel_url
+    ]);
+    exit;
+}
+
+// ── Extrair nomes de tabelas e colunas ──
+$t = $mapping["tables"];
+$c = $mapping["columns"];
+
+$tabela_usuarios   = $t["usuarios"]   ?? "users";
+$tabela_depositos  = $t["depositos"]  ?? "deposits";
+$tabela_saques     = $t["saques"]     ?? "withdrawals";
+$tabela_saldo      = $t["saldo"]      ?? "wallets";
+$tabela_afiliados  = $t["afiliados"]  ?? "affiliates";
+
+$col_id_usuario      = $c["id_usuario"]      ?? "id";
+$col_nome_usuario    = $c["nome_usuario"]    ?? "name";
+$col_user_id_fk      = $c["user_id_fk"]      ?? "user_id";
+$col_valor_deposito  = $c["valor_deposito"]  ?? "amount";
+$col_valor_saque     = $c["valor_saque"]     ?? "amount";
+$col_pix             = $c["pix"]             ?? "pix";
+$col_status          = $c["status"]          ?? "status";
+$col_created_at      = $c["created_at"]      ?? "created_at";
+$col_saldo           = $c["saldo"]           ?? "balance";
+
+$action = $_GET["action"] ?? "";
+
+// =====================================================
+// ENDPOINT: health
+// =====================================================
+if ($action === "health") {
+    echo json_encode([
+        "ok"      => true,
+        "version" => "3.0.0-dynamic",
+        "db"      => true,
+        "mapping_source" => $mapping["_from_cache"] ? "cache" : "painel",
+        "warning" => $mapping["_warning"] ?? null,
+        "tables"  => $t,
+        "columns" => $c,
+        "time"    => date("Y-m-d H:i:s")
+    ]);
+    exit;
+}
+
+// =====================================================
+// ENDPOINT: stats
+// =====================================================
+if ($action === "stats") {
+    $r1 = $conn->query("SELECT COUNT(*) as total FROM \`$tabela_usuarios\`");
+    $r2 = $conn->query("SELECT COUNT(*) as total FROM \`$tabela_afiliados\`");
+    $r3 = $conn->query("SELECT COALESCE(SUM(\`$col_saldo\`), 0) as total FROM \`$tabela_saldo\`");
+    
+    $errors = [];
+    if (!$r1) $errors[] = "Tabela '$tabela_usuarios' não encontrada: " . $conn->error;
+    if (!$r2) $errors[] = "Tabela '$tabela_afiliados' não encontrada: " . $conn->error;
+    if (!$r3) $errors[] = "Tabela '$tabela_saldo' ou coluna '$col_saldo' não encontrada: " . $conn->error;
+    
+    if (!empty($errors)) {
+        echo json_encode(["error" => "Erro no mapeamento", "detalhes" => $errors, "causa" => "Verifique os nomes de tabelas/colunas no painel."]);
+        exit;
+    }
+    
+    echo json_encode([
+        "total_usuarios"  => (int)$r1->fetch_assoc()["total"],
+        "total_afiliados" => (int)$r2->fetch_assoc()["total"],
+        "saldo_total"     => (float)$r3->fetch_assoc()["total"]
+    ]);
+    exit;
+}
+
+// =====================================================
+// ENDPOINT: depositos
+// =====================================================
+if ($action === "depositos") {
+    $sql = "SELECT u.\`$col_nome_usuario\` as nome_usuario, 
+                   d.\`$col_valor_deposito\` as valor, 
+                   d.\`$col_pix\` as pix, 
+                   d.\`$col_created_at\` as created_at, 
+                   d.\`$col_status\` as status
+            FROM \`$tabela_depositos\` d
+            JOIN \`$tabela_usuarios\` u ON d.\`$col_user_id_fk\` = u.\`$col_id_usuario\`
+            ORDER BY d.\`$col_created_at\` DESC
+            LIMIT 500";
+    
+    $result = $conn->query($sql);
+    if (!$result) {
+        echo json_encode([
+            "error" => "Erro SQL: " . $conn->error,
+            "causa" => "Verifique o mapeamento de tabelas/colunas no painel.",
+            "query" => $sql
+        ]);
+        exit;
+    }
+
+    $rows = [];
+    while ($row = $result->fetch_assoc()) {
+        $rows[] = [
+            "nome_usuario" => $row["nome_usuario"],
+            "valor"        => (float)$row["valor"],
+            "pix"          => $row["pix"],
+            "created_at"   => $row["created_at"],
+            "status"       => $row["status"]
+        ];
+    }
+    echo json_encode($rows);
+    exit;
+}
+
+// =====================================================
+// ENDPOINT: saques
+// =====================================================
+if ($action === "saques") {
+    $sql = "SELECT w.id, 
+                   u.\`$col_nome_usuario\` as nome_usuario, 
+                   w.\`$col_valor_saque\` as valor, 
+                   w.\`$col_pix\` as pix, 
+                   w.\`$col_created_at\` as created_at, 
+                   w.\`$col_status\` as status
+            FROM \`$tabela_saques\` w
+            JOIN \`$tabela_usuarios\` u ON w.\`$col_user_id_fk\` = u.\`$col_id_usuario\`
+            ORDER BY w.\`$col_created_at\` DESC
+            LIMIT 500";
+    
+    $result = $conn->query($sql);
+    if (!$result) {
+        echo json_encode([
+            "error" => "Erro SQL: " . $conn->error,
+            "causa" => "Verifique o mapeamento de tabelas/colunas no painel.",
+            "query" => $sql
+        ]);
+        exit;
+    }
+
+    $rows = [];
+    while ($row = $result->fetch_assoc()) {
+        $rows[] = [
+            "id"           => (int)$row["id"],
+            "nome_usuario" => $row["nome_usuario"],
+            "valor"        => (float)$row["valor"],
+            "pix"          => $row["pix"],
+            "created_at"   => $row["created_at"],
+            "status"       => $row["status"]
+        ];
+    }
+    echo json_encode($rows);
+    exit;
+}
+
+// =====================================================
+// ENDPOINT: aprovar_saque
+// =====================================================
+if ($action === "aprovar_saque") {
+    $id = intval($_POST["id"] ?? 0);
+    if ($id <= 0) { echo json_encode(["ok" => false, "error" => "ID inválido"]); exit; }
+    $stmt = $conn->prepare("UPDATE \`$tabela_saques\` SET \`$col_status\`='aprovado' WHERE id=?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    echo json_encode(["ok" => true, "message" => "Saque aprovado"]);
+    exit;
+}
+
+// =====================================================
+// ENDPOINT: rejeitar_saque
+// =====================================================
+if ($action === "rejeitar_saque") {
+    $id = intval($_POST["id"] ?? 0);
+    if ($id <= 0) { echo json_encode(["ok" => false, "error" => "ID inválido"]); exit; }
+    $stmt = $conn->prepare("UPDATE \`$tabela_saques\` SET \`$col_status\`='rejeitado' WHERE id=?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    echo json_encode(["ok" => true, "message" => "Saque rejeitado"]);
+    exit;
+}
+
+// =====================================================
+// ENDPOINT: remover_afiliados
+// =====================================================
+if ($action === "remover_afiliados") {
+    $stmt = $conn->prepare("DELETE FROM \`$tabela_afiliados\` WHERE cooperation_expired = 1");
+    $stmt->execute();
+    echo json_encode(["ok" => true, "removed" => $stmt->affected_rows]);
+    exit;
+}
+
+echo json_encode(["error" => "Ação não reconhecida: " . $action]);
+?>`;
+  };
+
   const handleTestApi = async () => {
     setTesting(true);
     setTestResult(null);
@@ -98,19 +393,13 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     setTestingStructure(true);
     setStructureResult([]);
     const results: string[] = [];
-
-    // Test via the API endpoint that uses the mapping
-    const testPlatform = { ...platform, url: form.url };
     const apiUrl = form.url ? `${form.url.replace(/\/$/, "")}/api.php` : null;
-
     if (!apiUrl) {
       results.push("❌ URL da API não configurada");
       setStructureResult(results);
       setTestingStructure(false);
       return;
     }
-
-    // Test each mapped table via the corresponding endpoint
     const mappings = [
       { label: `Tabela Usuários (${form.tabela_usuarios})`, action: "stats" },
       { label: `Tabela Depósitos (${form.tabela_depositos})`, action: "depositos" },
@@ -118,7 +407,6 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       { label: `Tabela Saldo (${form.tabela_saldo})`, action: "stats" },
       { label: `Tabela Afiliados (${form.tabela_afiliados})`, action: "stats" },
     ];
-
     for (const m of mappings) {
       try {
         const controller = new AbortController();
@@ -128,24 +416,23 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
         if (res.ok) {
           const text = await res.text();
           try {
-            JSON.parse(text);
-            results.push(`✅ ${m.label} — OK`);
+            const json = JSON.parse(text);
+            if (json.error) {
+              results.push(`❌ ${m.label} — ${json.error}${json.causa ? ` | ${json.causa}` : ""}`);
+            } else {
+              results.push(`✅ ${m.label} — OK`);
+            }
           } catch {
-            results.push(`⚠️ ${m.label} — JSON inválido. Verifique se api.php usa os nomes corretos de tabela/coluna.`);
+            results.push(`⚠️ ${m.label} — JSON inválido.`);
           }
         } else {
-          results.push(`❌ ${m.label} — HTTP ${res.status}. Verifique o mapeamento no api.php.`);
+          results.push(`❌ ${m.label} — HTTP ${res.status}`);
         }
       } catch (e: any) {
-        if (e.name === "AbortError") {
-          results.push(`❌ ${m.label} — Timeout. Servidor não respondeu.`);
-        } else {
-          results.push(`❌ ${m.label} — ${e.message}`);
-        }
+        results.push(`❌ ${m.label} — ${e.name === "AbortError" ? "Timeout" : e.message}`);
       }
     }
-
-    // Validate column mapping consistency
+    results.push("", "📋 Colunas mapeadas:");
     const columnChecks = [
       { col: form.coluna_id_usuario, label: "ID Usuário" },
       { col: form.coluna_nome_usuario, label: "Nome Usuário" },
@@ -156,19 +443,26 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       { col: form.coluna_created_at, label: "Data Criação" },
       { col: form.coluna_saldo, label: "Saldo" },
     ];
-
-    results.push("", "📋 Colunas mapeadas:");
     for (const c of columnChecks) {
-      if (c.col && c.col.trim()) {
-        results.push(`  ✅ ${c.label} → ${c.col}`);
-      } else {
-        results.push(`  ⚠️ ${c.label} → não configurada`);
-      }
+      results.push(c.col?.trim() ? `  ✅ ${c.label} → ${c.col}` : `  ⚠️ ${c.label} → não configurada`);
     }
-
     setStructureResult(results);
     setTestingStructure(false);
-    toast({ title: "Teste de estrutura concluído", description: "Verifique os resultados abaixo" });
+    toast({ title: "Teste de estrutura concluído" });
+  };
+
+  const handleTestMappingEndpoint = async () => {
+    try {
+      const res = await fetch(mappingEndpoint);
+      const data = await res.json();
+      if (data.ok) {
+        toast({ title: "✅ Endpoint de mapeamento OK", description: `Plataforma: ${data.platform_name}` });
+      } else {
+        toast({ title: "❌ Erro no endpoint", description: data.error, variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "❌ Erro de conexão", description: e.message, variant: "destructive" });
+    }
   };
 
   const handleSync = async () => {
@@ -183,7 +477,6 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       const cooperacao_expira = form.cooperacao_dias
         ? new Date(Date.now() + form.cooperacao_dias * 86400000).toISOString().split("T")[0]
         : null;
-
       await updatePlatform.mutateAsync({
         id: platform.id,
         url: form.url || null,
@@ -201,7 +494,6 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
         gateway_chave: form.gateway_chave || null,
         cooperacao_dias: form.cooperacao_dias || null,
         cooperacao_expira,
-        // New mapping fields
         tabela_depositos: form.tabela_depositos,
         tabela_saques: form.tabela_saques,
         coluna_id_usuario: form.coluna_id_usuario,
@@ -228,6 +520,13 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     </div>
   );
 
+  const CopyButton = ({ text, field }: { text: string; field: string }) => (
+    <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2" onClick={() => handleCopy(text, field)}>
+      {copiedField === field ? <CheckCircle className="w-3 h-3 text-neon-green" /> : <Copy className="w-3 h-3" />}
+      {copiedField === field ? "Copiado!" : "Copiar"}
+    </Button>
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
@@ -238,17 +537,18 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API, banco de dados, mapeamento, webhooks e cooperação</p>
+              <p className="text-xs text-muted-foreground">API dinâmica, banco de dados, mapeamento, webhooks e cooperação</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
         </div>
 
         <Tabs defaultValue="api" className="w-full">
-          <TabsList className="grid grid-cols-5 w-full">
+          <TabsList className="grid grid-cols-6 w-full">
             <TabsTrigger value="api" className="text-xs gap-1"><Globe className="w-3 h-3" /> API</TabsTrigger>
             <TabsTrigger value="database" className="text-xs gap-1"><Database className="w-3 h-3" /> Banco</TabsTrigger>
             <TabsTrigger value="mapping" className="text-xs gap-1"><TableProperties className="w-3 h-3" /> Mapeamento</TabsTrigger>
+            <TabsTrigger value="generate" className="text-xs gap-1"><Code className="w-3 h-3" /> Gerar</TabsTrigger>
             <TabsTrigger value="webhooks" className="text-xs gap-1"><Wifi className="w-3 h-3" /> Webhooks</TabsTrigger>
             <TabsTrigger value="cooperation" className="text-xs gap-1"><Server className="w-3 h-3" /> Cooperação</TabsTrigger>
           </TabsList>
@@ -261,14 +561,31 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
                 className="bg-secondary h-9 text-sm font-mono" placeholder="https://gerenteriquinho.online" />
               <p className="text-[10px] text-muted-foreground mt-1">O painel acessará: {form.url ? `${form.url.replace(/\/$/, "")}/api.php` : "—"}</p>
             </div>
+
+            {/* API Key section */}
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Key className="w-3.5 h-3.5 text-primary" />
+                <p className="text-xs font-bold text-foreground">Chave da API (api_key)</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Essa chave conecta o api.php ao painel. O api.php usa essa chave para buscar o mapeamento de tabelas automaticamente.</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-[10px] font-mono bg-background/50 px-2 py-1.5 rounded border border-border/50 text-foreground truncate">{apiKey || "Salve a plataforma para gerar"}</code>
+                <CopyButton text={apiKey} field="api_key" />
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handleTestApi} disabled={testing || !form.url}
                 className={`gap-2 h-8 text-xs flex-1 ${testResult === "success" ? "border-neon-green/60 text-neon-green" : testResult === "error" ? "border-neon-red/60 text-neon-red" : ""}`}>
                 {testing ? <RefreshCw className="w-3 h-3 animate-spin" /> : testResult === "success" ? <CheckCircle className="w-3 h-3" /> : testResult === "error" ? <AlertCircle className="w-3 h-3" /> : <TestTube className="w-3 h-3" />}
                 {testing ? "Testando..." : testResult === "success" ? "API Validada!" : "Testar API"}
               </Button>
+              <Button variant="outline" size="sm" onClick={handleTestMappingEndpoint} disabled={!apiKey} className="gap-2 h-8 text-xs">
+                <Zap className="w-3 h-3" /> Testar Endpoint
+              </Button>
               <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || !form.url} className="gap-2 h-8 text-xs">
-                {syncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                {syncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                 Sincronizar
               </Button>
             </div>
@@ -285,7 +602,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
           {/* Database Tab */}
           <TabsContent value="database" className="space-y-4 mt-4">
             <div className="rounded-lg bg-accent/30 border border-accent/50 p-2 mb-2">
-              <p className="text-[10px] text-accent-foreground font-semibold">ℹ️ O banco de dados é acessado pelo api.php na hospedagem. Configure aqui para referência e para gerar o api.php automaticamente.</p>
+              <p className="text-[10px] text-accent-foreground font-semibold">ℹ️ O banco é acessado pelo api.php na hospedagem. Configure aqui para gerar os arquivos automaticamente.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label className="text-xs text-muted-foreground">Host</Label>
@@ -301,21 +618,20 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
             </div>
           </TabsContent>
 
-          {/* NEW: Mapping Tab */}
+          {/* Mapping Tab */}
           <TabsContent value="mapping" className="space-y-4 mt-4">
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
               <div className="flex items-center gap-2 mb-1">
                 <TableProperties className="w-4 h-4 text-primary" />
-                <p className="text-xs font-bold text-foreground">Mapeamento Dinâmico de Tabelas e Colunas</p>
+                <p className="text-xs font-bold text-foreground">Mapeamento Dinâmico — Controlado pelo Painel</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">Configure os nomes reais das tabelas e colunas do banco desta plataforma. O api.php usará esses nomes para montar as queries SQL automaticamente.</p>
+              <p className="text-[10px] text-muted-foreground">Altere os nomes aqui → salve → o api.php na hospedagem usará automaticamente os novos nomes. <strong className="text-foreground">Sem editar código PHP.</strong></p>
             </div>
 
-            {/* Table Mapping */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Database className="w-3.5 h-3.5 text-primary" />
-                <p className="text-xs font-semibold text-foreground">Mapeamento de Tabelas</p>
+                <p className="text-xs font-semibold text-foreground">Tabelas</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <MappingField label="Tabela de Usuários" value={form.tabela_usuarios} field="tabela_usuarios" placeholder="users" />
@@ -326,11 +642,10 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
               </div>
             </div>
 
-            {/* Column Mapping */}
             <div className="border-t border-border/50 pt-3 space-y-3">
               <div className="flex items-center gap-2">
                 <Columns3 className="w-3.5 h-3.5 text-primary" />
-                <p className="text-xs font-semibold text-foreground">Mapeamento de Colunas</p>
+                <p className="text-xs font-semibold text-foreground">Colunas</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <MappingField label="ID do Usuário" value={form.coluna_id_usuario} field="coluna_id_usuario" placeholder="id" />
@@ -345,14 +660,9 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
               </div>
             </div>
 
-            {/* Example */}
+            {/* Live preview */}
             <div className="rounded-lg bg-secondary/50 border border-border/50 p-3 space-y-2">
-              <p className="text-[10px] font-bold text-foreground">💡 Exemplo de uso</p>
-              <p className="text-[10px] text-muted-foreground">
-                Se a plataforma usa <span className="font-mono text-primary">transactions</span> em vez de <span className="font-mono">deposits</span>,
-                e <span className="font-mono text-primary">accounts</span> em vez de <span className="font-mono">users</span>,
-                basta alterar os campos acima. O api.php gerado usará os nomes corretos automaticamente.
-              </p>
+              <p className="text-[10px] font-bold text-foreground">💡 Preview da query gerada</p>
               <p className="text-[10px] font-mono text-muted-foreground bg-background/50 p-2 rounded">
                 SELECT u.<span className="text-primary">{form.coluna_nome_usuario}</span> as nome_usuario, d.<span className="text-primary">{form.coluna_valor_deposito}</span> as valor
                 <br />FROM <span className="text-primary">{form.tabela_depositos}</span> d
@@ -360,7 +670,6 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
               </p>
             </div>
 
-            {/* Test Structure Button */}
             <Button variant="outline" size="sm" onClick={handleTestStructure} disabled={testingStructure || !form.url}
               className="w-full gap-2 h-9 text-xs">
               {testingStructure ? <RefreshCw className="w-3 h-3 animate-spin" /> : <TestTube className="w-3 h-3" />}
@@ -369,12 +678,45 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
 
             {structureResult.length > 0 && (
               <div className="rounded-lg border border-border/50 bg-secondary/30 p-3 space-y-1">
-                <p className="text-[10px] font-bold text-foreground mb-1">Resultado do teste de estrutura:</p>
+                <p className="text-[10px] font-bold text-foreground mb-1">Resultado:</p>
                 {structureResult.map((r, i) => (
                   <p key={i} className={`text-[10px] font-mono ${r.startsWith("✅") ? "text-neon-green" : r.startsWith("❌") ? "text-destructive" : r.startsWith("⚠️") ? "text-neon-amber" : "text-muted-foreground"}`}>{r}</p>
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Generate Tab — NEW */}
+          <TabsContent value="generate" className="space-y-4 mt-4">
+            <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Code className="w-4 h-4 text-neon-green" />
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos — Pronto para Copiar</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Gere os arquivos config.php e api.php com as configurações atuais. Copie e suba na hospedagem. <strong className="text-foreground">O api.php busca o mapeamento do painel automaticamente.</strong></p>
+            </div>
+
+            {/* config.php */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-foreground">📄 config.php</p>
+                <CopyButton text={generateConfigPhp()} field="config_php" />
+              </div>
+              <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre max-h-48">{generateConfigPhp()}</pre>
+            </div>
+
+            {/* api.php */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-foreground">📄 api.php — API Dinâmica v3.0</p>
+                <CopyButton text={generateApiPhp()} field="api_php" />
+              </div>
+              <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre max-h-64">{generateApiPhp()}</pre>
+            </div>
+
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-2">
+              <p className="text-[10px] text-primary font-semibold">💡 Depois de subir os arquivos, mude qualquer tabela/coluna aqui no painel → a API na hospedagem usará automaticamente os novos nomes em até 60 segundos (cache).</p>
+            </div>
           </TabsContent>
 
           {/* Webhooks Tab */}

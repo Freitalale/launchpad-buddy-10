@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight, Code, FileText, Globe, Copy, CheckCircle, TableProperties } from "lucide-react";
+import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight, Code, FileText, Globe, Copy, CheckCircle, TableProperties, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +29,7 @@ const CodeBlock = ({ code, language = "php" }: { code: string; language?: string
 
 const configPhpCode = `<?php
 // =====================================================
-// config.php — Configuração do banco + Mapeamento de Tabelas
+// config.php — Credenciais + Conexão com o Painel
 // =====================================================
 // Coloque este arquivo na raiz da hospedagem (public_html/)
 // Cada plataforma terá seu próprio config.php.
@@ -40,40 +40,21 @@ $user = "seu_usuario_db";    // Usuário do banco de dados
 $pass = "sua_senha_db";      // Senha do banco de dados
 $db   = "nome_do_banco";     // Nome do banco da plataforma
 
-// ── Mapeamento de Tabelas ──
-// Altere para os nomes reais das tabelas do seu banco.
-// Exemplo: se sua tabela de depósitos se chama "transactions",
-// basta trocar "deposits" por "transactions" abaixo.
-$tabela_usuarios   = "users";
-$tabela_depositos  = "deposits";
-$tabela_saques     = "withdrawals";
-$tabela_saldo      = "wallets";
-$tabela_afiliados  = "affiliates";
-
-// ── Mapeamento de Colunas ──
-// Altere para os nomes reais das colunas do seu banco.
-// Exemplo: se o nome do usuário está na coluna "username" em vez de "name",
-// basta trocar "name" por "username" abaixo.
-$col_id_usuario      = "id";          // Coluna do ID do usuário
-$col_nome_usuario    = "name";        // Coluna do nome do usuário
-$col_user_id_fk      = "user_id";     // FK que referencia o usuário
-$col_valor_deposito  = "amount";      // Coluna do valor nos depósitos
-$col_valor_saque     = "amount";      // Coluna do valor nos saques
-$col_pix             = "pix";         // Coluna da chave PIX
-$col_status          = "status";      // Coluna do status da transação
-$col_created_at      = "created_at";  // Coluna da data de criação
-$col_saldo           = "balance";     // Coluna do saldo na carteira
-
+// ── Conexão com o Painel (Mapeamento Dinâmico) ──
+// Cole aqui a URL do endpoint de mapeamento + sua api_key.
+// Encontre esses dados em: Plataformas → Configurar → aba API
+$painel_url = "https://SEU_PROJETO.supabase.co/functions/v1/get-platform-mapping?api_key=SUA_API_KEY";
+$cache_file = __DIR__ . "/mapping_cache.json";
+$cache_ttl  = 60; // Tempo de cache em segundos (60 = 1 minuto)
 ?>`;
 
 const apiPhpCode = `<?php
 // =====================================================
-// api.php — API com Mapeamento Dinâmico de Tabelas
+// api.php — API Dinâmica Controlada pelo Painel v3.0
 // =====================================================
-// Este arquivo usa os nomes de tabelas e colunas definidos
-// no config.php. Você NÃO precisa alterar este arquivo
-// quando integrar uma plataforma com nomes diferentes.
-// Basta alterar o config.php!
+// ⚡ Este arquivo NÃO precisa ser editado manualmente!
+// ⚡ Todas as tabelas e colunas são lidas do painel.
+// ⚡ Mude no painel → a API muda automaticamente.
 // =====================================================
 
 header("Content-Type: application/json");
@@ -86,16 +67,92 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
     exit;
 }
 
-include 'config.php';  // Inclui credenciais + mapeamento
+include 'config.php';
 
+// ── Conexão MySQL ──
 $conn = new mysqli($host, $user, $pass, $db);
-
 if ($conn->connect_error) {
     echo json_encode(["error" => "Falha na conexão: " . $conn->connect_error]);
     exit;
 }
-
 $conn->set_charset("utf8mb4");
+
+// =====================================================
+// SISTEMA DE MAPEAMENTO DINÂMICO
+// Busca os nomes de tabelas/colunas do painel com cache
+// =====================================================
+function getMapping() {
+    global $painel_url, $cache_file, $cache_ttl;
+    
+    // 1. Verificar cache local
+    if (file_exists($cache_file)) {
+        $cache = json_decode(file_get_contents($cache_file), true);
+        if ($cache && isset($cache["_cached_at"]) && (time() - $cache["_cached_at"]) < $cache_ttl) {
+            $cache["_from_cache"] = true;
+            return $cache;
+        }
+    }
+    
+    // 2. Buscar do painel
+    $ctx = stream_context_create(["http" => ["timeout" => 5]]);
+    $response = @file_get_contents($painel_url, false, $ctx);
+    
+    if ($response === false) {
+        // Painel offline — usar último cache disponível
+        if (file_exists($cache_file)) {
+            $cache = json_decode(file_get_contents($cache_file), true);
+            if ($cache) {
+                $cache["_from_cache"] = true;
+                $cache["_warning"] = "Painel temporariamente offline. Usando último cache.";
+                return $cache;
+            }
+        }
+        return null; // Sem cache e sem painel
+    }
+    
+    // 3. Salvar cache e retornar
+    $data = json_decode($response, true);
+    if ($data && isset($data["ok"]) && $data["ok"]) {
+        $data["_cached_at"] = time();
+        file_put_contents($cache_file, json_encode($data));
+        $data["_from_cache"] = false;
+        return $data;
+    }
+    
+    return null;
+}
+
+$mapping = getMapping();
+
+if (!$mapping) {
+    echo json_encode([
+        "error" => "Não foi possível obter o mapeamento do painel.",
+        "causa" => "Verifique se a api_key está correta no config.php e se o painel está online.",
+        "painel_url" => $painel_url
+    ]);
+    exit;
+}
+
+// ── Extrair nomes de tabelas e colunas ──
+$t = $mapping["tables"];
+$c = $mapping["columns"];
+
+$tabela_usuarios   = $t["usuarios"]   ?? "users";
+$tabela_depositos  = $t["depositos"]  ?? "deposits";
+$tabela_saques     = $t["saques"]     ?? "withdrawals";
+$tabela_saldo      = $t["saldo"]      ?? "wallets";
+$tabela_afiliados  = $t["afiliados"]  ?? "affiliates";
+
+$col_id_usuario      = $c["id_usuario"]      ?? "id";
+$col_nome_usuario    = $c["nome_usuario"]    ?? "name";
+$col_user_id_fk      = $c["user_id_fk"]      ?? "user_id";
+$col_valor_deposito  = $c["valor_deposito"]  ?? "amount";
+$col_valor_saque     = $c["valor_saque"]     ?? "amount";
+$col_pix             = $c["pix"]             ?? "pix";
+$col_status          = $c["status"]          ?? "status";
+$col_created_at      = $c["created_at"]      ?? "created_at";
+$col_saldo           = $c["saldo"]           ?? "balance";
+
 $action = $_GET["action"] ?? "";
 
 // =====================================================
@@ -103,60 +160,69 @@ $action = $_GET["action"] ?? "";
 // =====================================================
 if ($action === "health") {
     echo json_encode([
-        "ok"      => true,
-        "version" => "2.0.0",
-        "db"      => true,
-        "mapping" => [
-            "tabela_usuarios"  => $tabela_usuarios,
-            "tabela_depositos" => $tabela_depositos,
-            "tabela_saques"    => $tabela_saques,
-            "tabela_saldo"     => $tabela_saldo,
-            "tabela_afiliados" => $tabela_afiliados,
-        ],
-        "time" => date("Y-m-d H:i:s")
+        "ok"             => true,
+        "version"        => "3.0.0-dynamic",
+        "db"             => true,
+        "mapping_source" => $mapping["_from_cache"] ? "cache" : "painel",
+        "warning"        => $mapping["_warning"] ?? null,
+        "tables"         => $t,
+        "columns"        => $c,
+        "time"           => date("Y-m-d H:i:s")
     ]);
     exit;
 }
 
 // =====================================================
 // ENDPOINT: stats
-// Usa: $tabela_usuarios, $tabela_afiliados, $tabela_saldo, $col_saldo
 // =====================================================
 if ($action === "stats") {
-    $users = $conn->query("SELECT COUNT(*) as total FROM \`$tabela_usuarios\`")->fetch_assoc()["total"];
-    $affiliates = $conn->query("SELECT COUNT(*) as total FROM \`$tabela_afiliados\`")->fetch_assoc()["total"];
-    $balance = $conn->query("SELECT COALESCE(SUM(\`$col_saldo\`), 0) as total FROM \`$tabela_saldo\`")->fetch_assoc()["total"];
-
+    $r1 = $conn->query("SELECT COUNT(*) as total FROM \\\`$tabela_usuarios\\\`");
+    $r2 = $conn->query("SELECT COUNT(*) as total FROM \\\`$tabela_afiliados\\\`");
+    $r3 = $conn->query("SELECT COALESCE(SUM(\\\`$col_saldo\\\`), 0) as total FROM \\\`$tabela_saldo\\\`");
+    
+    $errors = [];
+    if (!$r1) $errors[] = "Tabela '$tabela_usuarios' não encontrada: " . $conn->error;
+    if (!$r2) $errors[] = "Tabela '$tabela_afiliados' não encontrada: " . $conn->error;
+    if (!$r3) $errors[] = "Tabela '$tabela_saldo' ou coluna '$col_saldo': " . $conn->error;
+    
+    if (!empty($errors)) {
+        echo json_encode([
+            "error"    => "Erro no mapeamento",
+            "detalhes" => $errors,
+            "causa"    => "Verifique os nomes de tabelas/colunas no painel."
+        ]);
+        exit;
+    }
+    
     echo json_encode([
-        "total_usuarios"  => (int)$users,
-        "total_afiliados" => (int)$affiliates,
-        "saldo_total"     => (float)$balance
+        "total_usuarios"  => (int)$r1->fetch_assoc()["total"],
+        "total_afiliados" => (int)$r2->fetch_assoc()["total"],
+        "saldo_total"     => (float)$r3->fetch_assoc()["total"]
     ]);
     exit;
 }
 
 // =====================================================
 // ENDPOINT: depositos
-// Usa: $tabela_depositos, $tabela_usuarios, $col_nome_usuario,
-//      $col_valor_deposito, $col_pix, $col_created_at, $col_status,
-//      $col_user_id_fk, $col_id_usuario
 // =====================================================
 if ($action === "depositos") {
-    $sql = "SELECT u.\`$col_nome_usuario\` as nome_usuario, 
-                   d.\`$col_valor_deposito\` as valor, 
-                   d.\`$col_pix\` as pix, 
-                   d.\`$col_created_at\` as created_at, 
-                   d.\`$col_status\` as status
-            FROM \`$tabela_depositos\` d
-            JOIN \`$tabela_usuarios\` u ON d.\`$col_user_id_fk\` = u.\`$col_id_usuario\`
-            ORDER BY d.\`$col_created_at\` DESC
+    $sql = "SELECT u.\\\`$col_nome_usuario\\\` as nome_usuario, 
+                   d.\\\`$col_valor_deposito\\\` as valor, 
+                   d.\\\`$col_pix\\\` as pix, 
+                   d.\\\`$col_created_at\\\` as created_at, 
+                   d.\\\`$col_status\\\` as status
+            FROM \\\`$tabela_depositos\\\` d
+            JOIN \\\`$tabela_usuarios\\\` u ON d.\\\`$col_user_id_fk\\\` = u.\\\`$col_id_usuario\\\`
+            ORDER BY d.\\\`$col_created_at\\\` DESC
             LIMIT 500";
     
     $result = $conn->query($sql);
     if (!$result) {
-        echo json_encode(["error" => "Erro SQL: " . $conn->error, 
-            "causa" => "Verifique o mapeamento de tabelas/colunas no config.php",
-            "query" => $sql]);
+        echo json_encode([
+            "error" => "Erro SQL: " . $conn->error,
+            "causa" => "Verifique o mapeamento no painel.",
+            "query" => $sql
+        ]);
         exit;
     }
 
@@ -176,27 +242,26 @@ if ($action === "depositos") {
 
 // =====================================================
 // ENDPOINT: saques
-// Usa: $tabela_saques, $tabela_usuarios, $col_nome_usuario,
-//      $col_valor_saque, $col_pix, $col_created_at, $col_status,
-//      $col_user_id_fk, $col_id_usuario
 // =====================================================
 if ($action === "saques") {
     $sql = "SELECT w.id, 
-                   u.\`$col_nome_usuario\` as nome_usuario, 
-                   w.\`$col_valor_saque\` as valor, 
-                   w.\`$col_pix\` as pix, 
-                   w.\`$col_created_at\` as created_at, 
-                   w.\`$col_status\` as status
-            FROM \`$tabela_saques\` w
-            JOIN \`$tabela_usuarios\` u ON w.\`$col_user_id_fk\` = u.\`$col_id_usuario\`
-            ORDER BY w.\`$col_created_at\` DESC
+                   u.\\\`$col_nome_usuario\\\` as nome_usuario, 
+                   w.\\\`$col_valor_saque\\\` as valor, 
+                   w.\\\`$col_pix\\\` as pix, 
+                   w.\\\`$col_created_at\\\` as created_at, 
+                   w.\\\`$col_status\\\` as status
+            FROM \\\`$tabela_saques\\\` w
+            JOIN \\\`$tabela_usuarios\\\` u ON w.\\\`$col_user_id_fk\\\` = u.\\\`$col_id_usuario\\\`
+            ORDER BY w.\\\`$col_created_at\\\` DESC
             LIMIT 500";
     
     $result = $conn->query($sql);
     if (!$result) {
-        echo json_encode(["error" => "Erro SQL: " . $conn->error,
-            "causa" => "Verifique o mapeamento de tabelas/colunas no config.php",
-            "query" => $sql]);
+        echo json_encode([
+            "error" => "Erro SQL: " . $conn->error,
+            "causa" => "Verifique o mapeamento no painel.",
+            "query" => $sql
+        ]);
         exit;
     }
 
@@ -217,15 +282,11 @@ if ($action === "saques") {
 
 // =====================================================
 // ENDPOINT: aprovar_saque
-// Usa: $tabela_saques, $col_status
 // =====================================================
 if ($action === "aprovar_saque") {
     $id = intval($_POST["id"] ?? 0);
-    if ($id <= 0) {
-        echo json_encode(["ok" => false, "error" => "ID inválido"]);
-        exit;
-    }
-    $stmt = $conn->prepare("UPDATE \`$tabela_saques\` SET \`$col_status\`='aprovado' WHERE id=?");
+    if ($id <= 0) { echo json_encode(["ok" => false, "error" => "ID inválido"]); exit; }
+    $stmt = $conn->prepare("UPDATE \\\`$tabela_saques\\\` SET \\\`$col_status\\\`='aprovado' WHERE id=?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     echo json_encode(["ok" => true, "message" => "Saque aprovado"]);
@@ -234,15 +295,11 @@ if ($action === "aprovar_saque") {
 
 // =====================================================
 // ENDPOINT: rejeitar_saque
-// Usa: $tabela_saques, $col_status
 // =====================================================
 if ($action === "rejeitar_saque") {
     $id = intval($_POST["id"] ?? 0);
-    if ($id <= 0) {
-        echo json_encode(["ok" => false, "error" => "ID inválido"]);
-        exit;
-    }
-    $stmt = $conn->prepare("UPDATE \`$tabela_saques\` SET \`$col_status\`='rejeitado' WHERE id=?");
+    if ($id <= 0) { echo json_encode(["ok" => false, "error" => "ID inválido"]); exit; }
+    $stmt = $conn->prepare("UPDATE \\\`$tabela_saques\\\` SET \\\`$col_status\\\`='rejeitado' WHERE id=?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     echo json_encode(["ok" => true, "message" => "Saque rejeitado"]);
@@ -251,17 +308,14 @@ if ($action === "rejeitar_saque") {
 
 // =====================================================
 // ENDPOINT: remover_afiliados
-// Usa: $tabela_afiliados
 // =====================================================
 if ($action === "remover_afiliados") {
-    $stmt = $conn->prepare("DELETE FROM \`$tabela_afiliados\` WHERE cooperation_expired = 1");
+    $stmt = $conn->prepare("DELETE FROM \\\`$tabela_afiliados\\\` WHERE cooperation_expired = 1");
     $stmt->execute();
-    $affected = $stmt->affected_rows;
-    echo json_encode(["ok" => true, "removed" => $affected]);
+    echo json_encode(["ok" => true, "removed" => $stmt->affected_rows]);
     exit;
 }
 
-// Ação não reconhecida
 echo json_encode(["error" => "Ação não reconhecida: " . $action]);
 ?>`;
 
@@ -280,24 +334,23 @@ const testHtmlCode = `<!DOCTYPE html>
         .success { color: #00d67c; }
         pre { background: #111; padding: 15px; border-radius: 8px; overflow-x: auto; 
               border: 1px solid #222; max-height: 400px; }
-        .status { margin: 10px 0; padding: 10px; border-radius: 6px; }
     </style>
 </head>
 <body>
-    <h1>🔌 Teste de Conexão — API Master Painel Pro</h1>
+    <h1>🔌 Teste de Conexão — API Master Painel Pro v3.0</h1>
     <p>Configure a URL da API abaixo e teste cada endpoint:</p>
     
     <input id="apiUrl" value="https://suaplataforma.com/api.php" 
            style="width: 400px; padding: 8px; background: #111; color: #fff; border: 1px solid #333; border-radius: 6px;" />
     <br><br>
 
-    <button onclick="testEndpoint('health')">🏥 Health Check</button>
+    <button onclick="testEndpoint('health')">🏥 Health</button>
     <button onclick="testEndpoint('stats')">📊 Stats</button>
     <button onclick="testEndpoint('depositos')">💰 Depósitos</button>
     <button onclick="testEndpoint('saques')">💸 Saques</button>
     <button onclick="testAll()">🚀 Testar Todos</button>
     
-    <div id="status" class="status"></div>
+    <div id="status" style="margin: 10px 0; padding: 10px;"></div>
     <pre id="result">Clique em um botão para testar...</pre>
 
     <script>
@@ -306,20 +359,22 @@ const testHtmlCode = `<!DOCTYPE html>
     async function testEndpoint(action) {
         const statusEl = document.getElementById("status");
         const resultEl = document.getElementById("result");
-        const url = getApi() + "?action=" + action;
         statusEl.innerHTML = "⏳ Testando " + action + "...";
-        
         try {
             const t0 = performance.now();
-            const r = await fetch(url);
+            const r = await fetch(getApi() + "?action=" + action);
             const ms = Math.round(performance.now() - t0);
             const data = await r.json();
             
-            statusEl.innerHTML = '<span class="success">✅ ' + action + ' — OK (' + ms + 'ms)</span>';
+            if (data.mapping_source) {
+                statusEl.innerHTML = '<span class="success">✅ ' + action + ' — OK (' + ms + 'ms) | Mapeamento: ' + data.mapping_source + '</span>';
+            } else {
+                statusEl.innerHTML = '<span class="success">✅ ' + action + ' — OK (' + ms + 'ms)</span>';
+            }
             resultEl.textContent = JSON.stringify(data, null, 2);
         } catch (e) {
             statusEl.innerHTML = '<span class="error">❌ ' + action + ' — ERRO: ' + e.message + '</span>';
-            resultEl.textContent = "Erro: " + e.message + "\\n\\nVerifique:\\n1. URL está correta\\n2. api.php existe na hospedagem\\n3. CORS está configurado (Access-Control-Allow-Origin: *)";
+            resultEl.textContent = "Erro: " + e.message;
         }
     }
     
@@ -327,20 +382,18 @@ const testHtmlCode = `<!DOCTYPE html>
         const actions = ["health", "stats", "depositos", "saques"];
         let results = {};
         let allOk = true;
-        
         for (const action of actions) {
             try {
                 const r = await fetch(getApi() + "?action=" + action);
                 const data = await r.json();
-                results[action] = { ok: true, data };
+                results[action] = { ok: !data.error, data };
+                if (data.error) allOk = false;
             } catch (e) {
                 results[action] = { ok: false, error: e.message };
                 allOk = false;
             }
         }
-        
-        const statusEl = document.getElementById("status");
-        statusEl.innerHTML = allOk 
+        document.getElementById("status").innerHTML = allOk 
             ? '<span class="success">✅ Todos os endpoints funcionando!</span>'
             : '<span class="error">⚠️ Alguns endpoints falharam</span>';
         document.getElementById("result").textContent = JSON.stringify(results, null, 2);
@@ -350,11 +403,13 @@ const testHtmlCode = `<!DOCTYPE html>
 </html>`;
 
 const sqlCode = `-- =====================================================
--- Banco de Dados MySQL — Estrutura completa
--- Execute estes comandos no phpMyAdmin ou terminal MySQL
+-- Banco de Dados MySQL — Estrutura de exemplo
+-- Execute no phpMyAdmin ou terminal MySQL
 -- =====================================================
+-- NOTA: Os nomes das tabelas abaixo são apenas exemplos.
+-- Cada plataforma pode usar nomes diferentes!
+-- Configure os nomes reais no painel → aba Mapeamento.
 
--- Tabela de usuários
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -364,7 +419,6 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Tabela de afiliados
 CREATE TABLE IF NOT EXISTS affiliates (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -372,11 +426,9 @@ CREATE TABLE IF NOT EXISTS affiliates (
     code VARCHAR(50),
     cooperation_expired BOOLEAN DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_expired (cooperation_expired)
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Tabela de carteiras/saldos
 CREATE TABLE IF NOT EXISTS wallets (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -386,7 +438,6 @@ CREATE TABLE IF NOT EXISTS wallets (
     UNIQUE KEY unique_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Tabela de depósitos
 CREATE TABLE IF NOT EXISTS deposits (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -394,12 +445,9 @@ CREATE TABLE IF NOT EXISTS deposits (
     pix VARCHAR(255),
     status ENUM('pendente','aprovado','rejeitado') DEFAULT 'pendente',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_status (status),
-    INDEX idx_created (created_at)
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Tabela de saques
 CREATE TABLE IF NOT EXISTS withdrawals (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -407,58 +455,72 @@ CREATE TABLE IF NOT EXISTS withdrawals (
     pix VARCHAR(255),
     status ENUM('pendente','aprovado','rejeitado') DEFAULT 'pendente',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_status (status),
-    INDEX idx_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Dados de teste (opcional)
-INSERT INTO users (name, email) VALUES 
-('João Silva', 'joao@email.com'),
-('Maria Santos', 'maria@email.com'),
-('Pedro Costa', 'pedro@email.com');
-
-INSERT INTO wallets (user_id, balance) VALUES (1, 1500.00), (2, 3200.50), (3, 800.00);
-
-INSERT INTO affiliates (user_id, name, code) VALUES 
-(1, 'João Silva', 'AFF001'),
-(2, 'Maria Santos', 'AFF002');
-
-INSERT INTO deposits (user_id, amount, pix, status) VALUES 
-(1, 500.00, '11999998888', 'aprovado'),
-(2, 1200.00, 'maria@pix.com', 'aprovado'),
-(3, 300.00, '00011122233', 'pendente');
-
-INSERT INTO withdrawals (user_id, amount, pix, status) VALUES 
-(1, 200.00, '11999998888', 'pendente'),
-(2, 500.00, 'maria@pix.com', 'pendente');`;
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`;
 
 const sections = [
   {
-    icon: Globe, color: "neon-blue", title: "1. Visão Geral da Arquitetura",
-    description: "Como funciona a comunicação entre o painel e as plataformas",
+    icon: Globe, color: "neon-blue", title: "1. Visão Geral — API Controlada pelo Painel",
+    description: "Como o painel controla automaticamente a API sem editar código PHP",
     content: (
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">O Master Painel Pro funciona como um <strong className="text-foreground">centralizador</strong> que se conecta ao banco de dados de cada plataforma via API REST.</p>
+        <p className="text-xs text-muted-foreground">O Master Painel Pro v3.0 usa um sistema de <strong className="text-foreground">mapeamento dinâmico</strong>: a API busca os nomes de tabelas e colunas diretamente do painel, sem precisar editar código PHP.</p>
+        <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3 space-y-2">
+          <p className="text-[11px] font-bold text-neon-green">⚡ Fluxo Dinâmico:</p>
+          {[
+            "1. Administrador configura o mapeamento de tabelas no Painel (aba Mapeamento)",
+            "2. O mapeamento é salvo no banco do painel (Lovable Cloud)",
+            "3. O api.php na hospedagem busca o mapeamento via endpoint (com cache de 60s)",
+            "4. As queries SQL são montadas automaticamente com os nomes configurados",
+            "5. Se o admin mudar no painel → a API muda sozinha em até 60 segundos",
+          ].map((t, i) => (
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-green mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
+          ))}
+        </div>
         <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
           <p className="text-[11px] font-bold text-foreground">📐 Arquitetura:</p>
           {[
             "Frontend: React + Vite (este painel)",
             "Backend: Lovable Cloud (autenticação, dados, funções)",
-            "Plataformas: Cada plataforma tem sua API (api.php) + banco MySQL",
-            "Comunicação: O painel faz fetch() → API da plataforma responde JSON",
+            "Endpoint de Mapeamento: Edge Function get-platform-mapping (público, autenticado por api_key)",
+            "Plataformas: Cada plataforma tem api.php + config.php na hospedagem",
+            "Comunicação: api.php → busca mapeamento do painel → monta queries → responde JSON → painel exibe",
           ].map((t, i) => (
             <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
           ))}
         </div>
-        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
-          <p className="text-[11px] font-bold text-foreground">🔄 Fluxo de Dados:</p>
+        <div className="rounded-lg bg-primary/5 border border-primary/20 p-2">
+          <p className="text-[10px] text-primary font-semibold">💡 Exemplo: Se a plataforma usa "transactions" em vez de "deposits", basta mudar no painel → aba Mapeamento. O api.php passa a usar "transactions" automaticamente, sem editar nenhum arquivo.</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    icon: Database, color: "neon-purple", title: "2. Criar o Banco de Dados MySQL",
+    description: "SQL de exemplo — os nomes das tabelas podem variar por plataforma",
+    content: (
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">Execute este SQL no <strong className="text-foreground">phpMyAdmin</strong> ou terminal MySQL. Os nomes das tabelas são apenas exemplos — cada plataforma pode ter nomes diferentes.</p>
+        <div className="rounded-lg bg-neon-amber/5 border border-neon-amber/20 p-2">
+          <p className="text-[10px] text-neon-amber font-semibold">⚠️ Não se preocupe com nomes exatos! Configure os nomes reais no painel → aba Mapeamento.</p>
+        </div>
+        <CodeBlock code={sqlCode} language="sql" />
+      </div>
+    ),
+  },
+  {
+    icon: Key, color: "neon-amber", title: "3. Arquivo config.php — Credenciais + Painel",
+    description: "Configuração de conexão com o banco e URL do painel",
+    content: (
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">O config.php agora contém <strong className="text-foreground">apenas credenciais do banco e a URL do painel</strong>. Nenhum nome de tabela ou coluna — tudo vem do painel automaticamente.</p>
+        <CodeBlock code={configPhpCode} language="php" />
+        <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
+          <p className="text-[11px] font-bold text-neon-green mb-2">📋 Onde encontrar os dados:</p>
           {[
-            "1. Usuário deposita/saca na plataforma → banco MySQL registra",
-            "2. Painel chama api.php?action=depositos → API lê o banco → retorna JSON",
-            "3. Painel exibe dados em tempo real no Dashboard, Depósitos, Saques",
-            "4. Ao aprovar/reprovar saque → Painel envia POST → API atualiza banco",
-            "5. Eventos Telegram são disparados automaticamente via configuração",
+            "Host, Usuário, Senha → painel de hospedagem (Hostinger, cPanel, etc.)",
+            "URL do Painel + api_key → Plataformas → Configurar → aba API",
+            "💡 Dica: Use o botão 'Gerar config.php' na aba Gerar para criar automaticamente!",
           ].map((t, i) => (
             <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-green mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
           ))}
@@ -467,108 +529,75 @@ const sections = [
     ),
   },
   {
-    icon: Database, color: "neon-purple", title: "2. Criar o Banco de Dados MySQL",
-    description: "SQL completo para criar todas as tabelas necessárias",
+    icon: Code, color: "neon-green", title: "4. Arquivo api.php — API Dinâmica v3.0",
+    description: "API que busca mapeamento do painel automaticamente, com cache e fallback",
     content: (
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">Execute este SQL no <strong className="text-foreground">phpMyAdmin</strong> ou terminal MySQL da hospedagem. Crie um banco de dados para cada plataforma.</p>
-        <div className="rounded-lg bg-neon-amber/5 border border-neon-amber/20 p-2">
-          <p className="text-[10px] text-neon-amber font-semibold">⚠️ Tabelas obrigatórias: users, affiliates, wallets, deposits, withdrawals</p>
-        </div>
-        <CodeBlock code={sqlCode} language="sql" />
-        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30">
-          <p className="text-[11px] font-bold text-foreground mb-2">📋 Resumo das tabelas:</p>
+        <p className="text-xs text-muted-foreground">O api.php v3.0 <strong className="text-foreground">não tem nomes de tabelas no código</strong>. Ele busca tudo do painel a cada request (com cache de 60s).</p>
+        <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3 space-y-1">
+          <p className="text-[11px] font-bold text-neon-green mb-1">⚡ Novidades da v3.0:</p>
           {[
-            "users → Cadastro de usuários (name, email, phone)",
-            "affiliates → Afiliados vinculados (cooperation_expired para expiração)",
-            "wallets → Saldo de cada usuário (balance)",
-            "deposits → Depósitos realizados (amount, pix, status)",
-            "withdrawals → Saques solicitados (amount, pix, status — aprovado/rejeitado/pendente)",
+            "Mapeamento dinâmico: tabelas e colunas vêm do painel",
+            "Cache local: guarda o mapeamento por 60s em mapping_cache.json",
+            "Fallback offline: se o painel estiver fora, usa o último cache",
+            "Diagnóstico inteligente: erros SQL mostram qual tabela/coluna está errada",
+            "Health endpoint: mostra origem do mapeamento (cache ou painel)",
           ].map((t, i) => (
-            <div key={i} className="flex items-start gap-2 mb-1"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-green mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
           ))}
         </div>
-      </div>
-    ),
-  },
-  {
-    icon: Key, color: "neon-amber", title: "3. Arquivo config.php",
-    description: "Configuração de conexão com o banco — um por plataforma",
-    content: (
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">Crie o arquivo <strong className="text-foreground">config.php</strong> na mesma pasta do api.php com as credenciais do banco MySQL.</p>
-        <CodeBlock code={configPhpCode} language="php" />
-        <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-2">
-          <p className="text-[10px] text-neon-green font-semibold">✅ Na Hostinger: vá em Bancos de Dados → MySQL para ver host, usuário e senha.</p>
-        </div>
-      </div>
-    ),
-  },
-  {
-    icon: Code, color: "neon-green", title: "4. Arquivo api.php — API Completa",
-    description: "Código completo da API com todos os endpoints documentados linha a linha",
-    content: (
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">Este é o <strong className="text-foreground">arquivo principal</strong>. Cada endpoint é chamado pelo painel automaticamente.</p>
         <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-1">
-          <p className="text-[11px] font-bold text-foreground mb-2">📡 Mapa de Endpoints → Botões do Painel:</p>
+          <p className="text-[11px] font-bold text-foreground mb-2">📡 Endpoints:</p>
           {[
-            "?action=stats → Dashboard (cards de resumo: usuários, afiliados, saldo)",
-            "?action=depositos → Página Depósitos (lista todos os depósitos)",
-            "?action=saques → Página Saques (lista saques pendentes/aprovados)",
-            "?action=aprovar_saque → Botão ✅ Aprovar na página Saques",
-            "?action=rejeitar_saque → Botão ❌ Reprovar na página Saques",
-            "?action=remover_afiliados → Cooperação expirada (automático)",
-            "?action=health → Saúde do Sistema (verificação de API)",
+            "?action=health → Saúde + origem do mapeamento (cache/painel) + tabelas usadas",
+            "?action=stats → Dashboard (usuários, afiliados, saldo)",
+            "?action=depositos → Lista de depósitos",
+            "?action=saques → Lista de saques",
+            "?action=aprovar_saque → Aprovar saque (POST id)",
+            "?action=rejeitar_saque → Rejeitar saque (POST id)",
+            "?action=remover_afiliados → Remover afiliados expirados",
           ].map((t, i) => (
-            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-blue mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground font-mono">{t}</p></div>
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground font-mono">{t}</p></div>
           ))}
         </div>
         <CodeBlock code={apiPhpCode} language="php" />
+        <div className="rounded-lg bg-primary/5 border border-primary/20 p-2">
+          <p className="text-[10px] text-primary font-semibold">💡 Use o botão "Gerar api.php" na aba Gerar para gerar o código com sua api_key pré-configurada!</p>
+        </div>
       </div>
     ),
   },
   {
     icon: FileText, color: "neon-cyan", title: "5. Arquivo test_api.html — Teste Visual",
-    description: "HTML para testar cada endpoint da API direto no navegador",
+    description: "HTML para testar todos os endpoints direto no navegador",
     content: (
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">Suba este arquivo na mesma hospedagem e acesse pelo navegador para testar todos os endpoints <strong className="text-foreground">antes de integrar com o painel</strong>.</p>
+        <p className="text-xs text-muted-foreground">Suba este arquivo na hospedagem para testar <strong className="text-foreground">antes de integrar</strong>. O health agora mostra a origem do mapeamento.</p>
         <CodeBlock code={testHtmlCode} language="html" />
-        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30">
-          <p className="text-[11px] font-bold text-foreground mb-2">🧪 Como testar:</p>
-          {[
-            "1. Suba test_api.html para public_html/",
-            "2. Acesse https://suaplataforma.com/test_api.html",
-            "3. Altere a URL da API no campo de texto se necessário",
-            "4. Clique em cada botão e verifique se o JSON retornado está correto",
-            "5. Se der erro de CORS, verifique os headers no api.php",
-          ].map((t, i) => (
-            <div key={i} className="flex items-start gap-2 mb-1"><ArrowRight className="w-3 h-3 text-neon-green mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
-          ))}
-        </div>
       </div>
     ),
   },
   {
     icon: Server, color: "neon-blue", title: "6. Configurar Plataforma no Painel",
-    description: "Passo a passo para conectar a API ao painel",
+    description: "Passo a passo completo: adicionar, mapear, gerar arquivos, testar",
     content: (
       <div className="space-y-2">
         {[
-          "1. Vá em 'Plataformas' → clique em 'Nova Plataforma'",
-          "2. Preencha o nome e a URL da plataforma (ex: https://gerenteriquinho.online)",
-          "3. Clique em 'Configurar' na plataforma criada",
-          "4. Na aba 'Banco de Dados', preencha host, porta, usuário, senha e nome do banco",
-          "5. Configure o mapeamento de tabelas (users, affiliates, wallets)",
-          "6. Clique em 'Verificar Configuração' para validar",
-          "7. Vá em 'Saúde do Sistema' → 'Verificar Todas APIs' para diagnóstico completo",
-          "8. Se todos os endpoints estiverem verdes ✅, a integração está pronta!",
+          "1. Vá em 'Plataformas' → 'Nova Plataforma' → preencha nome e URL",
+          "2. Clique em 'Configurar' na plataforma criada",
+          "3. Aba 'Banco' → preencha host, porta, usuário, senha e nome do banco",
+          "4. Aba 'Mapeamento' → configure os nomes reais das tabelas e colunas do banco",
+          "5. Clique em 'Salvar' para gravar todas as configurações",
+          "6. Aba 'Gerar' → copie o config.php e api.php gerados automaticamente",
+          "7. Suba os dois arquivos na hospedagem (public_html/)",
+          "8. Aba 'API' → copie a api_key e cole no config.php da hospedagem",
+          "9. Clique em 'Testar API' e 'Testar Endpoint' para validar tudo",
+          "10. Se tudo estiver verde ✅, a integração está pronta!",
         ].map((t, i) => (
           <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-xs text-muted-foreground">{t}</p></div>
         ))}
-        <div className="rounded-lg bg-neon-amber/5 border border-neon-amber/20 p-2 mt-2">
-          <p className="text-[10px] text-neon-amber font-semibold">⚠️ A URL deve apontar para o domínio onde está o api.php. Ex: https://gerenteriquinho.online</p>
+        <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-2 mt-2">
+          <p className="text-[10px] text-neon-green font-semibold">✅ Depois disso, qualquer mudança no mapeamento (painel) reflete automaticamente na API em até 60 segundos!</p>
         </div>
       </div>
     ),
@@ -592,15 +621,8 @@ const sections = [
           <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-xs text-muted-foreground">{t}</p></div>
         ))}
         <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 mt-2">
-          <p className="text-[11px] font-bold text-foreground mb-2">🔑 Chaves dinâmicas disponíveis:</p>
-          {[
-            "{nome_usuario} — Nome do usuário",
-            "{valor} — Valor monetário (R$)",
-            "{nome_plataforma} — Nome da plataforma",
-            "{quantidade_usuarios} — Total de usuários",
-            "{quantidade_dias} — Dias da cooperação",
-            "{pix} — Chave Pix do usuário",
-          ].map((t, i) => (
+          <p className="text-[11px] font-bold text-foreground mb-2">🔑 Chaves dinâmicas:</p>
+          {["{nome_usuario}", "{valor}", "{nome_plataforma}", "{quantidade_usuarios}", "{quantidade_dias}", "{pix}"].map((t, i) => (
             <div key={i} className="flex items-start gap-2 mb-1"><ArrowRight className="w-3 h-3 text-neon-cyan mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground font-mono">{t}</p></div>
           ))}
         </div>
@@ -609,15 +631,14 @@ const sections = [
   },
   {
     icon: Zap, color: "neon-red", title: "8. Cooperação — Exclusão de Afiliados",
-    description: "Como funciona a remoção automática de afiliados",
+    description: "Remoção automática de afiliados por tempo de cooperação",
     content: (
       <div className="space-y-2">
         {[
-          "Na configuração de cada plataforma, defina 'Dias de Cooperação' (ex: 30)",
+          "Defina 'Dias de Cooperação' na configuração de cada plataforma",
           "A data de expiração é calculada automaticamente",
-          "Quando expira, o sistema pode: excluir somente afiliados OU enviar notificação Telegram",
-          "Usuários totais NUNCA são excluídos",
-          "A API chama ?action=remover_afiliados → DELETE FROM affiliates WHERE cooperation_expired = 1",
+          "Quando expira, o sistema chama ?action=remover_afiliados na API",
+          "Somente afiliados são removidos — usuários totais NUNCA são excluídos",
         ].map((t, i) => (
           <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-red mt-0.5 flex-shrink-0" /><p className="text-xs text-muted-foreground">{t}</p></div>
         ))}
@@ -625,73 +646,96 @@ const sections = [
     ),
   },
   {
-    icon: TableProperties, color: "neon-purple", title: "9. Mapeamento Dinâmico de Tabelas",
-    description: "Como configurar nomes diferentes de tabelas e colunas para cada plataforma",
+    icon: TableProperties, color: "neon-purple", title: "9. Mapeamento Dinâmico — Como Funciona",
+    description: "Entenda o sistema que elimina a necessidade de editar código PHP",
     content: (
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">O <strong className="text-foreground">Mapeamento Dinâmico</strong> permite integrar qualquer banco de dados sem alterar o código da API. Cada plataforma pode ter nomes diferentes de tabelas e colunas.</p>
+        <p className="text-xs text-muted-foreground">O <strong className="text-foreground">Mapeamento Dinâmico</strong> é o coração do sistema v3.0. Ele permite que cada plataforma tenha nomes diferentes de tabelas e colunas, sem editar código.</p>
         <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
-          <p className="text-[11px] font-bold text-foreground">📐 Como funciona:</p>
+          <p className="text-[11px] font-bold text-foreground">📐 Como funciona internamente:</p>
           {[
-            "1. Vá em Plataformas → Configurar → aba Mapeamento",
-            "2. Configure os nomes reais das tabelas do banco (ex: transactions em vez de deposits)",
-            "3. Configure os nomes reais das colunas (ex: balance_amount em vez de balance)",
-            "4. Clique em 'Testar Estrutura do Banco' para validar",
-            "5. O api.php usará automaticamente os nomes configurados nas queries SQL",
+            "1. Cada plataforma tem uma api_key única gerada automaticamente",
+            "2. O config.php da hospedagem contém a api_key + URL do painel",
+            "3. Quando o api.php recebe um request, ele chama o endpoint do painel",
+            "4. O endpoint retorna: { tables: {usuarios: 'players', ...}, columns: {saldo: 'balance', ...} }",
+            "5. O api.php usa esses nomes para montar as queries SQL",
+            "6. O resultado é cacheado por 60 segundos em mapping_cache.json",
+            "7. Se o painel estiver offline, usa o último cache salvo",
           ].map((t, i) => (
             <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
           ))}
         </div>
         <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
-          <p className="text-[11px] font-bold text-foreground">📋 Tabelas configuráveis:</p>
-          {[
-            "Tabela de Usuários → padrão: users",
-            "Tabela de Depósitos → padrão: deposits",
-            "Tabela de Saques → padrão: withdrawals",
-            "Tabela de Saldo → padrão: wallets",
-            "Tabela de Afiliados → padrão: affiliates",
-          ].map((t, i) => (
-            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-cyan mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground font-mono">{t}</p></div>
-          ))}
-        </div>
-        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
-          <p className="text-[11px] font-bold text-foreground">📋 Colunas configuráveis:</p>
-          {[
-            "ID do Usuário → padrão: id",
-            "Nome do Usuário → padrão: name",
-            "FK User ID → padrão: user_id",
-            "Valor Depósito → padrão: amount",
-            "Valor Saque → padrão: amount",
-            "Chave PIX → padrão: pix",
-            "Status → padrão: status",
-            "Data Criação → padrão: created_at",
-            "Saldo → padrão: balance",
-          ].map((t, i) => (
-            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-purple mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground font-mono">{t}</p></div>
-          ))}
-        </div>
-        <div className="rounded-lg bg-primary/5 border border-primary/20 p-2 mt-2">
-          <p className="text-[10px] text-primary font-semibold">💡 Exemplo: Se o banco usa "transactions" em vez de "deposits" e "balance_amount" em vez de "balance", basta mapear no painel — sem alterar código.</p>
+          <p className="text-[11px] font-bold text-foreground">📋 Exemplo prático:</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-primary">Plataforma A</p>
+              {["usuarios = users", "depositos = transactions", "saldo = wallets"].map((t, i) => (
+                <p key={i} className="text-[10px] text-muted-foreground font-mono">{t}</p>
+              ))}
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-neon-cyan">Plataforma B</p>
+              {["usuarios = players", "depositos = payments", "saldo = accounts"].map((t, i) => (
+                <p key={i} className="text-[10px] text-muted-foreground font-mono">{t}</p>
+              ))}
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2">Ambas usam o <strong>mesmo api.php</strong> — a diferença está no mapeamento configurado no painel.</p>
         </div>
         <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-2">
-          <p className="text-[10px] text-destructive font-semibold">⚠️ Se o mapeamento estiver errado, o diagnóstico mostrará: "coluna 'X' não encontrada na tabela 'Y'. Verifique o mapeamento de colunas."</p>
+          <p className="text-[10px] text-destructive font-semibold">⚠️ Se o mapeamento estiver errado, a API retorna: "Tabela 'X' não encontrada" ou "Coluna 'Y' não encontrada". Corrija no painel → aba Mapeamento.</p>
         </div>
       </div>
     ),
   },
   {
-    icon: Shield, color: "neon-blue", title: "10. Segurança e Checklist Final",
-    description: "Boas práticas de segurança e checklist de verificação",
+    icon: RefreshCw, color: "neon-amber", title: "10. Cache e Comportamento Offline",
+    description: "Como a API funciona quando o painel está offline",
+    content: (
+      <div className="space-y-2">
+        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
+          <p className="text-[11px] font-bold text-foreground">📦 Sistema de Cache:</p>
+          {[
+            "A API guarda o mapeamento em mapping_cache.json na hospedagem",
+            "O cache dura 60 segundos (configurável no config.php via $cache_ttl)",
+            "Dentro do TTL, a API usa o cache sem chamar o painel",
+            "Após o TTL, busca o mapeamento atualizado do painel",
+            "Se o painel estiver offline, usa o último cache disponível",
+          ].map((t, i) => (
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-amber mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
+          ))}
+        </div>
+        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
+          <p className="text-[11px] font-bold text-foreground">🔄 Cenários:</p>
+          {[
+            "Painel online + cache válido → usa cache (rápido)",
+            "Painel online + cache expirado → busca novo mapeamento",
+            "Painel offline + cache existente → usa cache + adiciona warning",
+            "Painel offline + sem cache → retorna erro com instruções",
+          ].map((t, i) => (
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
+          ))}
+        </div>
+        <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-2">
+          <p className="text-[10px] text-neon-green font-semibold">✅ O endpoint ?action=health mostra o campo mapping_source (cache ou painel) e warning se estiver usando fallback.</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    icon: Shield, color: "neon-blue", title: "11. Segurança e Checklist Final",
+    description: "Boas práticas e verificação completa",
     content: (
       <div className="space-y-3">
         <div className="rounded-lg bg-secondary/30 p-3 border border-border/30">
           <p className="text-[11px] font-bold text-foreground mb-2">🔒 Segurança:</p>
           {[
+            "api_key única por plataforma — autenticação do endpoint de mapeamento",
             "Prepared statements no api.php para evitar SQL injection",
             "CORS configurado (Access-Control-Allow-Origin: *)",
-            "Validação de inputs antes de executar queries",
             "RLS no Lovable Cloud — cada usuário acessa apenas seus dados",
-            "Tokens e senhas protegidos no banco",
+            "Cache local impede leitura excessiva do endpoint",
           ].map((t, i) => (
             <div key={i} className="flex items-start gap-2 mb-1"><ArrowRight className="w-3 h-3 text-neon-blue mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
           ))}
@@ -699,15 +743,15 @@ const sections = [
         <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
           <p className="text-[11px] font-bold text-neon-green mb-2">✅ Checklist Final:</p>
           {[
-            "Banco MySQL criado com todas as tabelas",
-            "config.php com credenciais corretas",
-            "api.php hospedado e acessível via HTTPS",
-            "test_api.html testado — todos endpoints retornando JSON",
+            "Banco MySQL criado",
+            "config.php com credenciais + $painel_url + api_key",
+            "api.php v3.0 hospedado e acessível via HTTPS",
             "Plataforma adicionada no painel com URL correta",
-            "Saúde do Sistema mostrando todos endpoints verdes",
-            "Telegram Bot configurado e testado",
-            "Eventos configurados com mensagens personalizadas",
-            "Cooperação definida por plataforma",
+            "Mapeamento de tabelas/colunas configurado no painel",
+            "Botão 'Testar Endpoint' → mapeamento retornado com sucesso",
+            "Botão 'Testar API' → todos endpoints verdes ✅",
+            "test_api.html testado → health mostra mapping_source: 'painel'",
+            "Telegram Bot configurado (opcional)",
             "Dashboard exibindo dados reais da API",
           ].map((t, i) => (
             <div key={i} className="flex items-start gap-2 mb-1"><CheckCircle className="w-3 h-3 text-neon-green mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
@@ -725,9 +769,9 @@ const Tutorial = () => {
     <div className="p-4 md:p-6 space-y-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <h1 className="text-xl md:text-2xl font-black text-foreground">
-          Tutorial <span className="gradient-text">& Documentação Completa</span>
+          Tutorial <span className="gradient-text">& Documentação v3.0</span>
         </h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Guia definitivo: API, banco de dados, integração real e diagnóstico de erros</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Guia definitivo: API dinâmica controlada pelo painel, mapeamento automático e diagnóstico</p>
       </motion.div>
 
       {/* Quick Summary */}
@@ -736,10 +780,21 @@ const Tutorial = () => {
         <p className="text-xs font-bold text-foreground mb-2">📁 Estrutura de Arquivos na Hospedagem:</p>
         <pre className="text-[11px] text-muted-foreground font-mono leading-relaxed">
 {`/public_html
-├── config.php        → Credenciais do banco MySQL
-├── api.php           → API principal (todos os endpoints)
-└── test_api.html     → HTML para testar endpoints no navegador`}
+├── config.php           → Credenciais do banco + URL do painel + api_key
+├── api.php              → API dinâmica v3.0 (busca mapeamento do painel)
+├── mapping_cache.json   → Cache local do mapeamento (gerado automaticamente)
+└── test_api.html        → HTML para testar endpoints no navegador`}
         </pre>
+      </motion.div>
+
+      {/* Dynamic mapping highlight */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}
+        className="rounded-xl border border-neon-green/20 p-4" style={{ background: "hsl(var(--card))" }}>
+        <div className="flex items-center gap-2 mb-2">
+          <RefreshCw className="w-4 h-4 text-neon-green" />
+          <p className="text-xs font-bold text-foreground">⚡ Mude no painel → a API muda sozinha</p>
+        </div>
+        <p className="text-[10px] text-muted-foreground">O api.php v3.0 não tem nomes de tabelas no código. Ele busca tudo do painel via endpoint. Altere o mapeamento no painel → a API se adapta automaticamente em até 60 segundos.</p>
       </motion.div>
 
       <div className="space-y-3">
@@ -752,21 +807,14 @@ const Tutorial = () => {
               className="rounded-xl border border-border/60 overflow-hidden" style={{ background: "hsl(var(--card))" }}>
               <button onClick={() => setOpenSection(isOpen ? null : idx)}
                 className="w-full p-4 flex items-center gap-3 text-left hover:bg-secondary/30 transition-colors">
-                <div className={`p-2 rounded-lg bg-${section.color}/10`}>
-                  <Icon className={`w-5 h-5 text-${section.color}`} />
-                </div>
+                <div className={`p-2 rounded-lg bg-${section.color}/10`}><Icon className={`w-4 h-4 text-${section.color}`} /></div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="font-bold text-sm text-foreground">{section.title}</h2>
-                  <p className="text-[10px] text-muted-foreground">{section.description}</p>
+                  <p className="text-sm font-bold text-foreground">{section.title}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{section.description}</p>
                 </div>
-                <ArrowRight className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                <div className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}>▼</div>
               </button>
-              {isOpen && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-                  className="px-4 pb-4 border-t border-border/30 pt-3">
-                  {section.content}
-                </motion.div>
-              )}
+              {isOpen && <div className="px-4 pb-4 border-t border-border/30 pt-3">{section.content}</div>}
             </motion.div>
           );
         })}
