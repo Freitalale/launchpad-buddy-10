@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Database, Server, Settings as SettingsIcon, Save, TestTube, RefreshCw, CheckCircle, AlertCircle, Wifi, Zap, Globe, TableProperties, Columns3, Copy, Code, Key, Download, FileText, Users, Wallet, ArrowDownCircle, ArrowUpCircle, UserCheck, Plus, Trash2, X } from "lucide-react";
+import { Database, Server, Settings as SettingsIcon, Save, TestTube, RefreshCw, CheckCircle, AlertCircle, Wifi, Zap, Globe, TableProperties, Columns3, Copy, Code, Key, Download, FileText, Users, Wallet, ArrowDownCircle, ArrowUpCircle, UserCheck, Plus, Trash2, X, Search, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type Plataforma, useUpdatePlatform } from "@/hooks/usePlatforms";
 import { usePlatformApi } from "@/hooks/usePlatformApi";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ConfigureModalProps {
   platform: Plataforma | null;
@@ -26,6 +27,16 @@ interface ExtraTable {
 }
 
 type ExtraColumnsMap = Record<string, ExtraColumn[]>;
+
+interface ScanResult {
+  ok: boolean;
+  database?: string;
+  total_tables?: number;
+  all_tables?: string[];
+  tables?: Record<string, { columns: { name: string; type: string }[] }>;
+  suggestions?: Record<string, { table: string; confidence: number; columns: Record<string, string | null> } | null>;
+  error?: string;
+}
 
 const DEFAULT_COLUMNS: Record<string, { field: string; label: string; placeholder: string; desc: string }[]> = {
   usuarios: [
@@ -70,8 +81,24 @@ const TABLE_META: { key: string; icon: any; color: string; tableField: string; d
   { key: "afiliados", icon: UserCheck, color: "text-chart-5", tableField: "tabela_afiliados", defaultTable: "affiliates", label: "Afiliados", desc: "Tabela de afiliados. Controla cooperação, conta afiliados e permite remoção automática dos expirados." },
 ];
 
+// Column field mapping from suggestion keys to form fields
+const SUGGESTION_TO_FORM: Record<string, Record<string, string>> = {
+  usuarios: { id: "coluna_id_usuario", nome: "coluna_nome_usuario", email: "coluna_email_usuario", telefone: "coluna_telefone_usuario" },
+  depositos: { id: "coluna_id_deposito", user_id: "coluna_user_id_deposito", valor: "coluna_valor_deposito", pix: "coluna_pix_deposito", status: "coluna_status_deposito", created_at: "coluna_created_at_deposito" },
+  saques: { id: "coluna_id_saque", user_id: "coluna_user_id_saque", valor: "coluna_valor_saque", pix: "coluna_pix_saque", status: "coluna_status_saque", created_at: "coluna_created_at_saque" },
+  saldo: { user_id: "coluna_user_id_saldo", saldo: "coluna_saldo" },
+  afiliados: { id: "coluna_id_afiliado", nome: "coluna_nome_afiliado", user_id: "coluna_user_id_afiliado", cooperation_expired: "coluna_cooperation_expired" },
+};
+
+const TABLE_FIELD_MAP: Record<string, string> = {
+  usuarios: "tabela_usuarios",
+  depositos: "tabela_depositos",
+  saques: "tabela_saques",
+  saldo: "tabela_saldo",
+  afiliados: "tabela_afiliados",
+};
+
 type HiddenColumnsMap = Record<string, string[]>;
-// Track which default tables are disabled
 type DisabledTablesSet = string[];
 
 const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
@@ -86,11 +113,14 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const [structureResult, setStructureResult] = useState<string[]>([]);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // Scanner state
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [showScanDetails, setShowScanDetails] = useState(false);
+
   // Extra dynamic columns per built-in table
   const [extraColumns, setExtraColumns] = useState<ExtraColumnsMap>({});
-  // Extra custom tables
   const [extraTables, setExtraTables] = useState<ExtraTable[]>([]);
-  // Hidden default columns per table
   const [hiddenColumns, setHiddenColumns] = useState<HiddenColumnsMap>({});
   const [disabledTables, setDisabledTables] = useState<DisabledTablesSet>([]);
 
@@ -146,7 +176,6 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
         webhook_telegram: p.webhook_telegram ?? "", webhook_outro: p.webhook_outro ?? "",
         gateway_chave: p.gateway_chave ?? "", cooperacao_dias: p.cooperacao_dias ?? 30,
       });
-      // Load extras from mapeamento_extra
       const extra = p.mapeamento_extra ?? {};
       setExtraColumns(extra.colunas_extra ?? {});
       setExtraTables(extra.tabelas_extra ?? []);
@@ -168,14 +197,63 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // -- Extra column helpers --
-  const addExtraColumn = (tableKey: string) => {
-    setExtraColumns(prev => ({
-      ...prev,
-      [tableKey]: [...(prev[tableKey] ?? []), { label: "", column: "" }],
-    }));
+  // ── Scanner ──
+  const handleScanDatabase = async () => {
+    if (!form.url) {
+      toast({ title: "URL necessária", description: "Configure a URL da plataforma na aba API primeiro.", variant: "destructive" });
+      return;
+    }
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("scan-database", {
+        body: { api_url: form.url },
+      });
+      if (error) throw error;
+      setScanResult(data as ScanResult);
+      if (data?.ok) {
+        const detectedCount = Object.values(data.suggestions ?? {}).filter((v: any) => v !== null).length;
+        toast({ title: `🔍 Escaneamento completo!`, description: `${data.total_tables} tabelas encontradas, ${detectedCount} detectadas automaticamente.` });
+      } else {
+        toast({ title: "Erro no escaneamento", description: data?.error ?? "Erro desconhecido", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+      setScanResult({ ok: false, error: e.message });
+    }
+    setScanning(false);
   };
 
+  const applySuggestions = () => {
+    if (!scanResult?.suggestions) return;
+    const newForm = { ...form };
+    for (const [category, suggestion] of Object.entries(scanResult.suggestions)) {
+      if (!suggestion) continue;
+      // Set table name
+      const tableField = TABLE_FIELD_MAP[category];
+      if (tableField) (newForm as any)[tableField] = suggestion.table;
+      // Set column mappings
+      const colMap = SUGGESTION_TO_FORM[category];
+      if (colMap) {
+        for (const [colKey, formField] of Object.entries(colMap)) {
+          const detected = suggestion.columns[colKey];
+          if (detected) (newForm as any)[formField] = detected;
+        }
+      }
+    }
+    setForm(newForm);
+    // Enable detected, disable non-detected
+    const newDisabled = Object.entries(scanResult.suggestions)
+      .filter(([_, v]) => v === null)
+      .map(([k]) => k);
+    setDisabledTables(newDisabled);
+    toast({ title: "✅ Mapeamento aplicado!", description: "Tabelas e colunas preenchidas automaticamente. Revise e salve." });
+  };
+
+  // -- Extra column helpers --
+  const addExtraColumn = (tableKey: string) => {
+    setExtraColumns(prev => ({ ...prev, [tableKey]: [...(prev[tableKey] ?? []), { label: "", column: "" }] }));
+  };
   const updateExtraColumn = (tableKey: string, idx: number, field: "label" | "column", value: string) => {
     setExtraColumns(prev => {
       const cols = [...(prev[tableKey] ?? [])];
@@ -183,7 +261,6 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       return { ...prev, [tableKey]: cols };
     });
   };
-
   const removeExtraColumn = (tableKey: string, idx: number) => {
     setExtraColumns(prev => {
       const cols = [...(prev[tableKey] ?? [])];
@@ -191,39 +268,21 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       return { ...prev, [tableKey]: cols };
     });
   };
-
-  // -- Hidden default column helpers --
   const hideDefaultColumn = (tableKey: string, field: string) => {
-    setHiddenColumns(prev => ({
-      ...prev,
-      [tableKey]: [...(prev[tableKey] ?? []), field],
-    }));
+    setHiddenColumns(prev => ({ ...prev, [tableKey]: [...(prev[tableKey] ?? []), field] }));
   };
-
   const showDefaultColumn = (tableKey: string, field: string) => {
-    setHiddenColumns(prev => ({
-      ...prev,
-      [tableKey]: (prev[tableKey] ?? []).filter(f => f !== field),
-    }));
+    setHiddenColumns(prev => ({ ...prev, [tableKey]: (prev[tableKey] ?? []).filter(f => f !== field) }));
   };
-
-  // -- Extra table helpers --
   const addExtraTable = () => {
     setExtraTables(prev => [...prev, { key: `custom_${Date.now()}`, tableName: "", columns: [] }]);
   };
-
   const updateExtraTable = (idx: number, tableName: string) => {
-    setExtraTables(prev => {
-      const t = [...prev];
-      t[idx] = { ...t[idx], tableName };
-      return t;
-    });
+    setExtraTables(prev => { const t = [...prev]; t[idx] = { ...t[idx], tableName }; return t; });
   };
-
   const removeExtraTable = (idx: number) => {
     setExtraTables(prev => prev.filter((_, i) => i !== idx));
   };
-
   const addExtraTableColumn = (tableIdx: number) => {
     setExtraTables(prev => {
       const t = [...prev];
@@ -231,7 +290,6 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       return t;
     });
   };
-
   const updateExtraTableColumn = (tableIdx: number, colIdx: number, field: "label" | "column", value: string) => {
     setExtraTables(prev => {
       const t = [...prev];
@@ -241,7 +299,6 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       return t;
     });
   };
-
   const removeExtraTableColumn = (tableIdx: number, colIdx: number) => {
     setExtraTables(prev => {
       const t = [...prev];
@@ -252,17 +309,15 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     });
   };
 
-  // Build mapeamento_extra for saving
   const buildMapeamentoExtra = () => ({
-    colunas_extra: extraColumns,
-    tabelas_extra: extraTables,
-    colunas_ocultas: hiddenColumns,
-    tabelas_desativadas: disabledTables,
+    colunas_extra: extraColumns, tabelas_extra: extraTables,
+    colunas_ocultas: hiddenColumns, tabelas_desativadas: disabledTables,
   });
 
   const generateConfigPhp = () => {
     return `<?php
-// config.php — Gerado automaticamente pelo Painel
+// config.php — Gerado pelo Painel v4.0
+// Plataforma: ${platform.nome}
 $host = "${form.db_host || "localhost"}";
 $user = "${form.db_user || "seu_usuario_db"}";
 $pass = "${form.db_pass || "sua_senha_db"}";
@@ -275,185 +330,264 @@ $cache_ttl  = 60;
 
   const generateApiPhp = () => {
     return `<?php
-// api.php — API Dinâmica v3.2 — Mapeamento por Tabela + Colunas Extras
+// api.php — API Dinâmica v4.0 — Auto-Detect + Mapeamento Inteligente
+// Plataforma: ${platform.nome}
 // Este arquivo NÃO precisa ser editado manualmente.
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
-if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") { http_response_code(200); exit; }
+if (\$_SERVER["REQUEST_METHOD"] === "OPTIONS") { http_response_code(200); exit; }
 
 include 'config.php';
-$conn = new mysqli($host, $user, $pass, $db);
-if ($conn->connect_error) { echo json_encode(["error" => "Falha: " . $conn->connect_error]); exit; }
-$conn->set_charset("utf8mb4");
+\$conn = new mysqli(\$host, \$user, \$pass, \$db);
+if (\$conn->connect_error) { echo json_encode(["error" => "Falha: " . \$conn->connect_error]); exit; }
+\$conn->set_charset("utf8mb4");
 
 function getMapping() {
-    global $painel_url, $cache_file, $cache_ttl;
-    if (file_exists($cache_file)) {
-        $cache = json_decode(file_get_contents($cache_file), true);
-        if ($cache && isset($cache["_cached_at"]) && (time() - $cache["_cached_at"]) < $cache_ttl) {
-            $cache["_from_cache"] = true; return $cache;
+    global \$painel_url, \$cache_file, \$cache_ttl;
+    if (file_exists(\$cache_file)) {
+        \$cache = json_decode(file_get_contents(\$cache_file), true);
+        if (\$cache && isset(\$cache["_cached_at"]) && (time() - \$cache["_cached_at"]) < \$cache_ttl) {
+            \$cache["_from_cache"] = true; return \$cache;
         }
     }
-    $ctx = stream_context_create(["http" => ["timeout" => 5]]);
-    $response = @file_get_contents($painel_url, false, $ctx);
-    if ($response === false) {
-        if (file_exists($cache_file)) {
-            $cache = json_decode(file_get_contents($cache_file), true);
-            if ($cache) { $cache["_from_cache"] = true; $cache["_warning"] = "Painel offline."; return $cache; }
+    \$ctx = stream_context_create(["http" => ["timeout" => 5]]);
+    \$response = @file_get_contents(\$painel_url, false, \$ctx);
+    if (\$response === false) {
+        if (file_exists(\$cache_file)) {
+            \$cache = json_decode(file_get_contents(\$cache_file), true);
+            if (\$cache) { \$cache["_from_cache"] = true; \$cache["_warning"] = "Painel offline."; return \$cache; }
         }
         return null;
     }
-    $data = json_decode($response, true);
-    if ($data && isset($data["ok"]) && $data["ok"]) {
-        $data["_cached_at"] = time();
-        file_put_contents($cache_file, json_encode($data));
-        $data["_from_cache"] = false; return $data;
+    \$data = json_decode(\$response, true);
+    if (\$data && isset(\$data["ok"]) && \$data["ok"]) {
+        \$data["_cached_at"] = time();
+        file_put_contents(\$cache_file, json_encode(\$data));
+        \$data["_from_cache"] = false; return \$data;
     }
     return null;
 }
 
-$mapping = getMapping();
-if (!$mapping) { echo json_encode(["error" => "Mapeamento indisponível."]); exit; }
+\$mapping = getMapping();
+if (!\$mapping) { echo json_encode(["error" => "Mapeamento indisponível. Verifique config.php e a URL do painel."]); exit; }
 
-$t = $mapping["tables"];
-$tb_usuarios  = $t["usuarios"]  ?? "users";
-$tb_depositos = $t["depositos"] ?? "deposits";
-$tb_saques    = $t["saques"]    ?? "withdrawals";
-$tb_saldo     = $t["saldo"]     ?? "wallets";
-$tb_afiliados = $t["afiliados"] ?? "affiliates";
+\$t = \$mapping["tables"];
+\$tb_usuarios  = \$t["usuarios"]  ?? "users";
+\$tb_depositos = \$t["depositos"] ?? "deposits";
+\$tb_saques    = \$t["saques"]    ?? "withdrawals";
+\$tb_saldo     = \$t["saldo"]     ?? "wallets";
+\$tb_afiliados = \$t["afiliados"] ?? "affiliates";
 
-$cu = $mapping["columns"]["usuarios"]  ?? [];
-$cd = $mapping["columns"]["depositos"] ?? [];
-$cs = $mapping["columns"]["saques"]    ?? [];
-$cw = $mapping["columns"]["saldo"]     ?? [];
-$ca = $mapping["columns"]["afiliados"] ?? [];
+\$cu = \$mapping["columns"]["usuarios"]  ?? [];
+\$cd = \$mapping["columns"]["depositos"] ?? [];
+\$cs = \$mapping["columns"]["saques"]    ?? [];
+\$cw = \$mapping["columns"]["saldo"]     ?? [];
+\$ca = \$mapping["columns"]["afiliados"] ?? [];
 
-$col_user_id    = $cu["id"]       ?? "id";
-$col_user_name  = $cu["nome"]     ?? "name";
-$col_dep_id     = $cd["id"]       ?? "id";
-$col_dep_uid    = $cd["user_id"]  ?? "user_id";
-$col_dep_valor  = $cd["valor"]    ?? "amount";
-$col_dep_pix    = $cd["pix"]      ?? "pix";
-$col_dep_status = $cd["status"]   ?? "status";
-$col_dep_date   = $cd["created_at"] ?? "created_at";
-$col_saq_id     = $cs["id"]       ?? "id";
-$col_saq_uid    = $cs["user_id"]  ?? "user_id";
-$col_saq_valor  = $cs["valor"]    ?? "amount";
-$col_saq_pix    = $cs["pix"]      ?? "pix";
-$col_saq_status = $cs["status"]   ?? "status";
-$col_saq_date   = $cs["created_at"] ?? "created_at";
-$col_wal_uid    = $cw["user_id"]  ?? "user_id";
-$col_wal_saldo  = $cw["saldo"]    ?? "balance";
-$col_aff_expired = $ca["cooperation_expired"] ?? "cooperation_expired";
+\$col_user_id    = \$cu["id"]       ?? "id";
+\$col_user_name  = \$cu["nome"]     ?? "name";
+\$col_dep_id     = \$cd["id"]       ?? "id";
+\$col_dep_uid    = \$cd["user_id"]  ?? "user_id";
+\$col_dep_valor  = \$cd["valor"]    ?? "amount";
+\$col_dep_pix    = \$cd["pix"]      ?? "pix";
+\$col_dep_status = \$cd["status"]   ?? "status";
+\$col_dep_date   = \$cd["created_at"] ?? "created_at";
+\$col_saq_id     = \$cs["id"]       ?? "id";
+\$col_saq_uid    = \$cs["user_id"]  ?? "user_id";
+\$col_saq_valor  = \$cs["valor"]    ?? "amount";
+\$col_saq_pix    = \$cs["pix"]      ?? "pix";
+\$col_saq_status = \$cs["status"]   ?? "status";
+\$col_saq_date   = \$cs["created_at"] ?? "created_at";
+\$col_wal_uid    = \$cw["user_id"]  ?? "user_id";
+\$col_wal_saldo  = \$cw["saldo"]    ?? "balance";
+\$col_aff_expired = \$ca["cooperation_expired"] ?? "cooperation_expired";
 
-// Tabelas extras (custom)
-$tabelas_extra = $mapping["extra_tables"] ?? [];
+\$tabelas_extra = \$mapping["extra_tables"] ?? [];
+\$action = \$_GET["action"] ?? "";
 
-$action = $_GET["action"] ?? "";
-
-if ($action === "health") {
-    echo json_encode(["ok"=>true,"version"=>"3.2.0","db"=>true,
-        "mapping_source"=>$mapping["_from_cache"]?"cache":"painel",
-        "tables"=>$t,"extra_tables"=>array_keys($tabelas_extra),"time"=>date("c")]); exit;
-}
-
-if ($action === "stats") {
-    $r1 = $conn->query("SELECT COUNT(*) as total FROM \`$tb_usuarios\`");
-    $r2 = $conn->query("SELECT COUNT(*) as total FROM \`$tb_afiliados\`");
-    $r3 = $conn->query("SELECT COALESCE(SUM(\`$col_wal_saldo\`),0) as total FROM \`$tb_saldo\`");
-    $err = [];
-    if (!$r1) $err[] = "Tabela '$tb_usuarios': ".$conn->error;
-    if (!$r2) $err[] = "Tabela '$tb_afiliados': ".$conn->error;
-    if (!$r3) $err[] = "Tabela '$tb_saldo'/'$col_wal_saldo': ".$conn->error;
-    if ($err) { echo json_encode(["error"=>"Mapeamento","detalhes"=>$err]); exit; }
-    echo json_encode(["total_usuarios"=>(int)$r1->fetch_assoc()["total"],
-        "total_afiliados"=>(int)$r2->fetch_assoc()["total"],
-        "saldo_total"=>(float)$r3->fetch_assoc()["total"]]); exit;
-}
-
-if ($action === "depositos") {
-    $sql = "SELECT u.\`$col_user_name\` as nome_usuario, d.\`$col_dep_valor\` as valor, d.\`$col_dep_pix\` as pix, d.\`$col_dep_date\` as created_at, d.\`$col_dep_status\` as status FROM \`$tb_depositos\` d JOIN \`$tb_usuarios\` u ON d.\`$col_dep_uid\` = u.\`$col_user_id\` ORDER BY d.\`$col_dep_date\` DESC LIMIT 500";
-    $result = $conn->query($sql);
-    if (!$result) { echo json_encode(["error"=>$conn->error,"query"=>$sql]); exit; }
-    $rows = []; while ($row = $result->fetch_assoc()) $rows[] = $row;
-    echo json_encode($rows); exit;
-}
-
-if ($action === "saques") {
-    $sql = "SELECT w.\`$col_saq_id\` as id, u.\`$col_user_name\` as nome_usuario, w.\`$col_saq_valor\` as valor, w.\`$col_saq_pix\` as pix, w.\`$col_saq_date\` as created_at, w.\`$col_saq_status\` as status FROM \`$tb_saques\` w JOIN \`$tb_usuarios\` u ON w.\`$col_saq_uid\` = u.\`$col_user_id\` ORDER BY w.\`$col_saq_date\` DESC LIMIT 500";
-    $result = $conn->query($sql);
-    if (!$result) { echo json_encode(["error"=>$conn->error,"query"=>$sql]); exit; }
-    $rows = []; while ($row = $result->fetch_assoc()) $rows[] = $row;
-    echo json_encode($rows); exit;
-}
-
-if ($action === "aprovar_saque") {
-    $id = intval($_POST["id"] ?? 0);
-    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
-    $stmt = $conn->prepare("UPDATE \`$tb_saques\` SET \`$col_saq_status\`='aprovado' WHERE \`$col_saq_id\`=?");
-    $stmt->bind_param("i", $id); $stmt->execute();
-    echo json_encode(["ok"=>true]); exit;
-}
-
-if ($action === "rejeitar_saque") {
-    $id = intval($_POST["id"] ?? 0);
-    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
-    $stmt = $conn->prepare("UPDATE \`$tb_saques\` SET \`$col_saq_status\`='rejeitado' WHERE \`$col_saq_id\`=?");
-    $stmt->bind_param("i", $id); $stmt->execute();
-    echo json_encode(["ok"=>true]); exit;
-}
-
-if ($action === "remover_afiliados") {
-    $stmt = $conn->prepare("DELETE FROM \`$tb_afiliados\` WHERE \`$col_aff_expired\` = 1");
-    $stmt->execute();
-    echo json_encode(["ok"=>true,"removed"=>$stmt->affected_rows]); exit;
-}
-
-// Tabelas extras — endpoint genérico
-if ($action === "extra" && isset($_GET["table"])) {
-    $table_key = $_GET["table"];
-    if (!isset($tabelas_extra[$table_key])) {
-        echo json_encode(["error" => "Tabela extra '$table_key' não configurada."]); exit;
+// ── SCAN_DB — Escaneamento automático do banco ──
+if (\$action === "scan_db") {
+    \$tables_result = \$conn->query("SHOW TABLES");
+    if (!\$tables_result) { echo json_encode(["error" => "Não foi possível listar tabelas: " . \$conn->error]); exit; }
+    \$tables = [];
+    while (\$row = \$tables_result->fetch_array()) {
+        \$table_name = \$row[0];
+        \$cols_result = \$conn->query("SHOW COLUMNS FROM \`\$table_name\`");
+        \$columns = [];
+        if (\$cols_result) {
+            while (\$col = \$cols_result->fetch_assoc()) {
+                \$columns[] = ["name" => \$col["Field"], "type" => \$col["Type"], "key" => \$col["Key"] ?? "", "nullable" => \$col["Null"] === "YES"];
+            }
+        }
+        \$tables[\$table_name] = ["columns" => \$columns];
     }
-    $et = $tabelas_extra[$table_key];
-    $tb_name = $et["table_name"];
-    $cols = $et["columns"] ?? [];
-    $select_parts = [];
-    foreach ($cols as $alias => $real_col) {
-        $select_parts[] = "\`$real_col\` as \`$alias\`";
-    }
-    $select = empty($select_parts) ? "*" : implode(", ", $select_parts);
-    $sql = "SELECT $select FROM \`$tb_name\` LIMIT 500";
-    $result = $conn->query($sql);
-    if (!$result) { echo json_encode(["error" => $conn->error, "table" => $tb_name]); exit; }
-    $rows = []; while ($row = $result->fetch_assoc()) $rows[] = $row;
-    echo json_encode($rows); exit;
+    echo json_encode(["ok" => true, "database" => \$db, "tables" => \$tables, "total" => count(\$tables)]); exit;
 }
 
-echo json_encode(["error" => "Ação não reconhecida: " . $action]);
+// ── HEALTH ──
+if (\$action === "health") {
+    echo json_encode(["ok"=>true,"version"=>"4.0.0","db"=>true,
+        "mapping_source"=>\$mapping["_from_cache"]?"cache":"painel",
+        "tables"=>\$t,"extra_tables"=>array_keys(\$tabelas_extra),"time"=>date("c"),
+        "features"=>["scan_db","auto_detect","dynamic_mapping"]]); exit;
+}
+
+// ── STATS ──
+if (\$action === "stats") {
+    \$result = ["total_usuarios"=>0,"total_afiliados"=>0,"saldo_total"=>0.0];
+    \$errors = [];
+    
+    if (\$t["usuarios"] ?? null) {
+        \$r = \$conn->query("SELECT COUNT(*) as total FROM \`\$tb_usuarios\`");
+        if (\$r) \$result["total_usuarios"] = (int)\$r->fetch_assoc()["total"];
+        else \$errors[] = "Tabela '\$tb_usuarios': ".\$conn->error;
+    }
+    if (\$t["afiliados"] ?? null) {
+        \$r = \$conn->query("SELECT COUNT(*) as total FROM \`\$tb_afiliados\`");
+        if (\$r) \$result["total_afiliados"] = (int)\$r->fetch_assoc()["total"];
+        else \$errors[] = "Tabela '\$tb_afiliados': ".\$conn->error;
+    }
+    if (\$t["saldo"] ?? null) {
+        \$r = \$conn->query("SELECT COALESCE(SUM(\`\$col_wal_saldo\`),0) as total FROM \`\$tb_saldo\`");
+        if (\$r) \$result["saldo_total"] = (float)\$r->fetch_assoc()["total"];
+        else \$errors[] = "Tabela '\$tb_saldo'/'\$col_wal_saldo': ".\$conn->error;
+    }
+    if (\$errors) \$result["warnings"] = \$errors;
+    echo json_encode(\$result); exit;
+}
+
+// ── DEPÓSITOS ──
+if (\$action === "depositos") {
+    if (!(\$t["depositos"] ?? null)) { echo json_encode(["error"=>"Tabela de depósitos desativada"]); exit; }
+    \$join = (\$t["usuarios"] ?? null) ? "JOIN \`\$tb_usuarios\` u ON d.\`\$col_dep_uid\` = u.\`\$col_user_id\`" : "";
+    \$user_col = (\$t["usuarios"] ?? null) ? "u.\`\$col_user_name\` as nome_usuario," : "d.\`\$col_dep_uid\` as nome_usuario,";
+    \$sql = "SELECT \$user_col d.\`\$col_dep_valor\` as valor, d.\`\$col_dep_pix\` as pix, d.\`\$col_dep_date\` as created_at, d.\`\$col_dep_status\` as status FROM \`\$tb_depositos\` d \$join ORDER BY d.\`\$col_dep_date\` DESC LIMIT 500";
+    \$result = \$conn->query(\$sql);
+    if (!\$result) { echo json_encode(["error"=>\$conn->error,"query"=>\$sql,"fix"=>"Verifique os nomes de tabelas e colunas no Mapeamento"]); exit; }
+    \$rows = []; while (\$row = \$result->fetch_assoc()) \$rows[] = \$row;
+    echo json_encode(\$rows); exit;
+}
+
+// ── SAQUES ──
+if (\$action === "saques") {
+    if (!(\$t["saques"] ?? null)) { echo json_encode(["error"=>"Tabela de saques desativada"]); exit; }
+    \$join = (\$t["usuarios"] ?? null) ? "JOIN \`\$tb_usuarios\` u ON w.\`\$col_saq_uid\` = u.\`\$col_user_id\`" : "";
+    \$user_col = (\$t["usuarios"] ?? null) ? "u.\`\$col_user_name\` as nome_usuario," : "w.\`\$col_saq_uid\` as nome_usuario,";
+    \$sql = "SELECT w.\`\$col_saq_id\` as id, \$user_col w.\`\$col_saq_valor\` as valor, w.\`\$col_saq_pix\` as pix, w.\`\$col_saq_date\` as created_at, w.\`\$col_saq_status\` as status FROM \`\$tb_saques\` w \$join ORDER BY w.\`\$col_saq_date\` DESC LIMIT 500";
+    \$result = \$conn->query(\$sql);
+    if (!\$result) { echo json_encode(["error"=>\$conn->error,"query"=>\$sql,"fix"=>"Verifique os nomes de tabelas e colunas no Mapeamento"]); exit; }
+    \$rows = []; while (\$row = \$result->fetch_assoc()) \$rows[] = \$row;
+    echo json_encode(\$rows); exit;
+}
+
+// ── APROVAR SAQUE ──
+if (\$action === "aprovar_saque") {
+    if (!(\$t["saques"] ?? null)) { echo json_encode(["ok"=>false,"error"=>"Tabela de saques desativada"]); exit; }
+    \$id = intval(\$_POST["id"] ?? \$_GET["id"] ?? 0);
+    if (\$id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
+    \$stmt = \$conn->prepare("UPDATE \`\$tb_saques\` SET \`\$col_saq_status\`='aprovado' WHERE \`\$col_saq_id\`=?");
+    \$stmt->bind_param("i", \$id); \$stmt->execute();
+    echo json_encode(["ok"=>true,"affected"=>\$stmt->affected_rows]); exit;
+}
+
+// ── REJEITAR SAQUE ──
+if (\$action === "rejeitar_saque") {
+    if (!(\$t["saques"] ?? null)) { echo json_encode(["ok"=>false,"error"=>"Tabela de saques desativada"]); exit; }
+    \$id = intval(\$_POST["id"] ?? \$_GET["id"] ?? 0);
+    if (\$id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
+    \$stmt = \$conn->prepare("UPDATE \`\$tb_saques\` SET \`\$col_saq_status\`='rejeitado' WHERE \`\$col_saq_id\`=?");
+    \$stmt->bind_param("i", \$id); \$stmt->execute();
+    echo json_encode(["ok"=>true,"affected"=>\$stmt->affected_rows]); exit;
+}
+
+// ── REMOVER AFILIADOS EXPIRADOS ──
+if (\$action === "remover_afiliados") {
+    if (!(\$t["afiliados"] ?? null)) { echo json_encode(["ok"=>false,"error"=>"Tabela de afiliados desativada"]); exit; }
+    \$stmt = \$conn->prepare("DELETE FROM \`\$tb_afiliados\` WHERE \`\$col_aff_expired\` = 1");
+    \$stmt->execute();
+    echo json_encode(["ok"=>true,"removed"=>\$stmt->affected_rows]); exit;
+}
+
+// ── TABELAS EXTRAS ──
+if (\$action === "extra" && isset(\$_GET["table"])) {
+    \$table_key = \$_GET["table"];
+    if (!isset(\$tabelas_extra[\$table_key])) {
+        echo json_encode(["error" => "Tabela extra '\$table_key' não configurada."]); exit;
+    }
+    \$et = \$tabelas_extra[\$table_key];
+    \$tb_name = \$et["table_name"];
+    \$cols = \$et["columns"] ?? [];
+    \$select_parts = [];
+    foreach (\$cols as \$alias => \$real_col) {
+        \$select_parts[] = "\`\$real_col\` as \`\$alias\`";
+    }
+    \$select = empty(\$select_parts) ? "*" : implode(", ", \$select_parts);
+    \$sql = "SELECT \$select FROM \`\$tb_name\` LIMIT 500";
+    \$result = \$conn->query(\$sql);
+    if (!\$result) { echo json_encode(["error" => \$conn->error, "table" => \$tb_name]); exit; }
+    \$rows = []; while (\$row = \$result->fetch_assoc()) \$rows[] = \$row;
+    echo json_encode(\$rows); exit;
+}
+
+echo json_encode(["error" => "Ação não reconhecida: " . \$action, "available" => ["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","extra"]]);
 ?>`;
   };
 
   const generateTestHtml = () => {
     const apiUrl = form.url ? `${form.url.replace(/\/$/, "")}/api.php` : "https://seusite.com/api.php";
     return `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API — ${platform.nome}</title>
-<style>body{font-family:monospace;background:#0a0a0f;color:#e0e0e0;padding:20px}h1{color:#00c4ff}button{background:#00c4ff;color:#000;border:none;padding:8px 16px;margin:4px;cursor:pointer;border-radius:6px;font-weight:bold}button:hover{background:#00a0dd}.error{color:#ff4444}.success{color:#00d67c}pre{background:#111;padding:15px;border-radius:8px;overflow-x:auto;border:1px solid #222;max-height:400px}input{width:500px;padding:8px;background:#111;color:#fff;border:1px solid #333;border-radius:6px}</style>
-</head><body><h1>🔌 Teste — ${platform.nome}</h1>
-<input id="apiUrl" value="${apiUrl}" /><br><br>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v4.0 — ${platform.nome}</title>
+<style>*{box-sizing:border-box}body{font-family:'Segoe UI',monospace;background:#0a0a0f;color:#e0e0e0;padding:20px;margin:0}h1{color:#00c4ff;margin-bottom:5px}h2{color:#888;font-size:14px;margin-top:0}.controls{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}button{background:#00c4ff;color:#000;border:none;padding:10px 18px;cursor:pointer;border-radius:8px;font-weight:bold;font-size:13px;transition:all .2s}button:hover{background:#00a0dd;transform:scale(1.02)}button.scan{background:#a855f7}button.scan:hover{background:#9333ea}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:15px 0}.card{background:#111;border:1px solid #222;border-radius:10px;padding:15px}.card h3{margin:0 0 8px;font-size:13px;color:#00c4ff}.card.ok{border-color:#22c55e}.card.fail{border-color:#ef4444}.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold}.badge.ok{background:#22c55e22;color:#22c55e}.badge.fail{background:#ef444422;color:#ef4444}.badge.warn{background:#f59e0b22;color:#f59e0b}pre{background:#0d0d15;padding:12px;border-radius:8px;overflow-x:auto;border:1px solid #1a1a2e;max-height:350px;font-size:12px;line-height:1.5}input{width:100%;max-width:600px;padding:10px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;font-size:14px;font-family:monospace}.status-bar{padding:12px;border-radius:8px;margin:10px 0;font-weight:bold;font-size:13px}.status-bar.ok{background:#22c55e15;border:1px solid #22c55e40;color:#22c55e}.status-bar.fail{background:#ef444415;border:1px solid #ef444440;color:#ef4444}.table-list{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.table-chip{background:#1a1a2e;border:1px solid #333;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;transition:all .2s}.table-chip:hover{border-color:#00c4ff;color:#00c4ff}.table-chip.detected{border-color:#22c55e;background:#22c55e15;color:#22c55e}</style>
+</head><body>
+<h1>🔌 Teste API v4.0 — ${platform.nome}</h1>
+<h2>Detector Automático de Banco + Endpoints Inteligentes</h2>
+<input id="apiUrl" value="${apiUrl}" placeholder="URL da API (api.php)" />
+<div class="controls">
 <button onclick="testEndpoint('health')">🏥 Health</button>
 <button onclick="testEndpoint('stats')">📊 Stats</button>
 <button onclick="testEndpoint('depositos')">💰 Depósitos</button>
 <button onclick="testEndpoint('saques')">💸 Saques</button>
-<button onclick="testAll()">🚀 Todos</button>
-<div id="status" style="margin:10px 0;padding:10px;"></div>
-<pre id="result">Clique em um botão para testar...</pre>
+<button class="scan" onclick="scanDatabase()">🔍 Escanear Banco</button>
+<button onclick="testAll()">🚀 Testar Todos</button>
+</div>
+<div id="status"></div>
+<div id="scan-results"></div>
+<div class="grid" id="results"></div>
+<pre id="raw">Clique em um botão para começar...</pre>
 <script>
-function getApi(){return document.getElementById("apiUrl").value}
-async function testEndpoint(a){const s=document.getElementById("status"),r=document.getElementById("result");s.innerHTML="⏳ "+a+"...";try{const t0=performance.now();const res=await fetch(getApi()+"?action="+a);const ms=Math.round(performance.now()-t0);const d=await res.json();s.innerHTML=d.error?'<span class="error">❌ '+a+" — "+d.error+"</span>":'<span class="success">✅ '+a+" ("+ms+"ms)</span>";r.textContent=JSON.stringify(d,null,2)}catch(e){s.innerHTML='<span class="error">❌ '+e.message+"</span>";r.textContent=e.message}}
-async function testAll(){const actions=["health","stats","depositos","saques"];let res={},ok=true;for(const a of actions){try{const r=await fetch(getApi()+"?action="+a);const d=await r.json();res[a]={ok:!d.error,data:d};if(d.error)ok=false}catch(e){res[a]={ok:false,error:e.message};ok=false}}document.getElementById("status").innerHTML=ok?'<span class="success">✅ Todos OK</span>':'<span class="error">⚠️ Falhas</span>';document.getElementById("result").textContent=JSON.stringify(res,null,2)}
+const g=id=>document.getElementById(id);
+const api=()=>g("apiUrl").value;
+async function testEndpoint(a){
+  g("status").innerHTML='<div class="status-bar">⏳ Testando '+a+'...</div>';
+  try{const t=performance.now();const r=await fetch(api()+"?action="+a);const ms=Math.round(performance.now()-t);const d=await r.json();
+  const ok=!d.error;
+  g("status").innerHTML='<div class="status-bar '+(ok?"ok":"fail")+'">'+(ok?"✅":"❌")+" "+a+" — "+(ok?ms+"ms":d.error)+"</div>";
+  g("raw").textContent=JSON.stringify(d,null,2);
+  }catch(e){g("status").innerHTML='<div class="status-bar fail">❌ '+e.message+"</div>";g("raw").textContent=e.message}
+}
+async function testAll(){
+  const actions=["health","stats","depositos","saques"];let html="";let allOk=true;
+  for(const a of actions){try{const t=performance.now();const r=await fetch(api()+"?action="+a);const ms=Math.round(performance.now()-t);const d=await r.json();
+  const ok=!d.error;if(!ok)allOk=false;
+  html+='<div class="card '+(ok?"ok":"fail")+'"><h3>'+a+' <span class="badge '+(ok?"ok":"fail")+'">'+(ok?"OK "+ms+"ms":"FALHA")+"</span></h3><pre>"+JSON.stringify(d,null,2).slice(0,500)+"</pre></div>";
+  }catch(e){allOk=false;html+='<div class="card fail"><h3>'+a+' <span class="badge fail">ERRO</span></h3><pre>'+e.message+"</pre></div>"}}
+  g("status").innerHTML='<div class="status-bar '+(allOk?"ok":"fail")+'">'+(allOk?"✅ Todos os endpoints funcionando!":"⚠️ Alguns endpoints falharam")+"</div>";
+  g("results").innerHTML=html;
+}
+async function scanDatabase(){
+  g("status").innerHTML='<div class="status-bar">🔍 Escaneando banco de dados...</div>';
+  try{const r=await fetch(api()+"?action=scan_db");const d=await r.json();
+  if(!d.ok){g("status").innerHTML='<div class="status-bar fail">❌ '+d.error+"</div>";return}
+  let html='<div class="card ok"><h3>🗄️ Banco: '+d.database+' — '+Object.keys(d.tables).length+' tabelas</h3>';
+  html+='<div class="table-list">';
+  for(const t of Object.keys(d.tables)){html+='<span class="table-chip" onclick="showTable(\\''+t+'\\')">'+t+" ("+d.tables[t].columns.length+")</span>"}
+  html+='</div></div>';
+  g("scan-results").innerHTML=html;g("status").innerHTML='<div class="status-bar ok">✅ Escaneamento completo!</div>';
+  g("raw").textContent=JSON.stringify(d,null,2);
+  }catch(e){g("status").innerHTML='<div class="status-bar fail">❌ '+e.message+"</div>"}}
+function showTable(t){testEndpoint("scan_db")}
 </script></body></html>`;
   };
 
@@ -481,6 +615,7 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
     const apiUrl = form.url ? `${form.url.replace(/\/$/, "")}/api.php` : null;
     if (!apiUrl) { results.push("❌ URL não configurada"); setStructureResult(results); setTestingStructure(false); return; }
     for (const m of TABLE_META) {
+      if (disabledTables.includes(m.key)) { results.push(`⏭️ ${m.label} — Desativada`); continue; }
       const action = m.key === "saldo" || m.key === "afiliados" ? "stats" : m.key;
       try {
         const controller = new AbortController();
@@ -576,6 +711,7 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
     const visibleCols = defaultCols.filter(c => !hidden.includes(c.field));
     const extras = extraColumns[meta.key] ?? [];
     const isDisabled = disabledTables.includes(meta.key);
+    const suggestion = scanResult?.suggestions?.[meta.key];
 
     return (
       <div key={meta.key} className={`rounded-lg border p-3 space-y-2 transition-all ${isDisabled ? "border-border/30 opacity-50" : "border-border/50"}`}>
@@ -585,6 +721,11 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
             <div>
               <p className="text-xs font-semibold text-foreground">{meta.label} → {tableValue}</p>
               <p className="text-[9px] text-muted-foreground leading-tight mt-0.5">{meta.desc}</p>
+              {suggestion && (
+                <p className="text-[9px] text-neon-green mt-0.5">
+                  🔍 Detectado: <strong>{suggestion.table}</strong> ({suggestion.confidence}% confiança)
+                </p>
+              )}
             </div>
           </div>
           <div className="flex gap-1">
@@ -665,20 +806,21 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API, banco, mapeamento flexível por tabela</p>
+              <p className="text-xs text-muted-foreground">API v4.0 — Auto-Detect + Mapeamento Inteligente</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
         </div>
 
         <Tabs defaultValue="api" className="w-full">
-          <TabsList className="grid grid-cols-6 w-full">
+          <TabsList className="grid grid-cols-7 w-full">
             <TabsTrigger value="api" className="text-xs gap-1"><Globe className="w-3 h-3" /> API</TabsTrigger>
             <TabsTrigger value="database" className="text-xs gap-1"><Database className="w-3 h-3" /> Banco</TabsTrigger>
+            <TabsTrigger value="scanner" className="text-xs gap-1"><Search className="w-3 h-3" /> Scanner</TabsTrigger>
             <TabsTrigger value="mapping" className="text-xs gap-1"><TableProperties className="w-3 h-3" /> Mapeamento</TabsTrigger>
             <TabsTrigger value="generate" className="text-xs gap-1"><Code className="w-3 h-3" /> Gerar</TabsTrigger>
             <TabsTrigger value="webhooks" className="text-xs gap-1"><Wifi className="w-3 h-3" /> Webhooks</TabsTrigger>
-            <TabsTrigger value="cooperation" className="text-xs gap-1"><Server className="w-3 h-3" /> Cooperação</TabsTrigger>
+            <TabsTrigger value="cooperation" className="text-xs gap-1"><Server className="w-3 h-3" /> Coop</TabsTrigger>
           </TabsList>
 
           {/* API Tab */}
@@ -722,7 +864,7 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
           {/* Database Tab */}
           <TabsContent value="database" className="space-y-4 mt-4">
             <div className="rounded-lg bg-accent/30 border border-accent/50 p-2">
-              <p className="text-[10px] text-accent-foreground font-semibold">ℹ️ Credenciais do MySQL da hospedagem.</p>
+              <p className="text-[10px] text-accent-foreground font-semibold">ℹ️ Credenciais do MySQL da hospedagem. Usadas no config.php gerado.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label className="text-xs text-muted-foreground">Host</Label>
@@ -738,6 +880,118 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
             </div>
           </TabsContent>
 
+          {/* Scanner Tab - NEW */}
+          <TabsContent value="scanner" className="space-y-4 mt-4">
+            <div className="rounded-lg bg-gradient-to-r from-primary/10 to-chart-4/10 border border-primary/30 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="text-sm font-bold text-foreground">🔍 Detector Automático de Banco</p>
+                  <p className="text-[10px] text-muted-foreground">Escaneia todas as tabelas e colunas do MySQL e detecta automaticamente o mapeamento ideal.</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-secondary/50 border border-border/50 p-3 space-y-1">
+                <p className="text-[10px] font-bold text-foreground">📋 Pré-requisitos:</p>
+                <p className="text-[9px] text-muted-foreground">1. Configure a URL na aba API</p>
+                <p className="text-[9px] text-muted-foreground">2. Suba o api.php v4.0 na hospedagem (aba Gerar → Baixar Todos)</p>
+                <p className="text-[9px] text-muted-foreground">3. O api.php v4.0 inclui o endpoint scan_db que lê as tabelas/colunas</p>
+              </div>
+
+              <Button onClick={handleScanDatabase} disabled={scanning || !form.url}
+                className="w-full gap-2 h-10 text-sm font-bold"
+                style={{ background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--chart-4)))" }}>
+                {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                {scanning ? "Escaneando banco de dados..." : "🔍 Escanear Banco de Dados"}
+              </Button>
+            </div>
+
+            {/* Scan Results */}
+            {scanResult && scanResult.ok && (
+              <div className="space-y-3">
+                <div className="rounded-lg border border-neon-green/40 bg-neon-green/5 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-neon-green">✅ Banco: {scanResult.database} — {scanResult.total_tables} tabelas</p>
+                    <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowScanDetails(!showScanDetails)}>
+                      {showScanDetails ? "Ocultar" : "Ver todas"}
+                    </Button>
+                  </div>
+
+                  {showScanDetails && scanResult.all_tables && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {scanResult.all_tables.map(t => {
+                        const isDetected = Object.values(scanResult.suggestions ?? {}).some((s: any) => s?.table === t);
+                        return (
+                          <span key={t} className={`text-[9px] px-2 py-0.5 rounded border ${isDetected ? "border-neon-green/40 bg-neon-green/10 text-neon-green" : "border-border/50 bg-secondary text-muted-foreground"}`}>
+                            {t} ({scanResult.tables?.[t]?.columns?.length ?? 0} cols)
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Suggestions */}
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <p className="text-xs font-bold text-foreground">Detecção Automática</p>
+                  </div>
+
+                  {Object.entries(scanResult.suggestions ?? {}).map(([key, suggestion]) => {
+                    const meta = TABLE_META.find(m => m.key === key);
+                    if (!meta) return null;
+                    const Icon = meta.icon;
+                    return (
+                      <div key={key} className={`rounded-lg border p-2 ${suggestion ? "border-neon-green/30 bg-neon-green/5" : "border-border/30 bg-secondary/30"}`}>
+                        <div className="flex items-center gap-2">
+                          <Icon className={`w-3 h-3 ${suggestion ? "text-neon-green" : "text-muted-foreground"}`} />
+                          <p className="text-[10px] font-bold text-foreground">{meta.label}</p>
+                          {suggestion ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-neon-green/20 text-neon-green font-bold">
+                              {suggestion.table} — {suggestion.confidence}%
+                            </span>
+                          ) : (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-destructive/20 text-destructive font-bold">Não detectado</span>
+                          )}
+                        </div>
+                        {suggestion && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {Object.entries(suggestion.columns).map(([colKey, colVal]) => (
+                              <span key={colKey} className={`text-[8px] px-1 py-0.5 rounded ${colVal ? "bg-neon-green/10 text-neon-green border border-neon-green/20" : "bg-destructive/10 text-destructive border border-destructive/20"}`}>
+                                {colKey}: {colVal ?? "?"}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  <Button onClick={applySuggestions} className="w-full gap-2 h-9 text-xs font-bold"
+                    style={{ background: "linear-gradient(135deg, hsl(142 76% 36%), hsl(142 70% 45%))" }}>
+                    <CheckCircle className="w-3.5 h-3.5" /> Aplicar Mapeamento Detectado
+                  </Button>
+                  <p className="text-[9px] text-muted-foreground text-center">Aplica as sugestões e preenche automaticamente tabelas + colunas. Revise na aba Mapeamento e clique Salvar.</p>
+                </div>
+              </div>
+            )}
+
+            {scanResult && !scanResult.ok && (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                <p className="text-xs font-bold text-destructive">❌ Erro no escaneamento</p>
+                <p className="text-[10px] text-muted-foreground">{scanResult.error}</p>
+                <div className="text-[9px] text-muted-foreground space-y-1">
+                  <p>Possíveis causas:</p>
+                  <p>• O api.php v4.0 não está instalado na hospedagem</p>
+                  <p>• O endpoint scan_db não está disponível (api.php antigo)</p>
+                  <p>• A URL da plataforma está incorreta</p>
+                  <p>• O servidor está offline ou bloqueando CORS</p>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
           {/* Mapping Tab */}
           <TabsContent value="mapping" className="space-y-3 mt-4">
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
@@ -746,15 +1000,13 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
                 <p className="text-xs font-bold text-foreground">Mapeamento Completo — Tabelas & Colunas</p>
               </div>
               <div className="text-[10px] text-muted-foreground space-y-1">
-                <p>Cada tabela abaixo representa uma funcionalidade do painel. Configure o nome exato da tabela e colunas do banco da plataforma.</p>
-                <p>• <strong className="text-foreground">Desativar tabela</strong> — se a plataforma não tem essa tabela, clique em "Desativar" e a API ignora.</p>
-                <p>• <strong className="text-foreground">+ Coluna</strong> — adiciona uma coluna extra que a plataforma tem além das padrão.</p>
-                <p>• <strong className="text-foreground">✕ na coluna</strong> — remove a coluna se a plataforma não usa (ex: sem campo de telefone).</p>
-                <p>• <strong className="text-foreground">+ Adicionar Nova Tabela</strong> — para tabelas que não existem no padrão (ex: bônus, eventos, etc).</p>
+                <p>Configure os nomes exatos das tabelas e colunas. Use o <strong className="text-primary">Scanner</strong> para preencher automaticamente.</p>
+                <p>• <strong className="text-foreground">Desativar tabela</strong> — ignora na API se não existe.</p>
+                <p>• <strong className="text-foreground">+ Coluna</strong> — adiciona campo extra.</p>
+                <p>• <strong className="text-foreground">✕</strong> — remove coluna que a plataforma não usa.</p>
               </div>
             </div>
 
-            {/* Built-in tables */}
             {TABLE_META.map(meta => renderTableSection(meta))}
 
             {/* Extra custom tables */}
@@ -797,7 +1049,6 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
               </div>
             ))}
 
-            {/* Add extra table button */}
             <Button variant="outline" size="sm" onClick={addExtraTable}
               className="w-full gap-2 h-8 text-xs border-dashed border-primary/40 text-primary hover:bg-primary/5">
               <Plus className="w-3.5 h-3.5" /> Adicionar Nova Tabela
@@ -810,6 +1061,15 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
                 SELECT u.<span className="text-primary">{form.coluna_nome_usuario}</span>, d.<span className="text-primary">{form.coluna_valor_deposito}</span>, d.<span className="text-primary">{form.coluna_pix_deposito}</span>, d.<span className="text-primary">{form.coluna_status_deposito}</span>
                 <br />FROM <span className="text-primary">{form.tabela_depositos}</span> d
                 <br />JOIN <span className="text-primary">{form.tabela_usuarios}</span> u ON d.<span className="text-primary">{form.coluna_user_id_deposito}</span> = u.<span className="text-primary">{form.coluna_id_usuario}</span>
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-secondary/50 border border-border/50 p-3 space-y-2">
+              <p className="text-[10px] font-bold text-foreground">💡 Preview — Query de saques</p>
+              <p className="text-[10px] font-mono text-muted-foreground bg-background/50 p-2 rounded">
+                SELECT w.<span className="text-primary">{form.coluna_id_saque}</span>, u.<span className="text-primary">{form.coluna_nome_usuario}</span>, w.<span className="text-primary">{form.coluna_valor_saque}</span>, w.<span className="text-primary">{form.coluna_pix_saque}</span>, w.<span className="text-primary">{form.coluna_status_saque}</span>
+                <br />FROM <span className="text-primary">{form.tabela_saques}</span> w
+                <br />JOIN <span className="text-primary">{form.tabela_usuarios}</span> u ON w.<span className="text-primary">{form.coluna_user_id_saque}</span> = u.<span className="text-primary">{form.coluna_id_usuario}</span>
               </p>
             </div>
 
@@ -832,9 +1092,9 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
               <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v3.2</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v4.0</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">Inclui tabelas extras e colunas customizadas. Copie e suba — sem editar nada.</p>
+              <p className="text-[10px] text-muted-foreground">Inclui scan_db, auto-detect, tabelas extras. Copie e suba na hospedagem.</p>
             </div>
 
             <Button variant="outline" size="sm" onClick={() => {
@@ -845,13 +1105,13 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
                 }, i * 300));
               toast({ title: "📥 Baixando 3 arquivos" });
             }} className="w-full gap-2 h-9 text-xs border-neon-green/30 text-neon-green hover:bg-neon-green/10">
-              <Download className="w-3.5 h-3.5" /> Baixar Todos
+              <Download className="w-3.5 h-3.5" /> Baixar Todos (config.php + api.php + test_api.html)
             </Button>
 
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v3.2", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "test_api.html", label: "📄 test_api.html", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v4.0", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "test_api.html", label: "📄 test_api.html — v4.0", gen: generateTestHtml, field: "test_html", type: "text/html" },
             ].map(f => (
               <div key={f.name} className="space-y-2">
                 <div className="flex items-center justify-between">
