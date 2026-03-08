@@ -469,13 +469,18 @@ export const usePlatformApi = () => {
     }
 
     try {
-      await supabase.from("plataformas").update({
-        total_usuarios: statsResult.data.total_usuarios,
-        total_afiliados: statsResult.data.total_afiliados,
-        saldo_total: statsResult.data.saldo_total,
+      const saldoValue = Number(statsResult.data.saldo_total) || 0;
+      const { error: updateError } = await supabase.from("plataformas").update({
+        total_usuarios: statsResult.data.total_usuarios ?? 0,
+        total_afiliados: statsResult.data.total_afiliados ?? 0,
+        saldo_total: saldoValue,
         status: "online" as const,
         ultimo_sync: new Date().toISOString(),
       }).eq("id", platform.id);
+      
+      if (updateError) {
+        console.error(`[SyncPlatform] Erro ao atualizar ${platform.nome}:`, updateError.message);
+      }
 
       const cacheNote = statsResult.fromCache ? " (cache)" : "";
       toast({

@@ -127,14 +127,22 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
           state.lastSync = new Date().toISOString();
           offlineTimersRef.current.delete(p.id);
 
-          // Update platform stats in DB
-          await supabase.from("plataformas").update({
-            total_usuarios: statsResult.data.total_usuarios,
-            total_afiliados: statsResult.data.total_afiliados,
-            saldo_total: statsResult.data.saldo_total,
+          // Update platform stats in DB — ensure saldo_total is a valid number
+          const saldoValue = Number(statsResult.data.saldo_total) || 0;
+          const updatePayload = {
+            total_usuarios: statsResult.data.total_usuarios ?? 0,
+            total_afiliados: statsResult.data.total_afiliados ?? 0,
+            saldo_total: saldoValue,
             status: "online" as const,
             ultimo_sync: new Date().toISOString(),
-          }).eq("id", p.id);
+          };
+          
+          const { error: updateError } = await supabase.from("plataformas").update(updatePayload).eq("id", p.id);
+          if (updateError) {
+            console.error(`[AutoSync] Erro ao atualizar plataforma ${p.nome}:`, updateError.message);
+          } else {
+            console.log(`[AutoSync] ${p.nome}: usuarios=${updatePayload.total_usuarios}, saldo=R$${saldoValue.toFixed(2)}`);
+          }
 
           // Sync deposits and withdrawals to Supabase
           if (depositsResult.data.length > 0) {
