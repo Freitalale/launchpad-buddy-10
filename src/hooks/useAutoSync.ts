@@ -5,7 +5,7 @@ import type { Plataforma } from "@/hooks/usePlatforms";
 import { usePlatformApi, type ApiDeposito, type ApiSaque } from "@/hooks/usePlatformApi";
 import { useQueryClient } from "@tanstack/react-query";
 
-const SYNC_INTERVAL = 5_000; // 5 seconds — real-time sync
+const SYNC_INTERVAL = 30_000; // 30 seconds — balanced sync
 const ALERT_THRESHOLD = 120_000; // 2 min offline → alert
 
 interface PlatformSyncState {
@@ -36,25 +36,30 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
   const syncDepositsToSupabase = async (platform: Plataforma, deposits: ApiDeposito[], userId: string) => {
     if (!deposits.length) return 0;
     let synced = 0;
-    for (const dep of deposits.slice(0, 200)) {
+    // Batch insert with ON CONFLICT on the unique constraint (ignores duplicates)
+    const batch = deposits.slice(0, 500).map(dep => ({
+      user_id: userId,
+      plataforma_id: platform.id,
+      plataforma_nome: platform.nome,
+      nome_usuario: dep.nome_usuario || "Desconhecido",
+      valor: Number(dep.valor) || 0,
+      pix: dep.pix || null,
+      status: dep.status || "pendente",
+      created_at: dep.created_at || new Date().toISOString(),
+    }));
+    
+    // Insert in chunks of 50 to avoid payload limits
+    for (let i = 0; i < batch.length; i += 50) {
+      const chunk = batch.slice(i, i + 50);
       try {
-        // Upsert by matching platform + user name + date (avoid duplicates)
-        const { error } = await supabase.from("depositos").upsert({
-          user_id: userId,
-          plataforma_id: platform.id,
-          plataforma_nome: platform.nome,
-          nome_usuario: dep.nome_usuario || "Desconhecido",
-          valor: Number(dep.valor) || 0,
-          pix: dep.pix || null,
-          status: dep.status || "pendente",
-          created_at: dep.created_at || new Date().toISOString(),
-        }, {
-          onConflict: "id", // Will insert new records
+        const { error, count } = await supabase.from("depositos").upsert(chunk, {
+          onConflict: "user_id,plataforma_id,nome_usuario,valor,created_at",
           ignoreDuplicates: true,
+          count: 'exact',
         });
-        if (!error) synced++;
+        if (!error) synced += chunk.length;
       } catch {
-        // Skip individual errors
+        // Skip chunk errors
       }
     }
     return synced;
@@ -63,24 +68,27 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
   const syncSaquesToSupabase = async (platform: Plataforma, saques: ApiSaque[], userId: string) => {
     if (!saques.length) return 0;
     let synced = 0;
-    for (const saq of saques.slice(0, 200)) {
+    const batch = saques.slice(0, 500).map(saq => ({
+      user_id: userId,
+      plataforma_id: platform.id,
+      plataforma_nome: platform.nome,
+      nome_usuario: saq.nome_usuario || "Desconhecido",
+      valor: Number(saq.valor) || 0,
+      pix: saq.pix || null,
+      status: saq.status || "pendente",
+      created_at: saq.created_at || new Date().toISOString(),
+    }));
+    
+    for (let i = 0; i < batch.length; i += 50) {
+      const chunk = batch.slice(i, i + 50);
       try {
-        const { error } = await supabase.from("saques").upsert({
-          user_id: userId,
-          plataforma_id: platform.id,
-          plataforma_nome: platform.nome,
-          nome_usuario: saq.nome_usuario || "Desconhecido",
-          valor: Number(saq.valor) || 0,
-          pix: saq.pix || null,
-          status: saq.status || "pendente",
-          created_at: saq.created_at || new Date().toISOString(),
-        }, {
-          onConflict: "id",
+        const { error } = await supabase.from("saques").upsert(chunk, {
+          onConflict: "user_id,plataforma_id,nome_usuario,valor,created_at",
           ignoreDuplicates: true,
         });
-        if (!error) synced++;
+        if (!error) synced += chunk.length;
       } catch {
-        // Skip individual errors
+        // Skip chunk errors
       }
     }
     return synced;
