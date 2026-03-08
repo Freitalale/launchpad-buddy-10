@@ -113,6 +113,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const [structureResult, setStructureResult] = useState<string[]>([]);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [previewFiles, setPreviewFiles] = useState<Record<string, boolean>>({});
   const [verifyResult, setVerifyResult] = useState<{ version: string; endpoints: { name: string; status: string; detail: string }[] } | null>(null);
 
   // Scanner state
@@ -365,7 +366,7 @@ $port = ${form.db_port || 3306};
     const L = (s: string) => lines.push(s);
 
     L('<?php');
-    L('// api.php — API Standalone v5.6 (Direct Mapping — Zero Fallbacks)');
+    L('// api.php — API Standalone v5.7 (Direct Mapping — Zero Fallbacks + Saldo Debug)');
     L('// Plataforma: ' + platform.nome);
     L('// Gerado em: ' + new Date().toISOString());
     L('// O mapeamento que VOCÊ configurou é LEI — sem auto-override');
@@ -454,15 +455,26 @@ $port = ${form.db_port || 3306};
     L('');
     L('// ═══ DIAGNOSTICO ═══');
     L('if ($action === "diagnostico") {');
-    L('    $diag = [];');
+    L('    $diag = ["mapping"=>[],"tests"=>[],"saldo_debug"=>null];');
     L('    foreach (["usuarios"=>$tb_usuarios,"depositos"=>$tb_depositos,"saques"=>$tb_saques,"saldo"=>$tb_saldo,"afiliados"=>$tb_afiliados] as $key=>$t) {');
     L('        $exists = table_exists($conn, $t);');
     L('        $cols = $exists ? get_columns($conn, $t) : [];');
     L('        $cnt = 0;');
     L('        if ($exists) { $r = @$conn->query("SELECT COUNT(*) as t FROM `$t`"); if ($r) $cnt = (int)$r->fetch_assoc()["t"]; }');
-    L('        $diag[$key] = ["table"=>$t,"exists"=>$exists,"columns"=>$cols,"count"=>$cnt];');
+    L('        $diag["mapping"][$key] = ["table"=>$t,"exists"=>$exists,"columns"=>$cols,"count"=>$cnt];');
     L('    }');
-    L('    echo json_encode(["ok"=>true,"version"=>"5.6.0","diag"=>$diag]); exit;');
+    L('    // Debug saldo');
+    L('    if (table_exists($conn, $tb_saldo)) {');
+    L('        $hasSaldoCol = in_array($col_wal_saldo, get_columns($conn, $tb_saldo));');
+    L('        $saldoTotal = 0;');
+    L('        if ($hasSaldoCol) { $r = @$conn->query("SELECT COALESCE(SUM(`$col_wal_saldo`),0) as total FROM `$tb_saldo`"); if ($r) $saldoTotal = (float)$r->fetch_assoc()["total"]; }');
+    L('        $diag["saldo_debug"] = ["table"=>$tb_saldo,"column"=>$col_wal_saldo,"column_exists"=>$hasSaldoCol,"total"=>$saldoTotal];');
+    L('    }');
+    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_depositos`");');
+    L('    $diag["tests"]["depositos_count"] = $r ? (int)$r->fetch_assoc()["total"] : "ERRO: ".$conn->error;');
+    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_saques`");');
+    L('    $diag["tests"]["saques_count"] = $r ? (int)$r->fetch_assoc()["total"] : "ERRO: ".$conn->error;');
+    L('    echo json_encode(["ok"=>true,"version"=>"5.7.0","diagnostico"=>$diag]); exit;');
     L('}');
     L('');
     L('// ═══ HEALTH ═══');
@@ -471,7 +483,7 @@ $port = ${form.db_port || 3306};
     L('    foreach (["usuarios"=>$tb_usuarios,"depositos"=>$tb_depositos,"saques"=>$tb_saques,"saldo"=>$tb_saldo,"afiliados"=>$tb_afiliados] as $key=>$t) {');
     L('        $checks[$key] = ["table"=>$t,"exists"=>table_exists($conn, $t)];');
     L('    }');
-    L('    echo json_encode(["ok"=>true,"version"=>"5.6.0","db"=>true,"time"=>date("c"),"tables"=>$checks,"features"=>["scan_db","diagnostico","standalone","direct_mapping","zero_fallbacks"]]); exit;');
+    L('    echo json_encode(["ok"=>true,"version"=>"5.7.0","db"=>true,"time"=>date("c"),"tables"=>$checks,"features"=>["scan_db","diagnostico","standalone","direct_mapping","zero_fallbacks"]]); exit;');
     L('}');
     L('');
     L('// ═══ STATS ═══');
@@ -550,28 +562,13 @@ $port = ${form.db_port || 3306};
     L('    echo json_encode(["ok"=>true,"removed"=>$conn->affected_rows]); exit;');
     L('}');
     L('');
-    L('// ═══ DIAGNOSTICO ═══');
-    L('if ($action === "diagnostico") {');
-    L('    $diag = ["mapping"=>[],"tests"=>[]];');
-    L('    foreach (["usuarios"=>$tb_usuarios,"depositos"=>$tb_depositos,"saques"=>$tb_saques,"saldo"=>$tb_saldo,"afiliados"=>$tb_afiliados] as $key=>$t) {');
-    L('        $r = @$conn->query("SHOW TABLES LIKE \'$t\'");');
-    L('        $exists = $r && $r->num_rows > 0;');
-    L('        $cols = [];');
-    L('        if ($exists) { $cr = @$conn->query("SHOW COLUMNS FROM `$t`"); if ($cr) while ($c = $cr->fetch_assoc()) $cols[] = $c["Field"]; }');
-    L('        $diag["mapping"][$key] = ["table"=>$t,"exists"=>$exists,"columns"=>$cols];');
-    L('    }');
-    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_depositos`");');
-    L('    $diag["tests"]["depositos_count"] = $r ? (int)$r->fetch_assoc()["total"] : "ERRO: ".$conn->error;');
-    L('    $r = @$conn->query("SELECT COUNT(*) as total FROM `$tb_saques`");');
-    L('    $diag["tests"]["saques_count"] = $r ? (int)$r->fetch_assoc()["total"] : "ERRO: ".$conn->error;');
-    L('    echo json_encode(["ok"=>true,"diagnostico"=>$diag]); exit;');
-    L('}');
+    L('// (diagnostico já tratado acima)');
     L('');
-    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.6.0"]);');
+    L('echo json_encode(["error"=>"Ação não reconhecida: ".$action,"available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico"],"version"=>"5.7.0"]);');
     L('');
     L('} catch (Throwable $e) {');
     L('    http_response_code(200);');
-    L('    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"5.6.0"]);');
+    L('    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"5.7.0"]);');
     L('}');
     L('?>');
     return lines.join("\n");
@@ -1079,7 +1076,7 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v5.5 — Mapeamento Autoritativo + Scanner Completo</p>
+              <p className="text-xs text-muted-foreground">API v5.7 — Mapeamento Autoritativo + Scanner Completo</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
@@ -1539,15 +1536,14 @@ async function testAll(){
             )}
           </TabsContent>
 
-          {/* Generate Tab */}
           <TabsContent value="generate" className="space-y-4 mt-4">
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.5 — Mapeamento Autoritativo</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.7 — Mapeamento Autoritativo</p>
               </div>
               <p className="text-[10px] text-muted-foreground">O que você configurar no Mapeamento é exatamente o que a API vai usar. Sem surpresas.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.5: Suas tabelas = lei + try/catch global + diagnóstico completo</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.7: Suas tabelas = lei + try/catch global + diagnóstico de saldo + zero fallbacks</p>
             </div>
 
             {/* Verify API Version */}
@@ -1590,9 +1586,10 @@ async function testAll(){
             </div>
 
             <div className="border-t border-border/50 pt-3">
-              <p className="text-xs font-bold text-foreground mb-2">📦 Gerar & Baixar Arquivos Atualizados</p>
+              <p className="text-xs font-bold text-foreground mb-2">📦 Arquivos Disponíveis</p>
             </div>
 
+            {/* Download all button */}
             <Button variant="outline" size="sm" onClick={() => {
               const files = [
                 { name: "config.php", content: generateConfigPhp() },
@@ -1608,30 +1605,42 @@ async function testAll(){
               toast({ title: "📥 Baixando 5 arquivos", description: "config.php + api.php + test_api.html + telegram_webhook.php + webhook_pix.php" });
             }} className="w-full gap-2 h-10 text-sm font-bold border-neon-green/30 text-neon-green hover:bg-neon-green/10"
               style={{ background: "linear-gradient(135deg, hsl(142 76% 36% / 0.1), hsl(142 70% 45% / 0.1))" }}>
-              <Download className="w-4 h-4" /> Gerar & Baixar Todos (5 arquivos)
+              <Download className="w-4 h-4" /> Baixar Todos (5 arquivos)
             </Button>
 
+            {/* Individual files with separate Generate Preview / Download */}
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v5.5 Autoritativo", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "test_api.html", label: "📄 test_api.html — v5.5", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v5.7 Autoritativo", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "test_api.html", label: "📄 test_api.html — v5.7", gen: generateTestHtml, field: "test_html", type: "text/html" },
               { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
               { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
-            ].map(f => (
-              <div key={f.name} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-foreground">{f.label}</p>
-                  <div className="flex gap-1">
-                    <CopyButton text={f.gen()} field={f.field} />
-                    <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2" onClick={() => {
-                      const blob = new Blob([f.gen()], { type: f.type }); const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
-                    }}><Download className="w-3 h-3" /> Baixar</Button>
+            ].map(f => {
+              const isPreviewOpen = previewFiles[f.name] ?? false;
+              return (
+                <div key={f.name} className="space-y-2 rounded-lg border border-border/50 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-foreground">{f.label}</p>
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 border-primary/30 text-primary hover:bg-primary/10" onClick={() => setPreviewFiles(p => ({ ...p, [f.name]: !isPreviewOpen }))}>
+                        <Code className="w-3 h-3" /> {isPreviewOpen ? "Esconder" : "Gerar Preview"}
+                      </Button>
+                      <CopyButton text={f.gen()} field={f.field} />
+                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 border-neon-green/30 text-neon-green hover:bg-neon-green/10" onClick={() => {
+                        const blob = new Blob([f.gen()], { type: f.type }); const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
+                        toast({ title: `📥 ${f.name} baixado!` });
+                      }}>
+                        <Download className="w-3 h-3" /> Baixar
+                      </Button>
+                    </div>
                   </div>
+                  {isPreviewOpen && (
+                    <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono whitespace-pre max-h-60">{f.gen()}</pre>
+                  )}
                 </div>
-                <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono whitespace-pre max-h-40">{f.gen()}</pre>
-              </div>
-            ))}
+              );
+            })}
           </TabsContent>
 
           {/* Webhooks Tab */}
