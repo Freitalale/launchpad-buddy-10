@@ -829,11 +829,11 @@ echo json_encode([
     const fullUrl = rawUrl && !rawUrl.startsWith("http") ? `https://${rawUrl}` : rawUrl;
     const apiUrl = fullUrl ? `${fullUrl}/api.php` : "https://seusite.com/api.php";
     return `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v5.0 — ${platform.nome}</title>
-<style>*{box-sizing:border-box}body{font-family:'Segoe UI',monospace;background:#0a0a0f;color:#e0e0e0;padding:20px;margin:0}h1{color:#00c4ff;margin-bottom:5px}h2{color:#888;font-size:14px;margin-top:0}.controls{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}button{background:#00c4ff;color:#000;border:none;padding:10px 18px;cursor:pointer;border-radius:8px;font-weight:bold;font-size:13px;transition:all .2s}button:hover{background:#00a0dd;transform:scale(1.02)}button.scan{background:#a855f7}button.scan:hover{background:#9333ea}button.diag{background:#f59e0b}button.diag:hover{background:#d97706}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:15px 0}.card{background:#111;border:1px solid #222;border-radius:10px;padding:15px}.card h3{margin:0 0 8px;font-size:13px;color:#00c4ff}.card.ok{border-color:#22c55e}.card.fail{border-color:#ef4444}pre{background:#0d0d15;padding:12px;border-radius:8px;overflow-x:auto;border:1px solid #1a1a2e;max-height:350px;font-size:12px;line-height:1.5}input{width:100%;max-width:600px;padding:10px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;font-size:14px;font-family:monospace}.status-bar{padding:12px;border-radius:8px;margin:10px 0;font-weight:bold;font-size:13px}.status-bar.ok{background:#22c55e15;border:1px solid #22c55e40;color:#22c55e}.status-bar.fail{background:#ef444415;border:1px solid #ef444440;color:#ef4444}</style>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v5.8 — ${platform.nome}</title>
+<style>*{box-sizing:border-box}body{font-family:'Segoe UI',monospace;background:#0a0a0f;color:#e0e0e0;padding:20px;margin:0}h1{color:#00c4ff;margin-bottom:5px}h2{color:#888;font-size:14px;margin-top:0}.controls{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}button{background:#00c4ff;color:#000;border:none;padding:10px 18px;cursor:pointer;border-radius:8px;font-weight:bold;font-size:13px;transition:all .2s}button:hover{background:#00a0dd;transform:scale(1.02)}button.scan{background:#a855f7}button.scan:hover{background:#9333ea}button.diag{background:#f59e0b}button.diag:hover{background:#d97706}button.map{background:#22c55e}button.map:hover{background:#16a34a}pre{background:#0d0d15;padding:12px;border-radius:8px;overflow-x:auto;border:1px solid #1a1a2e;max-height:350px;font-size:12px;line-height:1.5}input{width:100%;max-width:600px;padding:10px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;font-size:14px;font-family:monospace}.status-bar{padding:12px;border-radius:8px;margin:10px 0;font-weight:bold;font-size:13px}.status-bar.ok{background:#22c55e15;border:1px solid #22c55e40;color:#22c55e}.status-bar.fail{background:#ef444415;border:1px solid #ef444440;color:#ef4444}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:15px 0}.card{background:#111;border:1px solid #222;border-radius:10px;padding:15px}.card h3{margin:0 0 8px;font-size:13px;color:#00c4ff}.card.ok{border-color:#22c55e}.card.fail{border-color:#ef4444}</style>
 </head><body>
-<h1>🔌 Teste API v5.0 — ${platform.nome}</h1>
-<h2>API Standalone — Sem dependência do painel</h2>
+<h1>🔌 Teste API v5.8 — ${platform.nome}</h1>
+<h2>API Híbrida — mapping_cache.json + Direct Mapping</h2>
 <input id="apiUrl" value="${apiUrl}" placeholder="URL da API (api.php)" />
 <div class="controls">
 <button onclick="testEndpoint('health')">🏥 Health</button>
@@ -842,6 +842,7 @@ echo json_encode([
 <button onclick="testEndpoint('saques')">💸 Saques</button>
 <button class="scan" onclick="testEndpoint('scan_db')">🔍 Scan DB</button>
 <button class="diag" onclick="testEndpoint('diagnostico')">🔧 Diagnóstico</button>
+<button class="map" onclick="testEndpoint('get_mapping')">📋 Ver Mapping</button>
 <button onclick="testAll()">🚀 Testar Todos</button>
 </div>
 <div id="status"></div>
@@ -860,7 +861,7 @@ async function testEndpoint(a){
   }catch(e){g("status").innerHTML='<div class="status-bar fail">❌ '+e.message+"</div>";g("raw").textContent=e.message}
 }
 async function testAll(){
-  const actions=["health","stats","depositos","saques"];let html="";let allOk=true;
+  const actions=["health","stats","depositos","saques","get_mapping"];let html="";let allOk=true;
   for(const a of actions){try{const t=performance.now();const r=await fetch(api()+"?action="+a);const ms=Math.round(performance.now()-t);const txt=await r.text();
   let d;try{d=JSON.parse(txt)}catch(e){allOk=false;html+='<div class="card fail"><h3>'+a+'</h3><pre>Não é JSON: '+txt.slice(0,300)+"</pre></div>";continue}
   const ok=!d.error;if(!ok)allOk=false;
@@ -870,6 +871,31 @@ async function testAll(){
   g("results").innerHTML=html;
 }
 </script></body></html>`;
+  };
+
+  // Push mapping to remote API via update_mapping endpoint
+  const handlePushMapping = async () => {
+    if (!form.url) {
+      toast({ title: "URL necessária", variant: "destructive" });
+      return;
+    }
+    const apiUrl = `${form.url.replace(/\/$/, "")}/api.php`;
+    const mapping = JSON.parse(generateMappingJson());
+    try {
+      const res = await fetch(`${apiUrl}?action=update_mapping`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mapping),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast({ title: "✅ Mapeamento sincronizado!", description: `mapping_cache.json atualizado no servidor (${data.bytes} bytes)` });
+      } else {
+        toast({ title: "❌ Erro", description: data.error ?? "Falha ao atualizar mapping", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "❌ Erro de conexão", description: e.message, variant: "destructive" });
+    }
   };
 
   const handleTestApi = async () => {
