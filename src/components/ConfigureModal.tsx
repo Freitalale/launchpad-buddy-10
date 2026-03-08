@@ -1559,10 +1559,10 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.4 — Auto-Fallback</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.5 — Mapeamento Autoritativo</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">Mapeamento inteligente com detecção automática de tabelas alternativas.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.4: Auto-fallback de tabelas (withdrawals→withdraws, wallets→balances) + try/catch + diagnóstico</p>
+              <p className="text-[10px] text-muted-foreground">O que você configurar no Mapeamento é exatamente o que a API vai usar. Sem surpresas.</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.5: Suas tabelas = lei + try/catch global + diagnóstico completo</p>
             </div>
 
             {/* Verify API Version */}
@@ -1628,8 +1628,8 @@ async function testAll(){
 
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v5.4 Auto-Fallback", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "test_api.html", label: "📄 test_api.html — v5.4", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v5.5 Autoritativo", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "test_api.html", label: "📄 test_api.html — v5.5", gen: generateTestHtml, field: "test_html", type: "text/html" },
               { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
               { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => (
