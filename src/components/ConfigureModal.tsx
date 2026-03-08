@@ -33,7 +33,7 @@ interface ScanResult {
   database?: string;
   total_tables?: number;
   all_tables?: string[];
-  tables?: Record<string, { columns: { name: string; type: string }[] }>;
+  tables?: Record<string, { columns: { name: string; type: string; key?: string; nullable?: boolean }[]; row_count: number }>;
   suggestions?: Record<string, { table: string; confidence: number; columns: Record<string, string | null> } | null>;
   error?: string;
 }
