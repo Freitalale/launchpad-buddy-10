@@ -564,6 +564,10 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
     </Button>
   );
 
+  const toggleTable = (key: string) => {
+    setDisabledTables(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
+
   const renderTableSection = (meta: typeof TABLE_META[0]) => {
     const Icon = meta.icon;
     const tableValue = (form as any)[meta.tableField] ?? meta.defaultTable;
@@ -571,61 +575,81 @@ async function testAll(){const actions=["health","stats","depositos","saques"];l
     const hidden = hiddenColumns[meta.key] ?? [];
     const visibleCols = defaultCols.filter(c => !hidden.includes(c.field));
     const extras = extraColumns[meta.key] ?? [];
+    const isDisabled = disabledTables.includes(meta.key);
 
     return (
-      <div key={meta.key} className="rounded-lg border border-border/50 p-3 space-y-2">
+      <div key={meta.key} className={`rounded-lg border p-3 space-y-2 transition-all ${isDisabled ? "border-border/30 opacity-50" : "border-border/50"}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
-            <p className="text-xs font-semibold text-foreground">{meta.label} → {tableValue}</p>
-          </div>
-          <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2 text-primary" onClick={() => addExtraColumn(meta.key)}>
-            <Plus className="w-3 h-3" /> Coluna
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          {/* Table name field */}
-          <MF label="Nome da Tabela" value={tableValue} field={meta.tableField} placeholder={meta.defaultTable} />
-
-          {/* Visible default columns */}
-          {visibleCols.map(col => (
-            <MF key={col.field} label={col.label} value={(form as any)[col.field] ?? col.placeholder} field={col.field} placeholder={col.placeholder}
-              onRemove={() => hideDefaultColumn(meta.key, col.field)} />
-          ))}
-
-          {/* Extra custom columns */}
-          {extras.map((ec, i) => (
-            <div key={`extra-${i}`} className="relative group">
-              <div className="flex items-center gap-1">
-                <Input value={ec.label} onChange={e => updateExtraColumn(meta.key, i, "label", e.target.value)}
-                  className="bg-secondary h-5 text-[9px] font-mono flex-1 border-dashed" placeholder="Nome do campo" />
-              </div>
-              <div className="flex gap-1 mt-0.5">
-                <Input value={ec.column} onChange={e => updateExtraColumn(meta.key, i, "column", e.target.value)}
-                  className="bg-accent/20 h-7 text-[11px] font-mono flex-1 border-dashed border-primary/30" placeholder="nome_coluna" />
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => removeExtraColumn(meta.key, i)}>
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
+            <div>
+              <p className="text-xs font-semibold text-foreground">{meta.label} → {tableValue}</p>
+              <p className="text-[9px] text-muted-foreground leading-tight mt-0.5">{meta.desc}</p>
             </div>
-          ))}
+          </div>
+          <div className="flex gap-1">
+            {!isDisabled && (
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2 text-primary" onClick={() => addExtraColumn(meta.key)}>
+                <Plus className="w-3 h-3" /> Coluna
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" className={`h-6 text-[10px] px-2 ${isDisabled ? "text-neon-green" : "text-destructive"}`} onClick={() => toggleTable(meta.key)}>
+              {isDisabled ? <><Plus className="w-3 h-3 mr-1" /> Ativar</> : <><Trash2 className="w-3 h-3 mr-1" /> Desativar</>}
+            </Button>
+          </div>
         </div>
 
-        {/* Show hidden columns restore */}
-        {hidden.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            <span className="text-[9px] text-muted-foreground">Ocultas:</span>
-            {hidden.map(field => {
-              const col = defaultCols.find(c => c.field === field);
-              return (
-                <button key={field} onClick={() => showDefaultColumn(meta.key, field)}
-                  className="text-[9px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/40 transition-colors">
-                  + {col?.label ?? field}
-                </button>
-              );
-            })}
-          </div>
+        {!isDisabled && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <MF label="Nome da Tabela" value={tableValue} field={meta.tableField} placeholder={meta.defaultTable} />
+              {visibleCols.map(col => (
+                <div key={col.field} className="relative group">
+                  <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    {col.label}
+                    <span className="text-[8px] text-muted-foreground/60 italic hidden group-hover:inline">— {col.desc}</span>
+                  </Label>
+                  <div className="flex gap-1">
+                    <Input value={(form as any)[col.field] ?? col.placeholder} onChange={e => setForm(p => ({ ...p, [col.field]: e.target.value }))}
+                      className="bg-secondary h-7 text-[11px] font-mono flex-1" placeholder={col.placeholder} />
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive" onClick={() => hideDefaultColumn(meta.key, col.field)}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {extras.map((ec, i) => (
+                <div key={`extra-${i}`} className="relative group">
+                  <div className="flex items-center gap-1">
+                    <Input value={ec.label} onChange={e => updateExtraColumn(meta.key, i, "label", e.target.value)}
+                      className="bg-secondary h-5 text-[9px] font-mono flex-1 border-dashed" placeholder="Nome do campo" />
+                  </div>
+                  <div className="flex gap-1 mt-0.5">
+                    <Input value={ec.column} onChange={e => updateExtraColumn(meta.key, i, "column", e.target.value)}
+                      className="bg-accent/20 h-7 text-[11px] font-mono flex-1 border-dashed border-primary/30" placeholder="nome_coluna" />
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => removeExtraColumn(meta.key, i)}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {hidden.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                <span className="text-[9px] text-muted-foreground">Removidas (clique para restaurar):</span>
+                {hidden.map(field => {
+                  const col = defaultCols.find(c => c.field === field);
+                  return (
+                    <button key={field} onClick={() => showDefaultColumn(meta.key, field)}
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground border border-border/50 hover:border-primary/40 transition-colors">
+                      + {col?.label ?? field}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     );
