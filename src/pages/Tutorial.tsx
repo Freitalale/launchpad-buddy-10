@@ -406,16 +406,16 @@ const sections = [
     ),
   },
   {
-    icon: Code, color: "neon-green", title: "4. Arquivo api.php — API Dinâmica v3.0",
-    description: "API que busca mapeamento do painel automaticamente, com cache e fallback",
+    icon: Code, color: "neon-green", title: "4. Arquivo api.php — API Dinâmica v3.1",
+    description: "API com mapeamento por tabela, cache e fallback offline",
     content: (
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">O api.php v3.0 <strong className="text-foreground">não tem nomes de tabelas no código</strong>. Ele busca tudo do painel a cada request (com cache de 60s).</p>
+        <p className="text-xs text-muted-foreground">O api.php v3.1 usa <strong className="text-foreground">mapeamento por tabela</strong>: cada tabela tem colunas próprias configuradas no painel.</p>
         <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3 space-y-1">
-          <p className="text-[11px] font-bold text-neon-green mb-1">⚡ Novidades da v3.0:</p>
+          <p className="text-[11px] font-bold text-neon-green mb-1">⚡ v3.1 — Mapeamento por Tabela:</p>
           {[
-            "Mapeamento dinâmico: tabelas e colunas vêm do painel",
-            "Cache local: guarda o mapeamento por 60s em mapping_cache.json",
+            "Cada tabela tem suas colunas próprias (ID, FK, Valor, PIX, Status, Data)",
+            "Cache local 60s + fallback offline + diagnóstico por tabela/coluna",
             "Fallback offline: se o painel estiver fora, usa o último cache",
             "Diagnóstico inteligente: erros SQL mostram qual tabela/coluna está errada",
             "Health endpoint: mostra origem do mapeamento (cache ou painel)",
@@ -527,17 +527,14 @@ const sections = [
     description: "Entenda o sistema que elimina a necessidade de editar código PHP",
     content: (
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">O <strong className="text-foreground">Mapeamento Dinâmico</strong> é o coração do sistema v3.0. Ele permite que cada plataforma tenha nomes diferentes de tabelas e colunas, sem editar código.</p>
+        <p className="text-xs text-muted-foreground">O <strong className="text-foreground">Mapeamento v3.1</strong> organiza colunas por tabela. Cada tabela tem configuração independente no painel.</p>
         <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
-          <p className="text-[11px] font-bold text-foreground">📐 Como funciona internamente:</p>
+          <p className="text-[11px] font-bold text-foreground">📐 Estrutura v3.1:</p>
           {[
-            "1. Cada plataforma tem uma api_key única gerada automaticamente",
-            "2. O config.php da hospedagem contém a api_key + URL do painel",
-            "3. Quando o api.php recebe um request, ele chama o endpoint do painel",
-            "4. O endpoint retorna: { tables: {usuarios: 'players', ...}, columns: {saldo: 'balance', ...} }",
-            "5. O api.php usa esses nomes para montar as queries SQL",
-            "6. O resultado é cacheado por 60 segundos em mapping_cache.json",
-            "7. Se o painel estiver offline, usa o último cache salvo",
+            "1. Cada plataforma tem api_key + mapeamento organizado por tabela",
+            "2. Endpoint retorna: { columns: { usuarios: {id, nome, email}, depositos: {id, user_id, valor, pix, status, created_at}, ... } }",
+            "3. api.php usa colunas específicas de cada tabela nas queries",
+            "4. Cache 60s + fallback offline automático",
           ].map((t, i) => (
             <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
           ))}
@@ -646,9 +643,9 @@ const Tutorial = () => {
     <div className="p-4 md:p-6 space-y-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <h1 className="text-xl md:text-2xl font-black text-foreground">
-          Tutorial <span className="gradient-text">& Documentação v3.0</span>
+          Tutorial <span className="gradient-text">& Documentação v3.1</span>
         </h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Guia definitivo: API dinâmica controlada pelo painel, mapeamento automático e diagnóstico</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Guia: API dinâmica com mapeamento por tabela, geração automática e diagnóstico</p>
       </motion.div>
 
       {/* Quick Summary */}
