@@ -168,7 +168,7 @@ const Dashboard = () => {
               Último sync: {new Date(lastGlobalSync).toLocaleTimeString("pt-BR")}
             </span>
           </div>
-          <span className="text-[10px] text-muted-foreground font-mono">Auto: 30s</span>
+          <span className="text-[10px] text-muted-foreground font-mono">Auto: 5s</span>
         </motion.div>
       )}
 
