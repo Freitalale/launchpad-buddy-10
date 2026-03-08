@@ -1257,8 +1257,8 @@ async function testAll(){
 
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v5.0 Standalone", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "test_api.html", label: "📄 test_api.html — v5.0", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v5.2 Bulletproof", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "test_api.html", label: "📄 test_api.html — v5.2", gen: generateTestHtml, field: "test_html", type: "text/html" },
             ].map(f => (
               <div key={f.name} className="space-y-2">
                 <div className="flex items-center justify-between">
