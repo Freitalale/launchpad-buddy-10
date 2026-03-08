@@ -200,13 +200,30 @@ export type Database = {
         Row: {
           api_key: string | null
           categoria: Database["public"]["Enums"]["platform_category"]
+          coluna_cooperation_expired: string | null
           coluna_created_at: string | null
+          coluna_created_at_deposito: string | null
+          coluna_created_at_saque: string | null
+          coluna_email_usuario: string | null
+          coluna_id_afiliado: string | null
+          coluna_id_deposito: string | null
+          coluna_id_saque: string | null
           coluna_id_usuario: string | null
+          coluna_nome_afiliado: string | null
           coluna_nome_usuario: string | null
           coluna_pix: string | null
+          coluna_pix_deposito: string | null
+          coluna_pix_saque: string | null
           coluna_saldo: string | null
           coluna_status: string | null
+          coluna_status_deposito: string | null
+          coluna_status_saque: string | null
+          coluna_telefone_usuario: string | null
+          coluna_user_id_afiliado: string | null
+          coluna_user_id_deposito: string | null
           coluna_user_id_fk: string | null
+          coluna_user_id_saldo: string | null
+          coluna_user_id_saque: string | null
           coluna_valor_deposito: string | null
           coluna_valor_saque: string | null
           cooperacao_dias: number | null
@@ -240,13 +257,30 @@ export type Database = {
         Insert: {
           api_key?: string | null
           categoria?: Database["public"]["Enums"]["platform_category"]
+          coluna_cooperation_expired?: string | null
           coluna_created_at?: string | null
+          coluna_created_at_deposito?: string | null
+          coluna_created_at_saque?: string | null
+          coluna_email_usuario?: string | null
+          coluna_id_afiliado?: string | null
+          coluna_id_deposito?: string | null
+          coluna_id_saque?: string | null
           coluna_id_usuario?: string | null
+          coluna_nome_afiliado?: string | null
           coluna_nome_usuario?: string | null
           coluna_pix?: string | null
+          coluna_pix_deposito?: string | null
+          coluna_pix_saque?: string | null
           coluna_saldo?: string | null
           coluna_status?: string | null
+          coluna_status_deposito?: string | null
+          coluna_status_saque?: string | null
+          coluna_telefone_usuario?: string | null
+          coluna_user_id_afiliado?: string | null
+          coluna_user_id_deposito?: string | null
           coluna_user_id_fk?: string | null
+          coluna_user_id_saldo?: string | null
+          coluna_user_id_saque?: string | null
           coluna_valor_deposito?: string | null
           coluna_valor_saque?: string | null
           cooperacao_dias?: number | null
@@ -280,13 +314,30 @@ export type Database = {
         Update: {
           api_key?: string | null
           categoria?: Database["public"]["Enums"]["platform_category"]
+          coluna_cooperation_expired?: string | null
           coluna_created_at?: string | null
+          coluna_created_at_deposito?: string | null
+          coluna_created_at_saque?: string | null
+          coluna_email_usuario?: string | null
+          coluna_id_afiliado?: string | null
+          coluna_id_deposito?: string | null
+          coluna_id_saque?: string | null
           coluna_id_usuario?: string | null
+          coluna_nome_afiliado?: string | null
           coluna_nome_usuario?: string | null
           coluna_pix?: string | null
+          coluna_pix_deposito?: string | null
+          coluna_pix_saque?: string | null
           coluna_saldo?: string | null
           coluna_status?: string | null
+          coluna_status_deposito?: string | null
+          coluna_status_saque?: string | null
+          coluna_telefone_usuario?: string | null
+          coluna_user_id_afiliado?: string | null
+          coluna_user_id_deposito?: string | null
           coluna_user_id_fk?: string | null
+          coluna_user_id_saldo?: string | null
+          coluna_user_id_saque?: string | null
           coluna_valor_deposito?: string | null
           coluna_valor_saque?: string | null
           cooperacao_dias?: number | null
