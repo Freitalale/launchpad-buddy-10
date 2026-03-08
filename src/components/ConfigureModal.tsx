@@ -1496,10 +1496,53 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.2 — Standalone Bulletproof</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.3 — Standalone Bulletproof Ultra</p>
               </div>
               <p className="text-[10px] text-muted-foreground">Mapeamento hardcoded. Inclui api.php, config.php, test_api.html, telegram_webhook.php e webhook_pix.php.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.2: Validação de colunas em tempo real + auto-detect + diagnóstico completo</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.3: Try/catch global + validação de colunas + auto-detect + diagnóstico completo</p>
+            </div>
+
+            {/* Verify API Version */}
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <TestTube className="w-4 h-4 text-primary" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">Verificar API na Hospedagem</p>
+                  <p className="text-[9px] text-muted-foreground">Testa todos os endpoints e verifica a versão instalada</p>
+                </div>
+              </div>
+              <Button onClick={handleVerifyApi} disabled={verifying || !form.url}
+                className="w-full gap-2 h-10 text-sm font-bold"
+                style={{ background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--chart-4)))" }}>
+                {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                {verifying ? "Verificando todos os endpoints..." : "🔍 Verificar API Instalada"}
+              </Button>
+
+              {verifyResult && (
+                <div className="space-y-2">
+                  <div className={`rounded-lg border p-2 ${verifyResult.endpoints.every(e => e.status === "ok") ? "border-neon-green/40 bg-neon-green/5" : "border-neon-amber/40 bg-neon-amber/5"}`}>
+                    <p className={`text-xs font-bold ${verifyResult.endpoints.every(e => e.status === "ok") ? "text-neon-green" : "text-neon-amber"}`}>
+                      Versão detectada: v{verifyResult.version}
+                    </p>
+                  </div>
+                  {verifyResult.endpoints.map((ep, i) => (
+                    <div key={i} className={`flex items-center gap-2 rounded-lg border p-2 ${ep.status === "ok" ? "border-neon-green/30 bg-neon-green/5" : ep.status === "warning" ? "border-neon-amber/30 bg-neon-amber/5" : "border-destructive/30 bg-destructive/5"}`}>
+                      {ep.status === "ok" ? <CheckCircle className="w-3.5 h-3.5 text-neon-green shrink-0" /> : ep.status === "warning" ? <AlertCircle className="w-3.5 h-3.5 text-neon-amber shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 text-destructive shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-foreground capitalize">{ep.name}</p>
+                        <p className="text-[9px] text-muted-foreground truncate">{ep.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {!verifyResult.endpoints.every(e => e.status === "ok") && (
+                    <p className="text-[9px] text-muted-foreground text-center">⚠️ Gere e suba os novos arquivos abaixo para corrigir os problemas</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-border/50 pt-3">
+              <p className="text-xs font-bold text-foreground mb-2">📦 Gerar & Baixar Arquivos Atualizados</p>
             </div>
 
             <Button variant="outline" size="sm" onClick={() => {
@@ -1515,8 +1558,9 @@ async function testAll(){
                 const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
               }, i * 300));
               toast({ title: "📥 Baixando 5 arquivos", description: "config.php + api.php + test_api.html + telegram_webhook.php + webhook_pix.php" });
-            }} className="w-full gap-2 h-9 text-xs border-neon-green/30 text-neon-green hover:bg-neon-green/10">
-              <Download className="w-3.5 h-3.5" /> Baixar Todos (5 arquivos)
+            }} className="w-full gap-2 h-10 text-sm font-bold border-neon-green/30 text-neon-green hover:bg-neon-green/10"
+              style={{ background: "linear-gradient(135deg, hsl(142 76% 36% / 0.1), hsl(142 70% 45% / 0.1))" }}>
+              <Download className="w-4 h-4" /> Gerar & Baixar Todos (5 arquivos)
             </Button>
 
             {[
