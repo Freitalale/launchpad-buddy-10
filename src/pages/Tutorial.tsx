@@ -29,45 +29,67 @@ const CodeBlock = ({ code, language = "php" }: { code: string; language?: string
 
 const configPhpCode = `<?php
 // =====================================================
-// config.php — Configuração do banco de dados MySQL
+// config.php — Configuração do banco + Mapeamento de Tabelas
 // =====================================================
 // Coloque este arquivo na raiz da hospedagem (public_html/)
-// Cada plataforma terá seu próprio config.php com credenciais diferentes.
+// Cada plataforma terá seu próprio config.php.
 
-$host = "localhost";          // Host do banco MySQL (geralmente "localhost")
+// ── Conexão com o banco MySQL ──
+$host = "localhost";          // Host do banco MySQL
 $user = "seu_usuario_db";    // Usuário do banco de dados
 $pass = "sua_senha_db";      // Senha do banco de dados
 $db   = "nome_do_banco";     // Nome do banco da plataforma
+
+// ── Mapeamento de Tabelas ──
+// Altere para os nomes reais das tabelas do seu banco.
+// Exemplo: se sua tabela de depósitos se chama "transactions",
+// basta trocar "deposits" por "transactions" abaixo.
+$tabela_usuarios   = "users";
+$tabela_depositos  = "deposits";
+$tabela_saques     = "withdrawals";
+$tabela_saldo      = "wallets";
+$tabela_afiliados  = "affiliates";
+
+// ── Mapeamento de Colunas ──
+// Altere para os nomes reais das colunas do seu banco.
+// Exemplo: se o nome do usuário está na coluna "username" em vez de "name",
+// basta trocar "name" por "username" abaixo.
+$col_id_usuario      = "id";          // Coluna do ID do usuário
+$col_nome_usuario    = "name";        // Coluna do nome do usuário
+$col_user_id_fk      = "user_id";     // FK que referencia o usuário
+$col_valor_deposito  = "amount";      // Coluna do valor nos depósitos
+$col_valor_saque     = "amount";      // Coluna do valor nos saques
+$col_pix             = "pix";         // Coluna da chave PIX
+$col_status          = "status";      // Coluna do status da transação
+$col_created_at      = "created_at";  // Coluna da data de criação
+$col_saldo           = "balance";     // Coluna do saldo na carteira
 
 ?>`;
 
 const apiPhpCode = `<?php
 // =====================================================
-// api.php — API principal do Master Painel Pro
+// api.php — API com Mapeamento Dinâmico de Tabelas
 // =====================================================
-// Este arquivo é o ponto central de comunicação entre
-// o painel Lovable e o banco de dados da plataforma.
-//
-// Hospede na raiz: https://suaplataforma.com/api.php
-// O painel chamará cada endpoint via query string ?action=xxx
+// Este arquivo usa os nomes de tabelas e colunas definidos
+// no config.php. Você NÃO precisa alterar este arquivo
+// quando integrar uma plataforma com nomes diferentes.
+// Basta alterar o config.php!
 // =====================================================
 
 header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");       // CORS — permite requisições do painel
+header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 
-// Responder preflight OPTIONS (necessário para CORS)
 if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
     http_response_code(200);
     exit;
 }
 
-include 'config.php';  // Inclui as credenciais do banco
+include 'config.php';  // Inclui credenciais + mapeamento
 
 $conn = new mysqli($host, $user, $pass, $db);
 
-// Verifica conexão
 if ($conn->connect_error) {
     echo json_encode(["error" => "Falha na conexão: " . $conn->connect_error]);
     exit;
@@ -77,16 +99,33 @@ $conn->set_charset("utf8mb4");
 $action = $_GET["action"] ?? "";
 
 // =====================================================
+// ENDPOINT: health
+// =====================================================
+if ($action === "health") {
+    echo json_encode([
+        "ok"      => true,
+        "version" => "2.0.0",
+        "db"      => true,
+        "mapping" => [
+            "tabela_usuarios"  => $tabela_usuarios,
+            "tabela_depositos" => $tabela_depositos,
+            "tabela_saques"    => $tabela_saques,
+            "tabela_saldo"     => $tabela_saldo,
+            "tabela_afiliados" => $tabela_afiliados,
+        ],
+        "time" => date("Y-m-d H:i:s")
+    ]);
+    exit;
+}
+
+// =====================================================
 // ENDPOINT: stats
-// URL: api.php?action=stats
-// Método: GET
-// Retorna: total_usuarios, total_afiliados, saldo_total
-// Usado por: Dashboard (cards de resumo)
+// Usa: $tabela_usuarios, $tabela_afiliados, $tabela_saldo, $col_saldo
 // =====================================================
 if ($action === "stats") {
-    $users = $conn->query("SELECT COUNT(*) as total FROM users")->fetch_assoc()["total"];
-    $affiliates = $conn->query("SELECT COUNT(*) as total FROM affiliates")->fetch_assoc()["total"];
-    $balance = $conn->query("SELECT COALESCE(SUM(balance), 0) as total FROM wallets")->fetch_assoc()["total"];
+    $users = $conn->query("SELECT COUNT(*) as total FROM \`$tabela_usuarios\`")->fetch_assoc()["total"];
+    $affiliates = $conn->query("SELECT COUNT(*) as total FROM \`$tabela_afiliados\`")->fetch_assoc()["total"];
+    $balance = $conn->query("SELECT COALESCE(SUM(\`$col_saldo\`), 0) as total FROM \`$tabela_saldo\`")->fetch_assoc()["total"];
 
     echo json_encode([
         "total_usuarios"  => (int)$users,
@@ -98,22 +137,28 @@ if ($action === "stats") {
 
 // =====================================================
 // ENDPOINT: depositos
-// URL: api.php?action=depositos
-// Método: GET
-// Retorna: array de depósitos com nome_usuario, valor, pix, created_at, status
-// Usado por: Página Depósitos e Dashboard (gráficos)
+// Usa: $tabela_depositos, $tabela_usuarios, $col_nome_usuario,
+//      $col_valor_deposito, $col_pix, $col_created_at, $col_status,
+//      $col_user_id_fk, $col_id_usuario
 // =====================================================
 if ($action === "depositos") {
-    $stmt = $conn->prepare(
-        "SELECT u.name as nome_usuario, d.amount as valor, d.pix, 
-                d.created_at, d.status
-         FROM deposits d
-         JOIN users u ON d.user_id = u.id
-         ORDER BY d.created_at DESC
-         LIMIT 500"
-    );
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $sql = "SELECT u.\`$col_nome_usuario\` as nome_usuario, 
+                   d.\`$col_valor_deposito\` as valor, 
+                   d.\`$col_pix\` as pix, 
+                   d.\`$col_created_at\` as created_at, 
+                   d.\`$col_status\` as status
+            FROM \`$tabela_depositos\` d
+            JOIN \`$tabela_usuarios\` u ON d.\`$col_user_id_fk\` = u.\`$col_id_usuario\`
+            ORDER BY d.\`$col_created_at\` DESC
+            LIMIT 500";
+    
+    $result = $conn->query($sql);
+    if (!$result) {
+        echo json_encode(["error" => "Erro SQL: " . $conn->error, 
+            "causa" => "Verifique o mapeamento de tabelas/colunas no config.php",
+            "query" => $sql]);
+        exit;
+    }
 
     $rows = [];
     while ($row = $result->fetch_assoc()) {
@@ -131,22 +176,29 @@ if ($action === "depositos") {
 
 // =====================================================
 // ENDPOINT: saques
-// URL: api.php?action=saques
-// Método: GET
-// Retorna: array de saques com id, nome_usuario, valor, pix, created_at, status
-// Usado por: Página Saques (listagem + aprovar/reprovar)
+// Usa: $tabela_saques, $tabela_usuarios, $col_nome_usuario,
+//      $col_valor_saque, $col_pix, $col_created_at, $col_status,
+//      $col_user_id_fk, $col_id_usuario
 // =====================================================
 if ($action === "saques") {
-    $stmt = $conn->prepare(
-        "SELECT w.id, u.name as nome_usuario, w.amount as valor, w.pix, 
-                w.created_at, w.status
-         FROM withdrawals w
-         JOIN users u ON w.user_id = u.id
-         ORDER BY w.created_at DESC
-         LIMIT 500"
-    );
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $sql = "SELECT w.id, 
+                   u.\`$col_nome_usuario\` as nome_usuario, 
+                   w.\`$col_valor_saque\` as valor, 
+                   w.\`$col_pix\` as pix, 
+                   w.\`$col_created_at\` as created_at, 
+                   w.\`$col_status\` as status
+            FROM \`$tabela_saques\` w
+            JOIN \`$tabela_usuarios\` u ON w.\`$col_user_id_fk\` = u.\`$col_id_usuario\`
+            ORDER BY w.\`$col_created_at\` DESC
+            LIMIT 500";
+    
+    $result = $conn->query($sql);
+    if (!$result) {
+        echo json_encode(["error" => "Erro SQL: " . $conn->error,
+            "causa" => "Verifique o mapeamento de tabelas/colunas no config.php",
+            "query" => $sql]);
+        exit;
+    }
 
     $rows = [];
     while ($row = $result->fetch_assoc()) {
@@ -165,9 +217,7 @@ if ($action === "saques") {
 
 // =====================================================
 // ENDPOINT: aprovar_saque
-// URL: api.php?action=aprovar_saque
-// Método: POST (body: id=123)
-// Usado por: Botão "Aprovar" na página Saques
+// Usa: $tabela_saques, $col_status
 // =====================================================
 if ($action === "aprovar_saque") {
     $id = intval($_POST["id"] ?? 0);
@@ -175,7 +225,7 @@ if ($action === "aprovar_saque") {
         echo json_encode(["ok" => false, "error" => "ID inválido"]);
         exit;
     }
-    $stmt = $conn->prepare("UPDATE withdrawals SET status='aprovado' WHERE id=?");
+    $stmt = $conn->prepare("UPDATE \`$tabela_saques\` SET \`$col_status\`='aprovado' WHERE id=?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     echo json_encode(["ok" => true, "message" => "Saque aprovado"]);
@@ -184,9 +234,7 @@ if ($action === "aprovar_saque") {
 
 // =====================================================
 // ENDPOINT: rejeitar_saque
-// URL: api.php?action=rejeitar_saque
-// Método: POST (body: id=123)
-// Usado por: Botão "Reprovar" na página Saques
+// Usa: $tabela_saques, $col_status
 // =====================================================
 if ($action === "rejeitar_saque") {
     $id = intval($_POST["id"] ?? 0);
@@ -194,7 +242,7 @@ if ($action === "rejeitar_saque") {
         echo json_encode(["ok" => false, "error" => "ID inválido"]);
         exit;
     }
-    $stmt = $conn->prepare("UPDATE withdrawals SET status='rejeitado' WHERE id=?");
+    $stmt = $conn->prepare("UPDATE \`$tabela_saques\` SET \`$col_status\`='rejeitado' WHERE id=?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     echo json_encode(["ok" => true, "message" => "Saque rejeitado"]);
@@ -203,33 +251,13 @@ if ($action === "rejeitar_saque") {
 
 // =====================================================
 // ENDPOINT: remover_afiliados
-// URL: api.php?action=remover_afiliados
-// Método: POST
-// Usado por: Sistema de Cooperação (automático ou manual)
-// Remove SOMENTE afiliados com cooperação expirada.
-// NUNCA remove usuários da tabela users.
+// Usa: $tabela_afiliados
 // =====================================================
 if ($action === "remover_afiliados") {
-    $stmt = $conn->prepare("DELETE FROM affiliates WHERE cooperation_expired = 1");
+    $stmt = $conn->prepare("DELETE FROM \`$tabela_afiliados\` WHERE cooperation_expired = 1");
     $stmt->execute();
     $affected = $stmt->affected_rows;
     echo json_encode(["ok" => true, "removed" => $affected]);
-    exit;
-}
-
-// =====================================================
-// ENDPOINT: health
-// URL: api.php?action=health
-// Método: GET
-// Usado por: Página Saúde do Sistema para verificar se a API está online
-// =====================================================
-if ($action === "health") {
-    echo json_encode([
-        "ok"      => true,
-        "version" => "1.0.0",
-        "db"      => !$conn->connect_error,
-        "time"    => date("Y-m-d H:i:s")
-    ]);
     exit;
 }
 
