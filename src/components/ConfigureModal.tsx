@@ -77,7 +77,8 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       toast({ title: "✅ API validada!", description: `Latência: ${result.latency_ms}ms — Todos endpoints OK` });
     } else {
       setTestResult("error");
-      toast({ title: "⚠️ Problemas encontrados", description: result.errors[0] ?? "Verifique os detalhes", variant: "destructive" });
+      const firstError = result.errors[0]?.message ?? "Verifique os detalhes";
+      toast({ title: "⚠️ Problemas encontrados", description: firstError, variant: "destructive" });
     }
     setTesting(false);
   };
