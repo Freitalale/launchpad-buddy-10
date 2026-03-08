@@ -451,6 +451,8 @@ echo json_encode(["error" => "Ação não reconhecida: " . $action]);
 </body>
 </html>`;
   };
+
+  const handleTestApi = async () => {
     setTesting(true);
     setTestResult(null);
     setTestDetails([]);
