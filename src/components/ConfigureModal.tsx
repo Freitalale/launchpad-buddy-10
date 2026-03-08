@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Database, Server, Settings as SettingsIcon, Save, TestTube, RefreshCw, CheckCircle, AlertCircle, Wifi, Zap, Globe, TableProperties, Columns3, Copy, Code, Key } from "lucide-react";
+import { Database, Server, Settings as SettingsIcon, Save, TestTube, RefreshCw, CheckCircle, AlertCircle, Wifi, Zap, Globe, TableProperties, Columns3, Copy, Code, Key, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -364,6 +364,94 @@ echo json_encode(["error" => "Ação não reconhecida: " . $action]);
 ?>`;
   };
 
+  const generateTestHtml = () => {
+    const apiUrl = form.url ? `${form.url.replace(/\/$/, "")}/api.php` : "https://seusite.com/api.php";
+    return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Teste API — ${platform.nome}</title>
+    <style>
+        body { font-family: monospace; background: #0a0a0f; color: #e0e0e0; padding: 20px; }
+        h1 { color: #00c4ff; }
+        button { background: #00c4ff; color: #000; border: none; padding: 8px 16px; 
+                 margin: 4px; cursor: pointer; border-radius: 6px; font-weight: bold; }
+        button:hover { background: #00a0dd; }
+        .error { color: #ff4444; }
+        .success { color: #00d67c; }
+        pre { background: #111; padding: 15px; border-radius: 8px; overflow-x: auto; 
+              border: 1px solid #222; max-height: 400px; }
+        input { width: 500px; padding: 8px; background: #111; color: #fff; border: 1px solid #333; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <h1>🔌 Teste de Conexão — ${platform.nome}</h1>
+    <p>API configurada automaticamente pelo painel. Teste cada endpoint:</p>
+    
+    <input id="apiUrl" value="${apiUrl}" />
+    <br><br>
+
+    <button onclick="testEndpoint('health')">🏥 Health</button>
+    <button onclick="testEndpoint('stats')">📊 Stats</button>
+    <button onclick="testEndpoint('depositos')">💰 Depósitos</button>
+    <button onclick="testEndpoint('saques')">💸 Saques</button>
+    <button onclick="testAll()">🚀 Testar Todos</button>
+    
+    <div id="status" style="margin: 10px 0; padding: 10px;"></div>
+    <pre id="result">Clique em um botão para testar...</pre>
+
+    <script>
+    function getApi() { return document.getElementById("apiUrl").value; }
+    
+    async function testEndpoint(action) {
+        const statusEl = document.getElementById("status");
+        const resultEl = document.getElementById("result");
+        statusEl.innerHTML = "⏳ Testando " + action + "...";
+        try {
+            const t0 = performance.now();
+            const r = await fetch(getApi() + "?action=" + action);
+            const ms = Math.round(performance.now() - t0);
+            const data = await r.json();
+            
+            if (data.error) {
+                statusEl.innerHTML = '<span class="error">❌ ' + action + ' — ERRO: ' + data.error + '</span>';
+            } else if (data.mapping_source) {
+                statusEl.innerHTML = '<span class="success">✅ ' + action + ' — OK (' + ms + 'ms) | Mapeamento: ' + data.mapping_source + '</span>';
+            } else {
+                statusEl.innerHTML = '<span class="success">✅ ' + action + ' — OK (' + ms + 'ms)</span>';
+            }
+            resultEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            statusEl.innerHTML = '<span class="error">❌ ' + action + ' — ERRO: ' + e.message + '</span>';
+            resultEl.textContent = "Erro: " + e.message;
+        }
+    }
+    
+    async function testAll() {
+        const actions = ["health", "stats", "depositos", "saques"];
+        let results = {};
+        let allOk = true;
+        for (const action of actions) {
+            try {
+                const r = await fetch(getApi() + "?action=" + action);
+                const data = await r.json();
+                results[action] = { ok: !data.error, data };
+                if (data.error) allOk = false;
+            } catch (e) {
+                results[action] = { ok: false, error: e.message };
+                allOk = false;
+            }
+        }
+        document.getElementById("status").innerHTML = allOk 
+            ? '<span class="success">✅ Todos os endpoints funcionando!</span>'
+            : '<span class="error">⚠️ Alguns endpoints falharam</span>';
+        document.getElementById("result").textContent = JSON.stringify(results, null, 2);
+    }
+    </script>
+</body>
+</html>`;
+  };
+
   const handleTestApi = async () => {
     setTesting(true);
     setTestResult(null);
@@ -691,16 +779,48 @@ echo json_encode(["error" => "Ação não reconhecida: " . $action]);
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
               <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos — Pronto para Copiar</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API — Tudo Pronto</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">Gere os arquivos config.php e api.php com as configurações atuais. Copie e suba na hospedagem. <strong className="text-foreground">O api.php busca o mapeamento do painel automaticamente.</strong></p>
+              <p className="text-[10px] text-muted-foreground">Todos os arquivos já vêm com <strong className="text-foreground">URL, banco, api_key e endpoint preenchidos</strong>. Copie e suba na hospedagem — sem editar nada.</p>
             </div>
+
+            {/* Download ZIP button */}
+            <Button variant="outline" size="sm" onClick={() => {
+              const files = [
+                { name: "config.php", content: generateConfigPhp() },
+                { name: "api.php", content: generateApiPhp() },
+                { name: "test_api.html", content: generateTestHtml() },
+              ];
+              // Simple multi-file download (one at a time)
+              files.forEach((f, i) => {
+                setTimeout(() => {
+                  const blob = new Blob([f.content], { type: "text/plain;charset=utf-8" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = f.name;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }, i * 300);
+              });
+              toast({ title: "📥 Baixando 3 arquivos", description: "config.php, api.php e test_api.html" });
+            }} className="w-full gap-2 h-9 text-xs border-neon-green/30 text-neon-green hover:bg-neon-green/10">
+              <Download className="w-3.5 h-3.5" /> Baixar Todos os Arquivos (config.php + api.php + test_api.html)
+            </Button>
 
             {/* config.php */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-foreground">📄 config.php</p>
-                <CopyButton text={generateConfigPhp()} field="config_php" />
+                <p className="text-xs font-bold text-foreground">📄 config.php — Credenciais + Painel</p>
+                <div className="flex gap-1">
+                  <CopyButton text={generateConfigPhp()} field="config_php" />
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2" onClick={() => {
+                    const blob = new Blob([generateConfigPhp()], { type: "text/plain" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a"); a.href = url; a.download = "config.php"; a.click();
+                    URL.revokeObjectURL(url);
+                  }}><Download className="w-3 h-3" /> Baixar</Button>
+                </div>
               </div>
               <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre max-h-48">{generateConfigPhp()}</pre>
             </div>
@@ -709,13 +829,48 @@ echo json_encode(["error" => "Ação não reconhecida: " . $action]);
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold text-foreground">📄 api.php — API Dinâmica v3.0</p>
-                <CopyButton text={generateApiPhp()} field="api_php" />
+                <div className="flex gap-1">
+                  <CopyButton text={generateApiPhp()} field="api_php" />
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2" onClick={() => {
+                    const blob = new Blob([generateApiPhp()], { type: "text/plain" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a"); a.href = url; a.download = "api.php"; a.click();
+                    URL.revokeObjectURL(url);
+                  }}><Download className="w-3 h-3" /> Baixar</Button>
+                </div>
               </div>
-              <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre max-h-64">{generateApiPhp()}</pre>
+              <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre max-h-48">{generateApiPhp()}</pre>
+            </div>
+
+            {/* test_api.html */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-foreground">📄 test_api.html — Teste Visual</p>
+                <div className="flex gap-1">
+                  <CopyButton text={generateTestHtml()} field="test_html" />
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2" onClick={() => {
+                    const blob = new Blob([generateTestHtml()], { type: "text/html" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a"); a.href = url; a.download = "test_api.html"; a.click();
+                    URL.revokeObjectURL(url);
+                  }}><Download className="w-3 h-3" /> Baixar</Button>
+                </div>
+              </div>
+              <pre className="rounded-lg border border-border/50 bg-secondary/50 p-3 overflow-x-auto text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre max-h-48">{generateTestHtml()}</pre>
+            </div>
+
+            {/* Structure summary */}
+            <div className="rounded-lg bg-secondary/50 border border-border/50 p-3">
+              <p className="text-[10px] font-bold text-foreground mb-2">📁 Estrutura na hospedagem:</p>
+              <pre className="text-[10px] text-muted-foreground font-mono leading-relaxed">{`/public_html
+├── config.php           ✅ Credenciais + api_key preenchidas
+├── api.php              ✅ API dinâmica (busca mapeamento do painel)
+├── mapping_cache.json   ⏳ Gerado automaticamente pela API
+└── test_api.html        ✅ Teste visual com URL preenchida`}</pre>
             </div>
 
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-2">
-              <p className="text-[10px] text-primary font-semibold">💡 Depois de subir os arquivos, mude qualquer tabela/coluna aqui no painel → a API na hospedagem usará automaticamente os novos nomes em até 60 segundos (cache).</p>
+              <p className="text-[10px] text-primary font-semibold">💡 Após subir os arquivos: acesse {form.url ? `${form.url.replace(/\/$/, "")}/api.php?action=health` : "seusite.com/api.php?action=health"} — se retornar OK, a API está funcionando. Depois, mude qualquer mapeamento no painel → a API se adapta em até 60s.</p>
             </div>
           </TabsContent>
 
