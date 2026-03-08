@@ -1119,7 +1119,7 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v5.0 — Standalone + Auto-Detect + Diagnóstico</p>
+              <p className="text-xs text-muted-foreground">API v5.5 — Mapeamento Autoritativo + Scanner Completo</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
