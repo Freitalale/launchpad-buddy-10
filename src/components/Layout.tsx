@@ -93,8 +93,8 @@ const Layout = () => {
                   }`}
                   title={collapsed ? label : undefined}>
                   <Icon className={`w-4 h-4 flex-shrink-0 ${active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"}`} />
-                  {!collapsed && <span className="flex-1">{label}</span>}
-                  {!collapsed && active && <ChevronRight className="w-3 h-3 text-primary/60" />}
+                  <span className={`flex-1 ${collapsed ? "hidden" : ""}`}>{label}</span>
+                  <span className={collapsed || !active ? "hidden" : ""}><ChevronRight className="w-3 h-3 text-primary/60" /></span>
                 </motion.div>
               )}
             </NavLink>
@@ -118,7 +118,7 @@ const Layout = () => {
         <Button variant="ghost" size="sm" onClick={handleLogout}
           className={`w-full ${collapsed ? "justify-center" : "justify-start"} gap-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-9`}
           title={collapsed ? "Sair" : undefined}>
-          <LogOut className="w-3.5 h-3.5" /> {!collapsed && "Sair"}
+          <LogOut className="w-3.5 h-3.5" /> <span>{!collapsed ? "Sair" : ""}</span>
         </Button>
       </div>
     </>
