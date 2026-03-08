@@ -70,8 +70,9 @@ const TABLE_META: { key: string; icon: any; color: string; tableField: string; d
   { key: "afiliados", icon: UserCheck, color: "text-chart-5", tableField: "tabela_afiliados", defaultTable: "affiliates", label: "Afiliados", desc: "Tabela de afiliados. Controla cooperação, conta afiliados e permite remoção automática dos expirados." },
 ];
 
-// Track which default columns are hidden per table
-type HiddenColumnsMap = Record<string, string[]>; // tableKey -> [field1, field2]
+type HiddenColumnsMap = Record<string, string[]>;
+// Track which default tables are disabled
+type DisabledTablesSet = string[];
 
 const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const { toast } = useToast();
