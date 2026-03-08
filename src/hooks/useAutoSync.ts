@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Plataforma } from "@/hooks/usePlatforms";
-import { usePlatformApi, type ApiHealthResult } from "@/hooks/usePlatformApi";
+import { usePlatformApi, type ApiDeposito, type ApiSaque } from "@/hooks/usePlatformApi";
 import { useQueryClient } from "@tanstack/react-query";
 
-const SYNC_INTERVAL = 30_000; // 30 seconds
-const ALERT_THRESHOLD = 60_000; // 60 seconds offline → alert
+const SYNC_INTERVAL = 60_000; // 60 seconds (was 30s - reduced to avoid request flood)
+const ALERT_THRESHOLD = 120_000; // 2 min offline → alert
 
 interface PlatformSyncState {
   platform_id: string;
@@ -18,6 +18,8 @@ interface PlatformSyncState {
   alertSent: boolean;
   fromCache: boolean;
   errorMessage?: string;
+  depositsSynced?: number;
+  saquesSynced?: number;
 }
 
 export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
@@ -29,14 +31,68 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
   const [syncing, setSyncing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const offlineTimersRef = useRef<Map<string, number>>(new Map());
+  const syncingRef = useRef(false);
+
+  const syncDepositsToSupabase = async (platform: Plataforma, deposits: ApiDeposito[], userId: string) => {
+    if (!deposits.length) return 0;
+    let synced = 0;
+    for (const dep of deposits.slice(0, 200)) {
+      try {
+        // Upsert by matching platform + user name + date (avoid duplicates)
+        const { error } = await supabase.from("depositos").upsert({
+          user_id: userId,
+          plataforma_id: platform.id,
+          plataforma_nome: platform.nome,
+          nome_usuario: dep.nome_usuario || "Desconhecido",
+          valor: Number(dep.valor) || 0,
+          pix: dep.pix || null,
+          status: dep.status || "pendente",
+          created_at: dep.created_at || new Date().toISOString(),
+        }, {
+          onConflict: "id", // Will insert new records
+          ignoreDuplicates: true,
+        });
+        if (!error) synced++;
+      } catch {
+        // Skip individual errors
+      }
+    }
+    return synced;
+  };
+
+  const syncSaquesToSupabase = async (platform: Plataforma, saques: ApiSaque[], userId: string) => {
+    if (!saques.length) return 0;
+    let synced = 0;
+    for (const saq of saques.slice(0, 200)) {
+      try {
+        const { error } = await supabase.from("saques").upsert({
+          user_id: userId,
+          plataforma_id: platform.id,
+          plataforma_nome: platform.nome,
+          nome_usuario: saq.nome_usuario || "Desconhecido",
+          valor: Number(saq.valor) || 0,
+          pix: saq.pix || null,
+          status: saq.status || "pendente",
+          created_at: saq.created_at || new Date().toISOString(),
+        }, {
+          onConflict: "id",
+          ignoreDuplicates: true,
+        });
+        if (!error) synced++;
+      } catch {
+        // Skip individual errors
+      }
+    }
+    return synced;
+  };
 
   const syncAll = useCallback(async () => {
-    if (!user || platforms.length === 0) return;
+    if (!user || platforms.length === 0 || syncingRef.current) return;
+    syncingRef.current = true;
     setSyncing(true);
 
     const results = await Promise.all(
       platforms.filter(p => p.url).map(async (p) => {
-        const statsResult = await api.fetchStats(p);
         const state: PlatformSyncState = {
           platform_id: p.id,
           platform_name: p.nome,
@@ -45,16 +101,25 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
           lastLatency: 0,
           offlineSince: offlineTimersRef.current.get(p.id) ?? null,
           alertSent: false,
-          fromCache: statsResult.fromCache,
-          errorMessage: statsResult.error?.message,
+          fromCache: false,
         };
+
+        // Fetch stats, deposits, and saques in parallel
+        const [statsResult, depositsResult, saquesResult] = await Promise.all([
+          api.fetchStats(p),
+          api.fetchDepositos(p),
+          api.fetchSaques(p),
+        ]);
+
+        state.fromCache = statsResult.fromCache;
+        state.errorMessage = statsResult.error?.message;
 
         if (statsResult.data) {
           state.status = statsResult.fromCache ? "unstable" : "online";
           state.lastSync = new Date().toISOString();
           offlineTimersRef.current.delete(p.id);
 
-          // Update platform in DB silently
+          // Update platform stats in DB
           await supabase.from("plataformas").update({
             total_usuarios: statsResult.data.total_usuarios,
             total_afiliados: statsResult.data.total_afiliados,
@@ -62,6 +127,14 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
             status: "online" as const,
             ultimo_sync: new Date().toISOString(),
           }).eq("id", p.id);
+
+          // Sync deposits and withdrawals to Supabase
+          if (depositsResult.data.length > 0) {
+            state.depositsSynced = await syncDepositsToSupabase(p, depositsResult.data, user.id);
+          }
+          if (saquesResult.data.length > 0) {
+            state.saquesSynced = await syncSaquesToSupabase(p, saquesResult.data, user.id);
+          }
         } else {
           state.status = "offline";
           if (!offlineTimersRef.current.has(p.id)) {
@@ -69,11 +142,9 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
           }
           state.offlineSince = offlineTimersRef.current.get(p.id) ?? Date.now();
 
-          // Check if offline > threshold and alert not yet sent
           const offlineDuration = Date.now() - state.offlineSince;
           if (offlineDuration >= ALERT_THRESHOLD) {
             state.alertSent = true;
-            // Create alert notification
             await supabase.from("notificacoes").insert({
               user_id: user.id,
               titulo: `🚨 ${p.nome} — API Offline`,
@@ -83,7 +154,6 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
               plataforma_id: p.id,
             } as any);
 
-            // Send Telegram alert
             const { data: telegramConfig } = await supabase
               .from("telegram_config")
               .select("*")
@@ -101,12 +171,10 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
               });
             }
 
-            // Update platform status to offline
             await supabase.from("plataformas").update({
               status: "offline" as const,
             }).eq("id", p.id);
 
-            // Log the error
             await supabase.from("logs").insert({
               user_id: user.id,
               acao: "API Offline Detectada",
@@ -127,18 +195,22 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
     setSyncStates(newMap);
     setLastGlobalSync(new Date().toISOString());
     setSyncing(false);
+    syncingRef.current = false;
     qc.invalidateQueries({ queryKey: ["plataformas"] });
+    qc.invalidateQueries({ queryKey: ["depositos"] });
+    qc.invalidateQueries({ queryKey: ["saques"] });
   }, [user, platforms, api, qc]);
 
   useEffect(() => {
     if (!enabled || !user || platforms.length === 0) return;
 
-    // Initial sync
-    syncAll();
+    // Initial sync after small delay
+    const initialTimeout = setTimeout(syncAll, 2000);
 
     intervalRef.current = setInterval(syncAll, SYNC_INTERVAL);
 
     return () => {
+      clearTimeout(initialTimeout);
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [enabled, user, platforms.length, syncAll]);

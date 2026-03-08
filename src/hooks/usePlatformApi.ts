@@ -87,9 +87,9 @@ const CACHE_TTL = {
   saques: 20_000,
 };
 
-const TIMEOUT_MS = 5_000;
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1_000;
+const TIMEOUT_MS = 15_000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 2_000;
 
 function getApiUrl(platform: Plataforma): string | null {
   if (!platform.url) return null;
