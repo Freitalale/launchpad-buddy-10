@@ -263,6 +263,34 @@ const SystemHealth = () => {
                             Ver todos os {result.errors.length} erros →
                           </button>
                         )}
+
+                        {/* Smart fix suggestion */}
+                        <div className="rounded-xl border-2 border-amber-400/40 bg-amber-400/5 p-4 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Wrench className="w-4 h-4 text-amber-400" />
+                            <p className="text-xs font-bold text-amber-400">🔧 Diagnóstico Automático</p>
+                          </div>
+                          
+                          {result.errors.some(e => e.httpStatus === 500) && (
+                            <div className="text-[11px] text-muted-foreground space-y-2">
+                              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 space-y-1">
+                                <p className="text-destructive font-bold text-[10px]">HTTP 500 = Erro PHP. O api.php usa colunas que não existem no banco.</p>
+                                <p className="text-[10px]">Ex: tenta <code className="bg-background/50 px-1 rounded">d.pix</code> mas a coluna real é <code className="bg-background/50 px-1 rounded text-accent">d.document</code></p>
+                              </div>
+                              <div className="bg-accent/10 border border-accent/20 rounded-lg p-3 space-y-1">
+                                <p className="text-accent font-bold text-[10px]">✅ Solução: Substitua o api.php antigo pelo v5.0</p>
+                                <p className="text-[10px]">Plataformas → Configurar → aba Gerar → Baixar Todos → Suba na hospedagem</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {result.errors.some(e => e.type === "TIMEOUT") && !result.errors.some(e => e.httpStatus === 500) && (
+                            <div className="text-[11px] text-muted-foreground space-y-1">
+                              <p className="font-bold text-foreground">⏱️ Timeout = api.php não existe no servidor</p>
+                              <p className="text-[10px]">Vá em Configurar → Gerar → Baixar Todos → Suba na hospedagem</p>
+                            </div>
+                          )}
+                        </div>
                       </>
                     )}
 
