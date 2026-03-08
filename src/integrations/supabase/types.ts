@@ -238,6 +238,7 @@ export type Database = {
           gateway_chave: string | null
           id: string
           logo: string | null
+          mapeamento_extra: Json | null
           nome: string
           saldo_total: number | null
           status: Database["public"]["Enums"]["platform_status"]
@@ -295,6 +296,7 @@ export type Database = {
           gateway_chave?: string | null
           id?: string
           logo?: string | null
+          mapeamento_extra?: Json | null
           nome: string
           saldo_total?: number | null
           status?: Database["public"]["Enums"]["platform_status"]
@@ -352,6 +354,7 @@ export type Database = {
           gateway_chave?: string | null
           id?: string
           logo?: string | null
+          mapeamento_extra?: Json | null
           nome?: string
           saldo_total?: number | null
           status?: Database["public"]["Enums"]["platform_status"]
