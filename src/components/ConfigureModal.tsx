@@ -27,38 +27,38 @@ interface ExtraTable {
 
 type ExtraColumnsMap = Record<string, ExtraColumn[]>;
 
-const DEFAULT_COLUMNS: Record<string, { field: string; label: string; placeholder: string }[]> = {
+const DEFAULT_COLUMNS: Record<string, { field: string; label: string; placeholder: string; desc: string }[]> = {
   usuarios: [
-    { field: "coluna_id_usuario", label: "Coluna ID", placeholder: "id" },
-    { field: "coluna_nome_usuario", label: "Coluna Nome", placeholder: "name" },
-    { field: "coluna_email_usuario", label: "Coluna Email", placeholder: "email" },
-    { field: "coluna_telefone_usuario", label: "Coluna Telefone", placeholder: "phone" },
+    { field: "coluna_id_usuario", label: "Coluna ID", placeholder: "id", desc: "Identificador único de cada usuário" },
+    { field: "coluna_nome_usuario", label: "Coluna Nome", placeholder: "name", desc: "Nome ou username do usuário" },
+    { field: "coluna_email_usuario", label: "Coluna Email", placeholder: "email", desc: "Email do usuário (usado em SAC)" },
+    { field: "coluna_telefone_usuario", label: "Coluna Telefone", placeholder: "phone", desc: "Telefone/WhatsApp do usuário" },
   ],
   depositos: [
-    { field: "coluna_id_deposito", label: "Coluna ID", placeholder: "id" },
-    { field: "coluna_user_id_deposito", label: "Coluna User ID (FK)", placeholder: "user_id" },
-    { field: "coluna_valor_deposito", label: "Coluna Valor", placeholder: "amount" },
-    { field: "coluna_pix_deposito", label: "Coluna PIX", placeholder: "pix" },
-    { field: "coluna_status_deposito", label: "Coluna Status", placeholder: "status" },
-    { field: "coluna_created_at_deposito", label: "Coluna Data", placeholder: "created_at" },
+    { field: "coluna_id_deposito", label: "Coluna ID", placeholder: "id", desc: "ID único de cada depósito" },
+    { field: "coluna_user_id_deposito", label: "Coluna User ID (FK)", placeholder: "user_id", desc: "Chave que liga o depósito ao usuário" },
+    { field: "coluna_valor_deposito", label: "Coluna Valor", placeholder: "amount", desc: "Valor monetário do depósito" },
+    { field: "coluna_pix_deposito", label: "Coluna PIX", placeholder: "pix", desc: "Chave PIX usada no depósito" },
+    { field: "coluna_status_deposito", label: "Coluna Status", placeholder: "status", desc: "Status: pendente, aprovado, rejeitado" },
+    { field: "coluna_created_at_deposito", label: "Coluna Data", placeholder: "created_at", desc: "Data/hora em que o depósito foi feito" },
   ],
   saques: [
-    { field: "coluna_id_saque", label: "Coluna ID", placeholder: "id" },
-    { field: "coluna_user_id_saque", label: "Coluna User ID (FK)", placeholder: "user_id" },
-    { field: "coluna_valor_saque", label: "Coluna Valor", placeholder: "amount" },
-    { field: "coluna_pix_saque", label: "Coluna PIX", placeholder: "pix" },
-    { field: "coluna_status_saque", label: "Coluna Status", placeholder: "status" },
-    { field: "coluna_created_at_saque", label: "Coluna Data", placeholder: "created_at" },
+    { field: "coluna_id_saque", label: "Coluna ID", placeholder: "id", desc: "ID único de cada saque" },
+    { field: "coluna_user_id_saque", label: "Coluna User ID (FK)", placeholder: "user_id", desc: "Chave que liga o saque ao usuário" },
+    { field: "coluna_valor_saque", label: "Coluna Valor", placeholder: "amount", desc: "Valor monetário do saque" },
+    { field: "coluna_pix_saque", label: "Coluna PIX", placeholder: "pix", desc: "Chave PIX para pagamento do saque" },
+    { field: "coluna_status_saque", label: "Coluna Status", placeholder: "status", desc: "Status: pendente, aprovado, rejeitado" },
+    { field: "coluna_created_at_saque", label: "Coluna Data", placeholder: "created_at", desc: "Data/hora em que o saque foi solicitado" },
   ],
   saldo: [
-    { field: "coluna_user_id_saldo", label: "Coluna User ID (FK)", placeholder: "user_id" },
-    { field: "coluna_saldo", label: "Coluna Saldo", placeholder: "balance" },
+    { field: "coluna_user_id_saldo", label: "Coluna User ID (FK)", placeholder: "user_id", desc: "Chave que liga o saldo ao usuário" },
+    { field: "coluna_saldo", label: "Coluna Saldo", placeholder: "balance", desc: "Saldo atual disponível do usuário" },
   ],
   afiliados: [
-    { field: "coluna_id_afiliado", label: "Coluna ID", placeholder: "id" },
-    { field: "coluna_nome_afiliado", label: "Coluna Nome", placeholder: "name" },
-    { field: "coluna_user_id_afiliado", label: "Coluna User ID (FK)", placeholder: "user_id" },
-    { field: "coluna_cooperation_expired", label: "Coluna Cooperação Expirada", placeholder: "cooperation_expired" },
+    { field: "coluna_id_afiliado", label: "Coluna ID", placeholder: "id", desc: "ID único do afiliado" },
+    { field: "coluna_nome_afiliado", label: "Coluna Nome", placeholder: "name", desc: "Nome do afiliado" },
+    { field: "coluna_user_id_afiliado", label: "Coluna User ID (FK)", placeholder: "user_id", desc: "Chave que liga o afiliado ao usuário" },
+    { field: "coluna_cooperation_expired", label: "Coluna Cooperação Expirada", placeholder: "cooperation_expired", desc: "Flag se a cooperação expirou (1=sim)" },
   ],
 };
 
