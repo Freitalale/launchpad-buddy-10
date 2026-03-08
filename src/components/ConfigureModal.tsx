@@ -1635,10 +1635,25 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.7 — Mapeamento Autoritativo</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.8 — Hybrid Mapping</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">O que você configurar no Mapeamento é exatamente o que a API vai usar. Sem surpresas.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.7: Suas tabelas = lei + try/catch global + diagnóstico de saldo + zero fallbacks</p>
+              <p className="text-[10px] text-muted-foreground">API lê mapping_cache.json → mude o mapeamento no painel → clique "Sync Mapping" → API usa imediatamente.</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.8: mapping_cache.json + update_mapping + col_exists + diagnóstico de colunas</p>
+            </div>
+
+            {/* Sync mapping button */}
+            <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-accent" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">Sincronizar Mapeamento em Tempo Real</p>
+                  <p className="text-[9px] text-muted-foreground">Envia o mapeamento atual do painel direto para o mapping_cache.json do servidor. Sem precisar baixar/subir arquivos.</p>
+                </div>
+              </div>
+              <Button onClick={handlePushMapping} disabled={!form.url}
+                className="w-full gap-2 h-9 text-sm font-bold bg-accent text-accent-foreground hover:bg-accent/90">
+                <Zap className="w-4 h-4" /> Sincronizar Mapeamento → Servidor
+              </Button>
             </div>
 
             {/* Verify API Version */}
@@ -1673,9 +1688,6 @@ async function testAll(){
                       </div>
                     </div>
                   ))}
-                  {!verifyResult.endpoints.every(e => e.status === "ok") && (
-                    <p className="text-[9px] text-muted-foreground text-center">⚠️ Gere e suba os novos arquivos abaixo para corrigir os problemas</p>
-                  )}
                 </div>
               )}
             </div>
@@ -1689,6 +1701,7 @@ async function testAll(){
               const files = [
                 { name: "config.php", content: generateConfigPhp() },
                 { name: "api.php", content: generateApiPhp() },
+                { name: "mapping_cache.json", content: generateMappingJson() },
                 { name: "test_api.html", content: generateTestHtml() },
                 { name: "telegram_webhook.php", content: generateTelegramWebhook() },
                 { name: "webhook_pix.php", content: generateWebhookPix() },
@@ -1697,17 +1710,18 @@ async function testAll(){
                 const blob = new Blob([f.content], { type: "text/plain;charset=utf-8" });
                 const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = f.name; a.click(); URL.revokeObjectURL(url);
               }, i * 300));
-              toast({ title: "📥 Baixando 5 arquivos", description: "config.php + api.php + test_api.html + telegram_webhook.php + webhook_pix.php" });
+              toast({ title: "📥 Baixando 6 arquivos", description: "config.php + api.php + mapping_cache.json + test_api.html + webhooks" });
             }} className="w-full gap-2 h-10 text-sm font-bold border-neon-green/30 text-neon-green hover:bg-neon-green/10"
               style={{ background: "linear-gradient(135deg, hsl(142 76% 36% / 0.1), hsl(142 70% 45% / 0.1))" }}>
-              <Download className="w-4 h-4" /> Baixar Todos (5 arquivos)
+              <Download className="w-4 h-4" /> Baixar Todos (6 arquivos)
             </Button>
 
             {/* Individual files with separate Generate Preview / Download */}
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v5.7 Autoritativo", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "test_api.html", label: "📄 test_api.html — v5.7", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v5.8 Hybrid Mapping", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento Dinâmico", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
+              { name: "test_api.html", label: "📄 test_api.html — v5.8", gen: generateTestHtml, field: "test_html", type: "text/html" },
               { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
               { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => {
