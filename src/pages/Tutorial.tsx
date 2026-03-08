@@ -658,7 +658,7 @@ const Tutorial = () => {
         <pre className="text-[11px] text-muted-foreground font-mono leading-relaxed">
 {`/public_html
 ├── config.php           → Credenciais do banco + URL do painel + api_key
-├── api.php              → API dinâmica v3.0 (busca mapeamento do painel)
+├── api.php              → API dinâmica v3.1 (mapeamento por tabela)
 ├── mapping_cache.json   → Cache local do mapeamento (gerado automaticamente)
 └── test_api.html        → HTML para testar endpoints no navegador`}
         </pre>
