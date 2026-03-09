@@ -73,7 +73,7 @@ const Saques = () => {
     setActionLoading(null);
   };
 
-  const totalValor = filtered.reduce((s, d) => s + Number(d.valor), 0);
+  const totalValor = filtered.filter(s => s.status !== "rejeitado").reduce((s, d) => s + Number(d.valor), 0);
   const pendentes = filtered.filter(s => s.status === "pendente").length;
   const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
