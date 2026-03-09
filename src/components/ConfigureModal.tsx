@@ -613,14 +613,17 @@ if ($action === "saques") {
 
 // ═══ APROVAR/REJEITAR SAQUE ═══
 if ($action === "aprovar_saque" || $action === "rejeitar_saque") {
-    $id = intval($_POST["id"] ?? $_GET["id"] ?? 0);
-    if ($id <= 0) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
-    $status = $action === "aprovar_saque" ? "aprovado" : "rejeitado";
+    $id = $_POST["id"] ?? $_GET["id"] ?? "";
+    if (empty($id)) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
+    // Use English status values for compatibility with most platforms
+    $status = $action === "aprovar_saque" ? "approved" : "rejected";
     $tb = $map["saques"]["table"] ?? "withdrawals";
     $col_st = $map["saques"]["status"] ?? "status";
     $col_id = $map["saques"]["id"] ?? "id";
-    $conn->query("UPDATE \`$tb\` SET \`$col_st\`='$status' WHERE \`$col_id\`=$id");
-    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows]); exit;
+    $id_escaped = $conn->real_escape_string($id);
+    // Support both numeric and string IDs
+    $conn->query("UPDATE \`$tb\` SET \`$col_st\`='$status' WHERE \`$col_id\`='$id_escaped'");
+    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows,"status_set"=>$status]); exit;
 }
 
 // ═══ REMOVER AFILIADOS ═══

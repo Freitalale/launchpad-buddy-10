@@ -95,6 +95,7 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
       pix: saq.pix || null,
       status: normalizeStatus(saq.status),
       created_at: saq.created_at || new Date().toISOString(),
+      original_id: saq.id ? String(saq.id) : null,
     }));
 
     for (let i = 0; i < batch.length; i += 50) {

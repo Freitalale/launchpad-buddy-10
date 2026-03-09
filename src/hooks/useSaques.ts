@@ -13,6 +13,7 @@ export interface Saque {
   status: string;
   detalhes: string | null;
   created_at: string;
+  original_id: string | null;
 }
 
 export const useSaques = () => {
