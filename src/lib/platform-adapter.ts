@@ -153,7 +153,9 @@ const STATUS_MAP: Record<string, "pendente" | "aprovado" | "rejeitado" | "pago" 
   "5": "falha",
 };
 
-export function normalizeStatus(status: string | number | null | undefined): "pendente" | "aprovado" | "rejeitado" {
+export type NormalizedStatus = "pendente" | "aprovado" | "rejeitado" | "pago" | "cancelado" | "falha";
+
+export function normalizeStatus(status: string | number | null | undefined): NormalizedStatus {
   if (status === null || status === undefined) return "pendente";
   const s = String(status).toLowerCase().trim();
   return STATUS_MAP[s] ?? "pendente";
