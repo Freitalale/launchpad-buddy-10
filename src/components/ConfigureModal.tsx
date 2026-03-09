@@ -540,7 +540,7 @@ if ($action === "diagnostico") {
         ];
     }
 
-    echo json_encode(["ok"=>true,"version"=>"5.8.0","diagnostico"=>$diag]); exit;
+    echo json_encode(["ok"=>true,"version"=>"6.0.0","diagnostico"=>$diag]); exit;
 }
 
 // ═══ HEALTH ═══
@@ -550,9 +550,9 @@ if ($action === "health") {
         $t = $map[$key]["table"] ?? "";
         $checks[$key] = ["table"=>$t,"exists"=>table_exists($conn, $t)];
     }
-    echo json_encode(["ok"=>true,"version"=>"5.8.0","db"=>true,"time"=>date("c"),"tables"=>$checks,
+    echo json_encode(["ok"=>true,"version"=>"6.0.0","db"=>true,"time"=>date("c"),"tables"=>$checks,
         "mapping_source"=>file_exists($mapping_file)?"file":"inline",
-        "features"=>["scan_db","diagnostico","update_mapping","get_mapping","standalone","hybrid_mapping"]]); exit;
+        "features"=>["scan_db","diagnostico","update_mapping","get_mapping","get_status_map","standalone","hybrid_mapping","universal_status"]]); exit;
 }
 
 // ═══ STATS ═══
@@ -669,12 +669,12 @@ if ($action === "remover_afiliados") {
 }
 
 echo json_encode(["error"=>"Ação não reconhecida: ".$action,
-    "available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico","update_mapping","get_mapping"],
-    "version"=>"5.8.0"]);
+    "available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico","update_mapping","get_mapping","get_status_map"],
+    "version"=>"6.0.0"]);
 
 } catch (Throwable $e) {
     http_response_code(200);
-    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"5.8.0"]);
+    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"6.0.0"]);
 }
 ?>`;
   };
