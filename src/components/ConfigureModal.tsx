@@ -1719,14 +1719,39 @@ async function testAll(){
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
               <div className="flex items-center gap-2 mb-2">
                 <TableProperties className="w-4 h-4 text-primary" />
-                <p className="text-xs font-bold text-foreground">Mapeamento Completo — Tabelas & Colunas</p>
+                <p className="text-xs font-bold text-foreground">Mapeamento Completo v7.0 — Tabelas & Colunas</p>
               </div>
               <div className="text-[10px] text-muted-foreground space-y-1">
-                <p>Configure os nomes exatos das tabelas e colunas. Use o <strong className="text-primary">Scanner</strong> para preencher automaticamente.</p>
-                <p>• <strong className="text-foreground">Desativar tabela</strong> — ignora na API se não existe.</p>
-                <p>• <strong className="text-foreground">+ Coluna</strong> — adiciona campo extra.</p>
-                <p>• <strong className="text-foreground">✕</strong> — remove coluna que a plataforma não usa.</p>
+                <p>Configure os nomes <strong className="text-foreground">exatos</strong> das tabelas e colunas do banco de dados da plataforma. Cada campo corresponde a uma coluna real no MySQL/MariaDB.</p>
+                <p>• <strong className="text-foreground">Desativar tabela</strong> — ignora na API se não existe no banco da plataforma.</p>
+                <p>• <strong className="text-foreground">+ Coluna</strong> — adiciona campo extra que não está mapeado por padrão.</p>
+                <p>• <strong className="text-foreground">✕</strong> — remove/oculta coluna que a plataforma não usa.</p>
+                <p>• Use o <strong className="text-primary">Scanner</strong> para detectar automaticamente os nomes.</p>
+                <p>• <strong className="text-foreground">Testar Estrutura</strong> abaixo valida se tabelas e colunas existem no banco remoto.</p>
               </div>
+            </div>
+
+            {/* Test Structure Button - prominent at top */}
+            <div className="rounded-lg border border-neon-amber/30 bg-neon-amber/5 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <TestTube className="w-4 h-4 text-neon-amber" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">Validar Mapeamento no Banco Real</p>
+                  <p className="text-[9px] text-muted-foreground">Usa o endpoint <code className="bg-background/50 px-1 rounded">?action=diagnostico</code> da API v7.0 para verificar se cada tabela e coluna existem de verdade no banco de dados remoto.</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleTestStructure} disabled={testingStructure || !form.url}
+                className="w-full gap-2 h-9 text-xs border-neon-amber/40 text-neon-amber hover:bg-neon-amber/10">
+                {testingStructure ? <RefreshCw className="w-3 h-3 animate-spin" /> : <TestTube className="w-3 h-3" />}
+                {testingStructure ? "Diagnosticando..." : "🔍 Testar Estrutura no Banco Remoto"}
+              </Button>
+              {structureResult.length > 0 && (
+                <div className="rounded-lg border border-border/50 bg-secondary/30 p-3 space-y-1 max-h-72 overflow-y-auto">
+                  {structureResult.map((r, i) => (
+                    <p key={i} className={`text-[10px] font-mono ${r.startsWith("✅") ? "text-neon-green" : r.startsWith("❌") ? "text-destructive" : r.startsWith("⚠️") ? "text-neon-amber" : r.startsWith("💰") || r.startsWith("💡") ? "text-primary" : r.startsWith("🔧") ? "text-chart-4" : "text-muted-foreground"}`}>{r}</p>
+                  ))}
+                </div>
+              )}
             </div>
 
             {TABLE_META.map(meta => renderTableSection(meta))}
