@@ -327,7 +327,7 @@ const Integrations = () => {
             </div>
             <TestBtn testing={testingPc} result={testResultPc} onClick={handleTestPushcut} label="Testar PushCut" />
             <div className="rounded-lg bg-neon-amber/5 border border-neon-amber/20 p-3">
-              <p className="text-[10px] text-neon-amber font-semibold">💡 PushCut recebe JSON com { "title": "...", "text": "..." }. Cada evento pode ter sua mensagem própria diferente do Telegram.</p>
+              <p className="text-[10px] text-neon-amber font-semibold">{"💡 PushCut recebe JSON com { \"title\": \"...\", \"text\": \"...\" }. Cada evento pode ter sua mensagem própria diferente do Telegram."}</p>
             </div>
           </div>
         </motion.div>
