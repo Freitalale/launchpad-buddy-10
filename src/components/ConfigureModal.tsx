@@ -411,7 +411,7 @@ $port = ${form.db_port || 3306};
 
   const generateApiPhp = () => {
     return `<?php
-// api.php — API Standalone v6.0 (Universal Status Mapping + Hybrid Mapping)
+// api.php — API Standalone v7.0 (Platform Adapter Engine + Universal Mapping)
 // Plataforma: ${platform.nome}
 // Gerado em: ${new Date().toISOString()}
 // ARQUITETURA: Lê mapping_cache.json → quando você muda no painel, basta atualizar o JSON
