@@ -17,7 +17,6 @@ const navItems = [
   { to: "/depositos", label: "Depósitos", icon: DollarSign },
   { to: "/saques", label: "Saques", icon: ArrowUpRight },
   { to: "/sacs", label: "SACs", icon: Headphones },
-  { to: "/eventos", label: "Eventos", icon: Zap },
   { to: "/logs", label: "Logs", icon: ScrollText },
   { to: "/integrations", label: "Notificações", icon: Bell },
   { to: "/health", label: "Diagnóstico", icon: Activity },
