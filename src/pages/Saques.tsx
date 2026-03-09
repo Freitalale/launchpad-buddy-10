@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Search, Filter, CheckCircle, XCircle, TrendingDown } from "lucide-react";
+import { ArrowUpRight, Search, Filter, CheckCircle, XCircle, TrendingDown, Clock, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
