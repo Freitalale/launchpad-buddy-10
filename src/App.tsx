@@ -20,7 +20,7 @@ import Tutorial from "./pages/Tutorial";
 import NotFound from "./pages/NotFound";
 import ErrorPanel from "./pages/ErrorPanel";
 import UsersPage from "./pages/Users";
-
+import NotificationLogs from "./pages/NotificationLogs";
 const queryClient = new QueryClient();
 
 const App = () => (
