@@ -109,7 +109,7 @@ const PlatformCard = ({ platform: p, index, onConfigure, onManage, onRemove, onE
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground">
                 <MoreVertical className="w-3.5 h-3.5" />
               </Button>
             </DropdownMenuTrigger>
