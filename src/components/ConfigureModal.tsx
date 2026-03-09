@@ -126,6 +126,10 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const [extraTables, setExtraTables] = useState<ExtraTable[]>([]);
   const [hiddenColumns, setHiddenColumns] = useState<HiddenColumnsMap>({});
   const [disabledTables, setDisabledTables] = useState<DisabledTablesSet>([]);
+  const [statusMaps, setStatusMaps] = useState<Record<string, Record<string, string>>>({
+    saques: { approve: "approved", reject: "rejected", pending: "pending" },
+    depositos: { approve: "approved", reject: "rejected", pending: "pending" },
+  });
 
   const [form, setForm] = useState({
     url: "", db_host: "", db_port: 3306, db_user: "", db_pass: "", db_name: "",
@@ -184,6 +188,10 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       setExtraTables(extra.tabelas_extra ?? []);
       setHiddenColumns(extra.colunas_ocultas ?? {});
       setDisabledTables(extra.tabelas_desativadas ?? []);
+      setStatusMaps(extra.status_maps ?? {
+        saques: { approve: "approved", reject: "rejected", pending: "pending" },
+        depositos: { approve: "approved", reject: "rejected", pending: "pending" },
+      });
     }
   }, [platform]);
 
@@ -319,6 +327,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const buildMapeamentoExtra = () => ({
     colunas_extra: extraColumns, tabelas_extra: extraTables,
     colunas_ocultas: hiddenColumns, tabelas_desativadas: disabledTables,
+    status_maps: statusMaps,
   });
 
   const generateConfigPhp = () => {
@@ -373,7 +382,11 @@ $port = ${form.db_port || 3306};
         user_id: form.coluna_user_id_afiliado || "user_id",
         expired: form.coluna_cooperation_expired || "cooperation_expired",
       },
-      version: "5.8.0",
+      status_maps: {
+        saques: statusMaps.saques ?? { approve: "approved", reject: "rejected", pending: "pending" },
+        depositos: statusMaps.depositos ?? { approve: "approved", reject: "rejected", pending: "pending" },
+      },
+      version: "6.0.0",
       updated_at: new Date().toISOString(),
       platform: platform.nome,
     }, null, 2);
@@ -381,7 +394,7 @@ $port = ${form.db_port || 3306};
 
   const generateApiPhp = () => {
     return `<?php
-// api.php — API Standalone v5.8 (Hybrid: mapping_cache.json + Direct Mapping)
+// api.php — API Standalone v6.0 (Universal Status Mapping + Hybrid Mapping)
 // Plataforma: ${platform.nome}
 // Gerado em: ${new Date().toISOString()}
 // ARQUITETURA: Lê mapping_cache.json → quando você muda no painel, basta atualizar o JSON
@@ -611,19 +624,40 @@ if ($action === "saques") {
     echo json_encode($rows); exit;
 }
 
-// ═══ APROVAR/REJEITAR SAQUE ═══
+// ═══ APROVAR/REJEITAR SAQUE (Universal Status Mapping v6.0) ═══
 if ($action === "aprovar_saque" || $action === "rejeitar_saque") {
     $id = $_POST["id"] ?? $_GET["id"] ?? "";
     if (empty($id)) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
-    // Use English status values for compatibility with most platforms
-    $status = $action === "aprovar_saque" ? "approved" : "rejected";
+    // Universal status mapping — lê do mapping (status_maps.saques)
+    $sm = $map["status_maps"]["saques"] ?? [];
+    $status = $action === "aprovar_saque" 
+        ? ($sm["approve"] ?? "approved") 
+        : ($sm["reject"] ?? "rejected");
     $tb = $map["saques"]["table"] ?? "withdrawals";
     $col_st = $map["saques"]["status"] ?? "status";
     $col_id = $map["saques"]["id"] ?? "id";
     $id_escaped = $conn->real_escape_string($id);
-    // Support both numeric and string IDs
-    $conn->query("UPDATE \`$tb\` SET \`$col_st\`='$status' WHERE \`$col_id\`='$id_escaped'");
-    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows,"status_set"=>$status]); exit;
+    $status_escaped = $conn->real_escape_string($status);
+    $conn->query("UPDATE \`$tb\` SET \`$col_st\`='$status_escaped' WHERE \`$col_id\`='$id_escaped'");
+    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows,"status_set"=>$status,"mapping_used"=>$sm]); exit;
+}
+
+// ═══ GET_STATUS_MAP — Auto-detecta valores de status do banco ═══
+if ($action === "get_status_map") {
+    $result = [];
+    foreach (["saques","depositos"] as $entity) {
+        $tb = $map[$entity]["table"] ?? "";
+        $col = $map[$entity]["status"] ?? "status";
+        if (table_exists($conn, $tb) && col_exists($conn, $tb, $col)) {
+            $r = @$conn->query("SELECT DISTINCT \`$col\` as s FROM \`$tb\` LIMIT 50");
+            $vals = [];
+            if ($r) { while ($row = $r->fetch_assoc()) { $vals[] = $row["s"]; } }
+            $result[$entity] = ["column" => $col, "distinct_values" => $vals, "count" => count($vals)];
+        } else {
+            $result[$entity] = ["column" => $col, "error" => "Tabela ou coluna não encontrada"];
+        }
+    }
+    echo json_encode(["ok"=>true,"status_maps"=>$result,"current_mapping"=>$map["status_maps"] ?? []]); exit;
 }
 
 // ═══ REMOVER AFILIADOS ═══
