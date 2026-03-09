@@ -403,7 +403,7 @@ $port = ${form.db_port || 3306};
         saques: statusMaps.saques ?? { approve: "approved", reject: "rejected", pending: "pending" },
         depositos: statusMaps.depositos ?? { approve: "approved", reject: "rejected", pending: "pending" },
       },
-      version: "6.0.0",
+      version: "7.0.0",
       updated_at: new Date().toISOString(),
       platform: platform.nome,
     }, null, 2);
