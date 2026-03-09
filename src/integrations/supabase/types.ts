@@ -160,6 +160,48 @@ export type Database = {
         }
         Relationships: []
       }
+      notificacao_logs: {
+        Row: {
+          canal: string
+          created_at: string
+          destinatario: string | null
+          erro: string | null
+          evento: string
+          id: string
+          mensagem: string
+          plataforma_id: string | null
+          plataforma_nome: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          canal?: string
+          created_at?: string
+          destinatario?: string | null
+          erro?: string | null
+          evento: string
+          id?: string
+          mensagem: string
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          canal?: string
+          created_at?: string
+          destinatario?: string | null
+          erro?: string | null
+          evento?: string
+          id?: string
+          mensagem?: string
+          plataforma_id?: string | null
+          plataforma_nome?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notificacoes: {
         Row: {
           created_at: string
