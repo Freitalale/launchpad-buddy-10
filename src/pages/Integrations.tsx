@@ -386,20 +386,16 @@ const Integrations = () => {
                 </div>
               </div>
 
-              {/* Tabs: Telegram / PushCut */}
-              <Tabs defaultValue="telegram" className="w-full">
-                <TabsList className="h-8 bg-secondary/60">
-                  <TabsTrigger value="telegram" className="text-xs gap-1.5 h-7 data-[state=active]:bg-primary/10">
-                    <Send className="w-3 h-3" /> Telegram
-                  </TabsTrigger>
-                  <TabsTrigger value="pushcut" className="text-xs gap-1.5 h-7 data-[state=active]:bg-neon-amber/10">
-                    <Smartphone className="w-3 h-3" /> PushCut
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="telegram" className="space-y-3 mt-3">
+              {/* Telegram + PushCut side by side */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Telegram */}
+                <div className="space-y-3 rounded-lg border border-primary/20 p-3 bg-primary/5">
+                  <div className="flex items-center gap-2">
+                    <Send className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-xs font-bold text-primary uppercase tracking-wide">Telegram</span>
+                    {tgOk && <div className="w-1.5 h-1.5 rounded-full bg-accent ml-auto" />}
+                  </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem Telegram</Label>
                     <Textarea value={evt.mensagem}
                       onChange={e => setEvents(prev => prev.map((ev, i) => i === idx ? { ...ev, mensagem: e.target.value } : ev))}
                       className="bg-secondary border-border text-sm font-mono min-h-[60px]" />
@@ -412,7 +408,7 @@ const Integrations = () => {
                       ))}
                     </div>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-secondary/50 border border-border/30">
+                  <div className="p-2 rounded-lg bg-secondary/50 border border-border/30">
                     <p className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wide font-semibold">Preview:</p>
                     <p className="text-xs text-foreground">{resolveMessage(evt.mensagem)}</p>
                   </div>
@@ -422,11 +418,16 @@ const Integrations = () => {
                     {testingEvt?.idx === idx && testingEvt?.type === "tg" ? <RefreshCw className="w-3 h-3 animate-spin" /> : <TestTube className="w-3 h-3" />}
                     {testingEvt?.idx === idx && testingEvt?.type === "tg" ? "Enviando..." : "Testar Telegram"}
                   </Button>
-                </TabsContent>
+                </div>
 
-                <TabsContent value="pushcut" className="space-y-3 mt-3">
+                {/* PushCut */}
+                <div className="space-y-3 rounded-lg border border-neon-amber/20 p-3 bg-neon-amber/5">
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-3.5 h-3.5 text-neon-amber" />
+                    <span className="text-xs font-bold text-neon-amber uppercase tracking-wide">PushCut</span>
+                    {pcOk && <div className="w-1.5 h-1.5 rounded-full bg-accent ml-auto" />}
+                  </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mensagem PushCut</Label>
                     <Textarea value={evt.mensagem_pushcut}
                       onChange={e => setEvents(prev => prev.map((ev, i) => i === idx ? { ...ev, mensagem_pushcut: e.target.value } : ev))}
                       className="bg-secondary border-border text-sm font-mono min-h-[60px]" />
@@ -439,7 +440,7 @@ const Integrations = () => {
                       ))}
                     </div>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-secondary/50 border border-border/30">
+                  <div className="p-2 rounded-lg bg-secondary/50 border border-border/30">
                     <p className="text-[10px] text-muted-foreground mb-0.5 uppercase tracking-wide font-semibold">Preview:</p>
                     <p className="text-xs text-foreground">{resolveMessage(evt.mensagem_pushcut)}</p>
                   </div>
@@ -449,8 +450,8 @@ const Integrations = () => {
                     {testingEvt?.idx === idx && testingEvt?.type === "pc" ? <RefreshCw className="w-3 h-3 animate-spin" /> : <TestTube className="w-3 h-3" />}
                     {testingEvt?.idx === idx && testingEvt?.type === "pc" ? "Enviando..." : "Testar PushCut"}
                   </Button>
-                </TabsContent>
-              </Tabs>
+                </div>
+              </div>
             </motion.div>
           );
         })}
