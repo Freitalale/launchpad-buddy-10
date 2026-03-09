@@ -2148,22 +2148,81 @@ async function testAll(){
           </TabsContent>
 
           <TabsContent value="webhooks" className="space-y-4 mt-4">
-            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
-              <p className="text-[10px] text-muted-foreground">Webhooks para notificações de eventos. Telegram e PushCut recebem notificações idênticas.</p>
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-1">
+              <p className="text-xs font-bold text-foreground">Webhooks V7 — Notificações de Eventos</p>
+              <p className="text-[10px] text-muted-foreground">Webhooks são URLs que recebem dados automaticamente quando algo acontece (depósito, saque, erro). Configure abaixo e teste cada um.</p>
             </div>
-            <div><Label className="text-xs text-muted-foreground">Webhook Telegram</Label>
-              <Input value={form.webhook_telegram} onChange={e => setForm(p => ({ ...p, webhook_telegram: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.telegram.org/bot..." />
-              <p className="text-[9px] text-muted-foreground mt-0.5">Recebe alertas de depósito, saque, erro, plataforma offline</p>
-            </div>
-            <div><Label className="text-xs text-muted-foreground">Webhook PushCut</Label>
-              <Input value={(form as any).webhook_pushcut ?? ""} onChange={e => setForm(p => ({ ...p, webhook_pushcut: e.target.value } as any))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.pushcut.io/..." />
-              <p className="text-[9px] text-muted-foreground mt-0.5">Notificações idênticas ao Telegram via PushCut (iOS/Mac)</p>
-            </div>
-            <div><Label className="text-xs text-muted-foreground">Webhook Discord / Slack / Outro</Label>
-              <Input value={form.webhook_outro} onChange={e => setForm(p => ({ ...p, webhook_outro: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://..." /></div>
-            <div><Label className="text-xs text-muted-foreground">Chave Gateway (fallback)</Label>
-              <Input value={form.gateway_chave} onChange={e => setForm(p => ({ ...p, gateway_chave: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="pk_live_..." />
-              <p className="text-[9px] text-muted-foreground mt-0.5">Chave do gateway PixUP/BSP usada como fallback se não configurada na aba Gateway</p>
+
+            <div className="space-y-3">
+              <div className="rounded-lg border border-primary/20 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground font-semibold">Webhook Telegram</Label>
+                    <p className="text-[9px] text-muted-foreground">Recebe alertas de depósito, saque, erro, plataforma offline</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                    disabled={!form.webhook_telegram}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(form.webhook_telegram, { method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ text: `✅ Teste Webhook V7 — ${platform.nome} — ${new Date().toLocaleString("pt-BR")}` }) });
+                        toast(res.ok ? { title: "✅ Webhook Telegram OK!" } : { title: "❌ Falhou", description: `HTTP ${res.status}`, variant: "destructive" });
+                      } catch (e: any) { toast({ title: "❌ Erro", description: e.message, variant: "destructive" }); }
+                    }}>
+                    <TestTube className="w-3 h-3" /> Testar
+                  </Button>
+                </div>
+                <Input value={form.webhook_telegram} onChange={e => setForm(p => ({ ...p, webhook_telegram: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.telegram.org/bot..." />
+              </div>
+
+              <div className="rounded-lg border border-neon-amber/20 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground font-semibold">Webhook PushCut</Label>
+                    <p className="text-[9px] text-muted-foreground">Notificações ricas no iOS/Mac via PushCut</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-neon-amber/30 text-neon-amber hover:bg-neon-amber/10"
+                    disabled={!(form as any).webhook_pushcut}
+                    onClick={async () => {
+                      try {
+                        const url = (form as any).webhook_pushcut;
+                        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ title: "✅ Teste V7", text: `${platform.nome} — ${new Date().toLocaleString("pt-BR")}` }) });
+                        toast((res.ok || res.status === 204) ? { title: "✅ Webhook PushCut OK!" } : { title: "❌ Falhou", description: `HTTP ${res.status}`, variant: "destructive" });
+                      } catch (e: any) { toast({ title: "❌ Erro", description: e.message, variant: "destructive" }); }
+                    }}>
+                    <TestTube className="w-3 h-3" /> Testar
+                  </Button>
+                </div>
+                <Input value={(form as any).webhook_pushcut ?? ""} onChange={e => setForm(p => ({ ...p, webhook_pushcut: e.target.value } as any))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.pushcut.io/..." />
+              </div>
+
+              <div className="rounded-lg border border-border/40 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground font-semibold">Webhook Discord / Slack / Outro</Label>
+                    <p className="text-[9px] text-muted-foreground">Qualquer URL que aceite POST com JSON</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-border text-muted-foreground hover:bg-secondary"
+                    disabled={!form.webhook_outro}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(form.webhook_outro, { method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ content: `✅ Teste V7 — ${platform.nome}`, text: `Teste — ${new Date().toLocaleString("pt-BR")}` }) });
+                        toast(res.ok ? { title: "✅ Webhook OK!" } : { title: "❌ Falhou", description: `HTTP ${res.status}`, variant: "destructive" });
+                      } catch (e: any) { toast({ title: "❌ Erro", description: e.message, variant: "destructive" }); }
+                    }}>
+                    <TestTube className="w-3 h-3" /> Testar
+                  </Button>
+                </div>
+                <Input value={form.webhook_outro} onChange={e => setForm(p => ({ ...p, webhook_outro: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://..." />
+              </div>
+
+              <div className="rounded-lg border border-border/40 p-3 space-y-2">
+                <Label className="text-xs text-muted-foreground font-semibold">Chave Gateway (fallback)</Label>
+                <Input value={form.gateway_chave} onChange={e => setForm(p => ({ ...p, gateway_chave: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="pk_live_..." />
+                <p className="text-[9px] text-muted-foreground">Chave do gateway PixUP/BSP usada como fallback se não configurada na aba Gateway</p>
+              </div>
             </div>
           </TabsContent>
 
