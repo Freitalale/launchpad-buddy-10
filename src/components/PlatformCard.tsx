@@ -32,6 +32,7 @@ interface PlatformCardProps {
   onConfigure: (p: Plataforma) => void;
   onManage: (p: Plataforma) => void;
   onRemove: (p: Plataforma) => void;
+  onEdit?: (p: Plataforma) => void;
 }
 
 const PlatformCard = ({ platform: p, index, onConfigure, onManage, onRemove }: PlatformCardProps) => {
