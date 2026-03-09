@@ -1224,7 +1224,7 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v6.0 — Universal Status Mapping + Hybrid Mapping</p>
+              <p className="text-xs text-muted-foreground">API v7.0 — Platform Adapter Engine + Universal Mapping</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
