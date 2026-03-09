@@ -349,7 +349,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
 
   const generateConfigPhp = () => {
     return `<?php
-// config.php — Gerado pelo Painel v5.0
+// config.php — Gerado pelo Master Painel v7.0
 // Plataforma: ${platform.nome}
 // Gerado em: ${new Date().toISOString()}
 $host = "${form.db_host || "localhost"}";
