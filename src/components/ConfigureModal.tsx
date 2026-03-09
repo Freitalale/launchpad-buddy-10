@@ -126,6 +126,10 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const [extraTables, setExtraTables] = useState<ExtraTable[]>([]);
   const [hiddenColumns, setHiddenColumns] = useState<HiddenColumnsMap>({});
   const [disabledTables, setDisabledTables] = useState<DisabledTablesSet>([]);
+  const [statusMaps, setStatusMaps] = useState<Record<string, Record<string, string>>>({
+    saques: { approve: "approved", reject: "rejected", pending: "pending" },
+    depositos: { approve: "approved", reject: "rejected", pending: "pending" },
+  });
 
   const [form, setForm] = useState({
     url: "", db_host: "", db_port: 3306, db_user: "", db_pass: "", db_name: "",
@@ -184,6 +188,10 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       setExtraTables(extra.tabelas_extra ?? []);
       setHiddenColumns(extra.colunas_ocultas ?? {});
       setDisabledTables(extra.tabelas_desativadas ?? []);
+      setStatusMaps(extra.status_maps ?? {
+        saques: { approve: "approved", reject: "rejected", pending: "pending" },
+        depositos: { approve: "approved", reject: "rejected", pending: "pending" },
+      });
     }
   }, [platform]);
 
@@ -319,6 +327,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
   const buildMapeamentoExtra = () => ({
     colunas_extra: extraColumns, tabelas_extra: extraTables,
     colunas_ocultas: hiddenColumns, tabelas_desativadas: disabledTables,
+    status_maps: statusMaps,
   });
 
   const generateConfigPhp = () => {
@@ -373,7 +382,11 @@ $port = ${form.db_port || 3306};
         user_id: form.coluna_user_id_afiliado || "user_id",
         expired: form.coluna_cooperation_expired || "cooperation_expired",
       },
-      version: "5.8.0",
+      status_maps: {
+        saques: statusMaps.saques ?? { approve: "approved", reject: "rejected", pending: "pending" },
+        depositos: statusMaps.depositos ?? { approve: "approved", reject: "rejected", pending: "pending" },
+      },
+      version: "6.0.0",
       updated_at: new Date().toISOString(),
       platform: platform.nome,
     }, null, 2);
@@ -381,7 +394,7 @@ $port = ${form.db_port || 3306};
 
   const generateApiPhp = () => {
     return `<?php
-// api.php — API Standalone v5.8 (Hybrid: mapping_cache.json + Direct Mapping)
+// api.php — API Standalone v6.0 (Universal Status Mapping + Hybrid Mapping)
 // Plataforma: ${platform.nome}
 // Gerado em: ${new Date().toISOString()}
 // ARQUITETURA: Lê mapping_cache.json → quando você muda no painel, basta atualizar o JSON
@@ -472,7 +485,7 @@ if ($action === "scan_db") {
     echo json_encode(["ok"=>true,"database"=>$db,"tables"=>$tables,"total"=>count($tables)]); exit;
 }
 
-// ═══ DIAGNOSTICO PROFUNDO v5.8 ═══
+// ═══ DIAGNOSTICO PROFUNDO v6.0 ═══
 if ($action === "diagnostico") {
     $diag = ["mapping"=>[],"column_checks"=>[],"saldo_debug"=>null,"mapping_source"=>file_exists($mapping_file)?"file":"inline"];
     $entities = [
@@ -527,7 +540,7 @@ if ($action === "diagnostico") {
         ];
     }
 
-    echo json_encode(["ok"=>true,"version"=>"5.8.0","diagnostico"=>$diag]); exit;
+    echo json_encode(["ok"=>true,"version"=>"6.0.0","diagnostico"=>$diag]); exit;
 }
 
 // ═══ HEALTH ═══
@@ -537,9 +550,9 @@ if ($action === "health") {
         $t = $map[$key]["table"] ?? "";
         $checks[$key] = ["table"=>$t,"exists"=>table_exists($conn, $t)];
     }
-    echo json_encode(["ok"=>true,"version"=>"5.8.0","db"=>true,"time"=>date("c"),"tables"=>$checks,
+    echo json_encode(["ok"=>true,"version"=>"6.0.0","db"=>true,"time"=>date("c"),"tables"=>$checks,
         "mapping_source"=>file_exists($mapping_file)?"file":"inline",
-        "features"=>["scan_db","diagnostico","update_mapping","get_mapping","standalone","hybrid_mapping"]]); exit;
+        "features"=>["scan_db","diagnostico","update_mapping","get_mapping","get_status_map","standalone","hybrid_mapping","universal_status"]]); exit;
 }
 
 // ═══ STATS ═══
@@ -611,19 +624,40 @@ if ($action === "saques") {
     echo json_encode($rows); exit;
 }
 
-// ═══ APROVAR/REJEITAR SAQUE ═══
+// ═══ APROVAR/REJEITAR SAQUE (Universal Status Mapping v6.0) ═══
 if ($action === "aprovar_saque" || $action === "rejeitar_saque") {
     $id = $_POST["id"] ?? $_GET["id"] ?? "";
     if (empty($id)) { echo json_encode(["ok"=>false,"error"=>"ID inválido"]); exit; }
-    // Use English status values for compatibility with most platforms
-    $status = $action === "aprovar_saque" ? "approved" : "rejected";
+    // Universal status mapping — lê do mapping (status_maps.saques)
+    $sm = $map["status_maps"]["saques"] ?? [];
+    $status = $action === "aprovar_saque" 
+        ? ($sm["approve"] ?? "approved") 
+        : ($sm["reject"] ?? "rejected");
     $tb = $map["saques"]["table"] ?? "withdrawals";
     $col_st = $map["saques"]["status"] ?? "status";
     $col_id = $map["saques"]["id"] ?? "id";
     $id_escaped = $conn->real_escape_string($id);
-    // Support both numeric and string IDs
-    $conn->query("UPDATE \`$tb\` SET \`$col_st\`='$status' WHERE \`$col_id\`='$id_escaped'");
-    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows,"status_set"=>$status]); exit;
+    $status_escaped = $conn->real_escape_string($status);
+    $conn->query("UPDATE \`$tb\` SET \`$col_st\`='$status_escaped' WHERE \`$col_id\`='$id_escaped'");
+    echo json_encode(["ok"=>true,"affected"=>$conn->affected_rows,"status_set"=>$status,"mapping_used"=>$sm]); exit;
+}
+
+// ═══ GET_STATUS_MAP — Auto-detecta valores de status do banco ═══
+if ($action === "get_status_map") {
+    $result = [];
+    foreach (["saques","depositos"] as $entity) {
+        $tb = $map[$entity]["table"] ?? "";
+        $col = $map[$entity]["status"] ?? "status";
+        if (table_exists($conn, $tb) && col_exists($conn, $tb, $col)) {
+            $r = @$conn->query("SELECT DISTINCT \`$col\` as s FROM \`$tb\` LIMIT 50");
+            $vals = [];
+            if ($r) { while ($row = $r->fetch_assoc()) { $vals[] = $row["s"]; } }
+            $result[$entity] = ["column" => $col, "distinct_values" => $vals, "count" => count($vals)];
+        } else {
+            $result[$entity] = ["column" => $col, "error" => "Tabela ou coluna não encontrada"];
+        }
+    }
+    echo json_encode(["ok"=>true,"status_maps"=>$result,"current_mapping"=>$map["status_maps"] ?? []]); exit;
 }
 
 // ═══ REMOVER AFILIADOS ═══
@@ -635,12 +669,12 @@ if ($action === "remover_afiliados") {
 }
 
 echo json_encode(["error"=>"Ação não reconhecida: ".$action,
-    "available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico","update_mapping","get_mapping"],
-    "version"=>"5.8.0"]);
+    "available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico","update_mapping","get_mapping","get_status_map"],
+    "version"=>"6.0.0"]);
 
 } catch (Throwable $e) {
     http_response_code(200);
-    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"5.8.0"]);
+    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"6.0.0"]);
 }
 ?>`;
   };
@@ -832,11 +866,11 @@ echo json_encode([
     const fullUrl = rawUrl && !rawUrl.startsWith("http") ? `https://${rawUrl}` : rawUrl;
     const apiUrl = fullUrl ? `${fullUrl}/api.php` : "https://seusite.com/api.php";
     return `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v5.8 — ${platform.nome}</title>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v6.0 — ${platform.nome}</title>
 <style>*{box-sizing:border-box}body{font-family:'Segoe UI',monospace;background:#0a0a0f;color:#e0e0e0;padding:20px;margin:0}h1{color:#00c4ff;margin-bottom:5px}h2{color:#888;font-size:14px;margin-top:0}.controls{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}button{background:#00c4ff;color:#000;border:none;padding:10px 18px;cursor:pointer;border-radius:8px;font-weight:bold;font-size:13px;transition:all .2s}button:hover{background:#00a0dd;transform:scale(1.02)}button.scan{background:#a855f7}button.scan:hover{background:#9333ea}button.diag{background:#f59e0b}button.diag:hover{background:#d97706}button.map{background:#22c55e}button.map:hover{background:#16a34a}pre{background:#0d0d15;padding:12px;border-radius:8px;overflow-x:auto;border:1px solid #1a1a2e;max-height:350px;font-size:12px;line-height:1.5}input{width:100%;max-width:600px;padding:10px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;font-size:14px;font-family:monospace}.status-bar{padding:12px;border-radius:8px;margin:10px 0;font-weight:bold;font-size:13px}.status-bar.ok{background:#22c55e15;border:1px solid #22c55e40;color:#22c55e}.status-bar.fail{background:#ef444415;border:1px solid #ef444440;color:#ef4444}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:15px 0}.card{background:#111;border:1px solid #222;border-radius:10px;padding:15px}.card h3{margin:0 0 8px;font-size:13px;color:#00c4ff}.card.ok{border-color:#22c55e}.card.fail{border-color:#ef4444}</style>
 </head><body>
-<h1>🔌 Teste API v5.8 — ${platform.nome}</h1>
-<h2>API Híbrida — mapping_cache.json + Direct Mapping</h2>
+<h1>🔌 Teste API v6.0 — ${platform.nome}</h1>
+<h2>API Universal — Status Mapping + Hybrid Mapping</h2>
 <input id="apiUrl" value="${apiUrl}" placeholder="URL da API (api.php)" />
 <div class="controls">
 <button onclick="testEndpoint('health')">🏥 Health</button>
@@ -1173,7 +1207,7 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v5.8 — Mapeamento Híbrido (mapping_cache.json + Direct Mapping)</p>
+              <p className="text-xs text-muted-foreground">API v6.0 — Universal Status Mapping + Hybrid Mapping</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
@@ -1556,6 +1590,59 @@ async function testAll(){
 
             {TABLE_META.map(meta => renderTableSection(meta))}
 
+            {/* Universal Status Mapping v6.0 */}
+            <div className="rounded-lg border border-accent/40 bg-accent/5 p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-accent" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">🔄 Mapeamento Universal de Status (v6.0)</p>
+                  <p className="text-[9px] text-muted-foreground">Defina os valores de status que a plataforma usa. Ex: "approved", "1", "paid", "completed".</p>
+                </div>
+              </div>
+
+              {(["saques", "depositos"] as const).map(entity => {
+                const sm = statusMaps[entity] ?? { approve: "approved", reject: "rejected", pending: "pending" };
+                const icon = entity === "saques" ? "💸" : "💰";
+                const label = entity === "saques" ? "Saques" : "Depósitos";
+                return (
+                  <div key={entity} className="rounded-lg border border-border/50 bg-secondary/30 p-3 space-y-2">
+                    <p className="text-[10px] font-bold text-foreground">{icon} {label} — Valores de Status</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-[9px] text-neon-green font-bold">✅ Aprovado</Label>
+                        <Input value={sm.approve ?? "approved"} 
+                          onChange={e => setStatusMaps(prev => ({ ...prev, [entity]: { ...prev[entity], approve: e.target.value } }))}
+                          className="bg-neon-green/10 h-7 text-[11px] font-mono border-neon-green/30" placeholder="approved" />
+                      </div>
+                      <div>
+                        <Label className="text-[9px] text-destructive font-bold">❌ Rejeitado</Label>
+                        <Input value={sm.reject ?? "rejected"} 
+                          onChange={e => setStatusMaps(prev => ({ ...prev, [entity]: { ...prev[entity], reject: e.target.value } }))}
+                          className="bg-destructive/10 h-7 text-[11px] font-mono border-destructive/30" placeholder="rejected" />
+                      </div>
+                      <div>
+                        <Label className="text-[9px] text-neon-amber font-bold">⏳ Pendente</Label>
+                        <Input value={sm.pending ?? "pending"} 
+                          onChange={e => setStatusMaps(prev => ({ ...prev, [entity]: { ...prev[entity], pending: e.target.value } }))}
+                          className="bg-neon-amber/10 h-7 text-[11px] font-mono border-neon-amber/30" placeholder="pending" />
+                      </div>
+                    </div>
+                    <p className="text-[8px] text-muted-foreground">
+                      Quando aprovar saque, API faz: <code className="bg-background/50 px-1 rounded">SET status = '{sm.approve}'</code> | 
+                      Rejeitar: <code className="bg-background/50 px-1 rounded">SET status = '{sm.reject}'</code>
+                    </p>
+                  </div>
+                );
+              })}
+
+              <div className="rounded-lg bg-primary/5 border border-primary/20 p-2">
+                <p className="text-[9px] text-muted-foreground">
+                  💡 <strong className="text-foreground">Dica:</strong> Use o endpoint <code className="bg-background/50 px-1 rounded text-primary">?action=get_status_map</code> 
+                  na API para detectar automaticamente os valores DISTINCT de status do banco remoto.
+                </p>
+              </div>
+            </div>
+
             {/* Extra custom tables */}
             {extraTables.map((et, tableIdx) => (
               <div key={et.key} className="rounded-lg border border-dashed border-primary/40 p-3 space-y-2">
@@ -1638,10 +1725,10 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.8 — Hybrid Mapping</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v6.0 — Universal Status Mapping</p>
               </div>
               <p className="text-[10px] text-muted-foreground">API lê mapping_cache.json → mude o mapeamento no painel → clique "Sync Mapping" → API usa imediatamente.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.8: mapping_cache.json + update_mapping + col_exists + diagnóstico de colunas</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v6.0: status_maps universal + get_status_map + detecção automática + col_exists</p>
             </div>
 
             {/* Sync mapping button */}
@@ -1722,9 +1809,9 @@ async function testAll(){
             {/* Individual files with separate Generate Preview / Download */}
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v5.8 Hybrid Mapping", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento Dinâmico", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
-              { name: "test_api.html", label: "📄 test_api.html — v5.8", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v6.0 Universal Status Mapping", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento + Status Maps", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
+              { name: "test_api.html", label: "📄 test_api.html — v6.0", gen: generateTestHtml, field: "test_html", type: "text/html" },
               { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
               { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => {
