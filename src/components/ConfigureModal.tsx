@@ -557,7 +557,7 @@ if ($action === "diagnostico") {
         ];
     }
 
-    echo json_encode(["ok"=>true,"version"=>"6.0.0","diagnostico"=>$diag]); exit;
+    echo json_encode(["ok"=>true,"version"=>"7.0.0","diagnostico"=>$diag]); exit;
 }
 
 // ═══ HEALTH ═══
