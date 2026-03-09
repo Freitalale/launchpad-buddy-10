@@ -43,6 +43,7 @@ const App = () => (
               <Route path="/eventos" element={<Integrations />} />
               <Route path="/logs" element={<Logs />} />
               <Route path="/integrations" element={<Integrations />} />
+              <Route path="/notification-logs" element={<NotificationLogs />} />
               <Route path="/health" element={<SystemHealth />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/tutorial" element={<Tutorial />} />
