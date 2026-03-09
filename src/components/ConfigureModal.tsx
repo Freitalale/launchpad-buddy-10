@@ -1904,12 +1904,12 @@ async function testAll(){
 
           {/* Gateway Tab */}
           <TabsContent value="gateway" className="space-y-4 mt-4">
-            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-1">
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-primary" />
-                <p className="text-xs font-bold text-foreground">Gateway de Pagamento — Configuração por Plataforma</p>
+                <p className="text-xs font-bold text-foreground">Gateway de Pagamento V7 — Configuração por Plataforma</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">Configure o gateway para execução real de saques. Compatível com PixUP, BSP e qualquer API REST.</p>
+              <p className="text-[10px] text-muted-foreground">O Gateway é o sistema que executa o pagamento PIX real quando você aprova um saque. Sem ele, o saque é apenas marcado como "aprovado" no banco — com ele, o dinheiro é enviado automaticamente via API do provedor.</p>
             </div>
 
             <div className="space-y-3">
@@ -1919,12 +1919,11 @@ async function testAll(){
                   onValueChange={v => {
                     const extra = (platform.mapeamento_extra as any) ?? {};
                     const newGateway = { ...(extra.gateway ?? {}), type: v === "none" ? undefined : v };
-                    setForm(p => p); // trigger re-render
-                    // Store in mapeamento_extra via buildMapeamentoExtra override
+                    setForm(p => p);
                   }}>
                   <SelectTrigger className="bg-secondary h-9 text-sm"><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Sem Gateway (API fallback)</SelectItem>
+                    <SelectItem value="none">Sem Gateway (apenas marca no banco)</SelectItem>
                     <SelectItem value="pix_api">PIX API (PixUP / BSP)</SelectItem>
                     <SelectItem value="api_rest">API REST Genérica</SelectItem>
                     <SelectItem value="webhook">Webhook Callback</SelectItem>
@@ -1932,14 +1931,16 @@ async function testAll(){
                     <SelectItem value="sql_exec">Execução SQL Direta</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[9px] text-muted-foreground mt-0.5">
+                  <strong>Sem Gateway:</strong> apenas atualiza status no banco. <strong>PIX API:</strong> envia pagamento real via PixUP/BSP. <strong>API REST:</strong> qualquer endpoint HTTP.
+                </p>
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground">Endpoint do Gateway</Label>
-                <Input value={form.gateway_chave ? "" : ""} 
-                  defaultValue={((platform.mapeamento_extra as any)?.gateway?.endpoint) ?? ""}
+                <Input defaultValue={((platform.mapeamento_extra as any)?.gateway?.endpoint) ?? ""}
                   className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.pixup.com.br/v2/pix/payment" />
-                <p className="text-[9px] text-muted-foreground mt-0.5">URL completa para onde enviar a requisição de pagamento</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">URL completa para onde enviar a requisição de pagamento. Ex: PixUP usa /v2/pix/payment, BSP usa /api/v1/withdraw</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1947,11 +1948,13 @@ async function testAll(){
                   <Label className="text-xs text-muted-foreground">API Key / Token</Label>
                   <Input value={form.gateway_chave} onChange={e => setForm(p => ({ ...p, gateway_chave: e.target.value }))}
                     className="bg-secondary h-9 text-sm font-mono" placeholder="pk_live_..." />
+                  <p className="text-[9px] text-muted-foreground mt-0.5">Chave pública da API do gateway. Obtida no painel do provedor (PixUP, BSP, etc)</p>
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">API Secret (opcional)</Label>
                   <Input defaultValue={((platform.mapeamento_extra as any)?.gateway?.api_secret) ?? ""}
                     className="bg-secondary h-9 text-sm font-mono" placeholder="sk_live_..." type="password" />
+                  <p className="text-[9px] text-muted-foreground mt-0.5">Chave secreta para autenticação. Alguns gateways exigem, outros não</p>
                 </div>
               </div>
 
@@ -1966,6 +1969,7 @@ async function testAll(){
                       <SelectItem value="GET">GET</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">Quase todos os gateways usam POST. Só mude se a documentação do provedor indicar</p>
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">Content-Type</Label>
@@ -1977,6 +1981,7 @@ async function testAll(){
                       <SelectItem value="multipart/form-data">Multipart Form</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">JSON é o padrão. Form Encoded é usado em APIs mais antigas</p>
                 </div>
               </div>
 
@@ -1985,28 +1990,76 @@ async function testAll(){
                 <textarea
                   defaultValue={((platform.mapeamento_extra as any)?.gateway?.body_template) ?? '{\n  "amount": {amount},\n  "pix_key": "{pix}",\n  "description": "Saque {user_name} #{id}"\n}'}
                   className="w-full bg-secondary border border-border rounded-lg p-3 text-[11px] font-mono text-foreground h-28 resize-y"
-                  placeholder='{"amount": {amount}, "pix_key": "{pix}"}'
                 />
-                <p className="text-[9px] text-muted-foreground mt-0.5">Placeholders: <code className="bg-background/50 px-1 rounded">{"{id}"}</code> <code className="bg-background/50 px-1 rounded">{"{amount}"}</code> <code className="bg-background/50 px-1 rounded">{"{pix}"}</code> <code className="bg-background/50 px-1 rounded">{"{user_name}"}</code></p>
+                <div className="rounded-lg bg-secondary/50 border border-border/40 p-2 mt-1 space-y-1">
+                  <p className="text-[9px] font-bold text-foreground">📝 Como usar o Body Template:</p>
+                  <p className="text-[9px] text-muted-foreground">Este é o corpo da requisição que será enviado ao gateway. Use placeholders que serão substituídos automaticamente:</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {[
+                      { key: "{id}", desc: "ID do saque" },
+                      { key: "{amount}", desc: "Valor numérico (ex: 150.00)" },
+                      { key: "{pix}", desc: "Chave PIX do usuário" },
+                      { key: "{user_name}", desc: "Nome do usuário" },
+                    ].map(p => (
+                      <span key={p.key} className="text-[8px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        <code>{p.key}</code> = {p.desc}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground mt-1">
+                    <strong>Exemplo PixUP:</strong> <code className="bg-background/50 px-1 rounded">{"{"}"amount": {"{amount}"}, "pix_key": "{"{pix}"}", "external_id": "{"{id}"}"{"}"}  </code>
+                  </p>
+                </div>
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground">Headers Extras (JSON)</Label>
                 <Input defaultValue={JSON.stringify(((platform.mapeamento_extra as any)?.gateway?.headers) ?? {})}
                   className="bg-secondary h-9 text-sm font-mono" placeholder='{"X-Custom-Header": "value"}' />
+                <div className="rounded-lg bg-secondary/50 border border-border/40 p-2 mt-1">
+                  <p className="text-[9px] text-muted-foreground">
+                    <strong>O que são Headers Extras?</strong> São cabeçalhos HTTP adicionais que alguns gateways exigem. Ex: token de autenticação, versão da API, etc.
+                    O painel já envia <code className="bg-background/50 px-1 rounded">Content-Type</code> e <code className="bg-background/50 px-1 rounded">Authorization</code> automaticamente.
+                    Use apenas se a documentação do gateway pedir headers adicionais.
+                  </p>
+                  <p className="text-[9px] text-muted-foreground mt-1">
+                    <strong>Exemplo:</strong> <code className="bg-background/50 px-1 rounded">{`{"X-API-Version": "2", "X-Merchant-ID": "12345"}`}</code>
+                  </p>
+                </div>
               </div>
+            </div>
+
+            {/* Gateway Test */}
+            <div className="rounded-lg border border-neon-amber/30 bg-neon-amber/5 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <TestTube className="w-4 h-4 text-neon-amber" />
+                <p className="text-xs font-bold text-foreground">Testar Gateway</p>
+              </div>
+              <p className="text-[9px] text-muted-foreground">Envia uma requisição de teste ao endpoint do gateway com valor R$ 0,01 para verificar se a conexão funciona. Nenhum pagamento real é feito se o gateway suportar modo sandbox/teste.</p>
+              <Button variant="outline" size="sm" className="w-full gap-2 h-9 text-xs border-neon-amber/40 text-neon-amber hover:bg-neon-amber/10"
+                onClick={() => {
+                  const endpoint = ((platform.mapeamento_extra as any)?.gateway?.endpoint);
+                  if (!endpoint && !form.gateway_chave) {
+                    toast({ title: "Configure o gateway primeiro", description: "Preencha o endpoint e a chave da API", variant: "destructive" });
+                    return;
+                  }
+                  toast({ title: "🔌 Teste de Gateway", description: "Configure o endpoint e as credenciais para testar a conexão. O teste valida apenas a conectividade, sem executar pagamento." });
+                }}>
+                <TestTube className="w-3.5 h-3.5" /> Testar Conexão do Gateway
+              </Button>
             </div>
 
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3 space-y-2">
               <p className="text-[10px] font-bold text-neon-green">💡 Presets Rápidos</p>
+              <p className="text-[9px] text-muted-foreground">Clique em um preset para preencher automaticamente o endpoint e o body template com os valores padrão do provedor:</p>
               <div className="flex gap-2 flex-wrap">
                 {[
-                  { name: "PixUP", endpoint: "https://api.pixup.com.br/v2/pix/payment", method: "POST" },
-                  { name: "BSP Pay", endpoint: "https://api.bsppay.com/api/v1/withdraw", method: "POST" },
-                  { name: "Custom API", endpoint: "", method: "POST" },
+                  { name: "PixUP", endpoint: "https://api.pixup.com.br/v2/pix/payment", desc: "Gateway PixUP — envia pagamento PIX via API REST. Aceita CPF/CNPJ/chave aleatória." },
+                  { name: "BSP Pay", endpoint: "https://api.bsppay.com/api/v1/withdraw", desc: "Gateway BSP Pay — processamento de saques via PIX. Suporta chave e valor." },
+                  { name: "Custom API", endpoint: "", desc: "API personalizada — configure manualmente o endpoint, headers e body." },
                 ].map(preset => (
                   <Button key={preset.name} variant="outline" size="sm" className="h-7 text-[10px] border-neon-green/30 text-neon-green hover:bg-neon-green/10"
-                    onClick={() => toast({ title: `Preset ${preset.name} aplicado`, description: `Endpoint: ${preset.endpoint || "configure manualmente"}` })}>
+                    onClick={() => toast({ title: `✅ Preset ${preset.name}`, description: preset.desc })}>
                     {preset.name}
                   </Button>
                 ))}
