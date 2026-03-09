@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Send, Bell, Save, TestTube, RefreshCw, CheckCircle, AlertCircle, Smartphone, Tag, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { usePlatforms, useUpdatePlatform } from "@/hooks/usePlatforms";
 
 const DYNAMIC_KEYS = [
   { key: "{nome_usuario}", desc: "Nome do usuário envolvido no evento" },
@@ -23,54 +23,12 @@ const DYNAMIC_KEYS = [
 ];
 
 const EVENT_DEFS = [
-  {
-    nome: "novo_usuario",
-    label: "Novo Usuário",
-    icon: "🆕",
-    subtitle: "Dispara quando um novo usuário se cadastra em qualquer plataforma monitorada",
-    defaultTg: "🆕 O usuário {nome_usuario} se cadastrou na plataforma {nome_plataforma}.",
-    defaultPc: "Novo cadastro: {nome_usuario} em {nome_plataforma}",
-  },
-  {
-    nome: "deposito",
-    label: "Depósito Recebido",
-    icon: "💰",
-    subtitle: "Dispara quando um depósito é detectado — útil para acompanhar conversão em tempo real",
-    defaultTg: "💰 O usuário {nome_usuario} depositou {valor} na plataforma {nome_plataforma}.",
-    defaultPc: "Depósito: {valor} por {nome_usuario} em {nome_plataforma}",
-  },
-  {
-    nome: "saque",
-    label: "Solicitação de Saque",
-    icon: "💸",
-    subtitle: "Dispara quando um usuário solicita um saque — permite ação rápida de aprovação/rejeição",
-    defaultTg: "💸 Usuário {nome_usuario} solicitou saque de {valor} via Pix {pix} na plataforma {nome_plataforma}.",
-    defaultPc: "Saque: {valor} por {nome_usuario} — Pix: {pix} em {nome_plataforma}",
-  },
-  {
-    nome: "plataforma_offline",
-    label: "Plataforma Offline",
-    icon: "🔴",
-    subtitle: "Dispara quando a API de uma plataforma para de responder ou retorna erro HTTP",
-    defaultTg: "🔴 A plataforma {nome_plataforma} está offline / caiu.",
-    defaultPc: "ALERTA: {nome_plataforma} offline!",
-  },
-  {
-    nome: "erro",
-    label: "Erro / Falha",
-    icon: "⚠️",
-    subtitle: "Dispara em erros de gateway, falha de pagamento, erro de API ou falha de sincronização",
-    defaultTg: "⚠️ Erro detectado na plataforma {nome_plataforma}: falha de integração.",
-    defaultPc: "Erro em {nome_plataforma}: falha detectada",
-  },
-  {
-    nome: "cooperacao",
-    label: "Cooperação / Expiração",
-    icon: "⏳",
-    subtitle: "Dispara quando a contagem de cooperação atinge o limite — ações automáticas em afiliados",
-    defaultTg: "⏳ Cooperação atingiu {quantidade_dias} dias, ações aplicadas aos afiliados da plataforma {nome_plataforma}.",
-    defaultPc: "Cooperação: {quantidade_dias} dias em {nome_plataforma}",
-  },
+  { nome: "novo_usuario", label: "Novo Usuário", icon: "🆕", subtitle: "Dispara quando um novo usuário se cadastra em qualquer plataforma monitorada", defaultTg: "🆕 O usuário {nome_usuario} se cadastrou na plataforma {nome_plataforma}.", defaultPc: "Novo cadastro: {nome_usuario} em {nome_plataforma}" },
+  { nome: "deposito", label: "Depósito Recebido", icon: "💰", subtitle: "Dispara quando um depósito é detectado — útil para acompanhar conversão em tempo real", defaultTg: "💰 O usuário {nome_usuario} depositou {valor} na plataforma {nome_plataforma}.", defaultPc: "Depósito: {valor} por {nome_usuario} em {nome_plataforma}" },
+  { nome: "saque", label: "Solicitação de Saque", icon: "💸", subtitle: "Dispara quando um usuário solicita um saque — permite ação rápida de aprovação/rejeição", defaultTg: "💸 Usuário {nome_usuario} solicitou saque de {valor} via Pix {pix} na plataforma {nome_plataforma}.", defaultPc: "Saque: {valor} por {nome_usuario} — Pix: {pix} em {nome_plataforma}" },
+  { nome: "plataforma_offline", label: "Plataforma Offline", icon: "🔴", subtitle: "Dispara quando a API de uma plataforma para de responder ou retorna erro HTTP", defaultTg: "🔴 A plataforma {nome_plataforma} está offline / caiu.", defaultPc: "ALERTA: {nome_plataforma} offline!" },
+  { nome: "erro", label: "Erro / Falha", icon: "⚠️", subtitle: "Dispara em erros de gateway, falha de pagamento, erro de API ou falha de sincronização", defaultTg: "⚠️ Erro detectado na plataforma {nome_plataforma}: falha de integração.", defaultPc: "Erro em {nome_plataforma}: falha detectada" },
+  { nome: "cooperacao", label: "Cooperação / Expiração", icon: "⏳", subtitle: "Dispara quando a contagem de cooperação atinge o limite — ações automáticas em afiliados", defaultTg: "⏳ Cooperação atingiu {quantidade_dias} dias, ações aplicadas aos afiliados da plataforma {nome_plataforma}.", defaultPc: "Cooperação: {quantidade_dias} dias em {nome_plataforma}" },
 ];
 
 interface EventConfig {
@@ -82,19 +40,15 @@ interface EventConfig {
 }
 
 const resolveMessage = (msg: string) =>
-  msg
-    .replace(/\{nome_usuario\}/g, "João Silva")
-    .replace(/\{valor\}/g, "R$ 500,00")
-    .replace(/\{nome_plataforma\}/g, "BetExample")
-    .replace(/\{quantidade_usuarios\}/g, "15")
-    .replace(/\{nome_cooperacao\}/g, "Cooperação Alpha")
-    .replace(/\{dias\}/g, "7")
-    .replace(/\{pix\}/g, "joao@email.com")
-    .replace(/\{quantidade_dias\}/g, "30");
+  msg.replace(/\{nome_usuario\}/g, "João Silva").replace(/\{valor\}/g, "R$ 500,00").replace(/\{nome_plataforma\}/g, "BetExample")
+    .replace(/\{quantidade_usuarios\}/g, "15").replace(/\{nome_cooperacao\}/g, "Cooperação Alpha").replace(/\{dias\}/g, "7")
+    .replace(/\{pix\}/g, "joao@email.com").replace(/\{quantidade_dias\}/g, "30");
 
 const Integrations = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { data: platforms = [] } = usePlatforms();
+  const updatePlatform = useUpdatePlatform();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -108,30 +62,45 @@ const Integrations = () => {
   const [testingPc, setTestingPc] = useState(false);
   const [testResultPc, setTestResultPc] = useState<"success" | "error" | null>(null);
 
-  // Events
+  // Events (global)
   const [events, setEvents] = useState<EventConfig[]>([]);
   const [testingEvt, setTestingEvt] = useState<{ idx: number; type: "tg" | "pc" } | null>(null);
   const [evtResults, setEvtResults] = useState<Record<string, "success" | "error">>({});
 
+  // Per-platform event toggles: { [platformId]: { [eventName]: { tg: bool, pc: bool } } }
+  const [platEventToggles, setPlatEventToggles] = useState<Record<string, Record<string, { tg: boolean; pc: boolean }>>>({});
+
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      // Load telegram_config (includes pushcut fields now)
       const { data: tg } = await supabase.from("telegram_config").select("*").eq("user_id", user.id).maybeSingle();
       if (tg) {
         setTgConfig({ id: tg.id, bot_token: tg.bot_token ?? "", chat_id: tg.chat_id ?? "", ativo: tg.ativo });
         setPcConfig({ pushcut_url: (tg as any).pushcut_url ?? "", pushcut_ativo: (tg as any).pushcut_ativo ?? false });
       }
 
-      // Load events
       const { data: evts } = await supabase.from("telegram_eventos").select("*").eq("user_id", user.id).order("created_at");
       if (evts && evts.length > 0) {
-        setEvents(evts.map((e: any) => ({
-          id: e.id, nome: e.nome, mensagem: e.mensagem, mensagem_pushcut: e.mensagem_pushcut ?? "", ativo: e.ativo ?? true,
-        })));
+        setEvents(evts.map((e: any) => ({ id: e.id, nome: e.nome, mensagem: e.mensagem, mensagem_pushcut: e.mensagem_pushcut ?? "", ativo: e.ativo ?? true })));
       } else {
         setEvents(EVENT_DEFS.map(d => ({ nome: d.nome, mensagem: d.defaultTg, mensagem_pushcut: d.defaultPc, ativo: true })));
       }
+
+      // Load per-platform toggles from mapeamento_extra
+      const { data: plats } = await (supabase as any).from("plataformas").select("id, mapeamento_extra").eq("user_id", user.id);
+      if (plats) {
+        const toggles: Record<string, Record<string, { tg: boolean; pc: boolean }>> = {};
+        plats.forEach((p: any) => {
+          const extra = p.mapeamento_extra ?? {};
+          const evtToggles = extra.notif_event_toggles ?? {};
+          toggles[p.id] = {};
+          EVENT_DEFS.forEach(d => {
+            toggles[p.id][d.nome] = evtToggles[d.nome] ?? { tg: true, pc: true };
+          });
+        });
+        setPlatEventToggles(toggles);
+      }
+
       setLoading(false);
     };
     load();
@@ -196,6 +165,16 @@ const Integrations = () => {
     setTestingEvt(null);
   };
 
+  const togglePlatEvent = (platformId: string, eventName: string, channel: "tg" | "pc") => {
+    setPlatEventToggles(prev => {
+      const p = { ...(prev[platformId] ?? {}) };
+      const e = { ...(p[eventName] ?? { tg: true, pc: true }) };
+      e[channel] = !e[channel];
+      p[eventName] = e;
+      return { ...prev, [platformId]: p };
+    });
+  };
+
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
@@ -222,6 +201,15 @@ const Integrations = () => {
       }));
       const { error } = await supabase.from("telegram_eventos").insert(rows as any);
       if (error) throw error;
+
+      // Save per-platform event toggles into mapeamento_extra
+      for (const plat of platforms) {
+        const toggles = platEventToggles[plat.id];
+        if (!toggles) continue;
+        const extra = ((plat as any).mapeamento_extra as any) ?? {};
+        const newExtra = { ...extra, notif_event_toggles: toggles };
+        await updatePlatform.mutateAsync({ id: plat.id, mapeamento_extra: newExtra });
+      }
 
       toast({ title: "✅ Notificações salvas!" });
     } catch (err: any) {
@@ -258,7 +246,7 @@ const Integrations = () => {
     <div className="p-4 md:p-6 space-y-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <h1 className="text-xl md:text-2xl font-black text-foreground">Notificações <span className="gradient-text">V7</span></h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Telegram + PushCut — configure conexões, eventos e mensagens personalizadas</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Telegram + PushCut — configure conexões, eventos e ative/desative por plataforma</p>
       </motion.div>
 
       {/* Status bar */}
@@ -299,7 +287,7 @@ const Integrations = () => {
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chat ID</Label>
               <Input value={tgConfig.chat_id} onChange={e => setTgConfig(prev => ({ ...prev, chat_id: e.target.value }))}
                 className="bg-secondary border-border h-9 text-sm font-mono" placeholder="-1001234567890" />
-              <p className="text-[10px] text-muted-foreground">Envie /start ao bot, depois acesse @userinfobot para obter seu Chat ID (grupo ou pessoal)</p>
+              <p className="text-[10px] text-muted-foreground">Envie /start ao bot, depois acesse @userinfobot para obter seu Chat ID</p>
             </div>
             <TestBtn testing={testingTg} result={testResultTg} onClick={handleTestTelegram} label="Testar Telegram" />
           </div>
@@ -326,9 +314,6 @@ const Integrations = () => {
               <p className="text-[10px] text-muted-foreground">App PushCut → Notifications → Criar Notificação → Webhook Trigger → Copiar URL</p>
             </div>
             <TestBtn testing={testingPc} result={testResultPc} onClick={handleTestPushcut} label="Testar PushCut" />
-            <div className="rounded-lg bg-neon-amber/5 border border-neon-amber/20 p-3">
-              <p className="text-[10px] text-neon-amber font-semibold">{"💡 PushCut recebe JSON com { \"title\": \"...\", \"text\": \"...\" }. Cada evento pode ter sua mensagem própria diferente do Telegram."}</p>
-            </div>
           </div>
         </motion.div>
       </div>
@@ -360,7 +345,7 @@ const Integrations = () => {
           <div className="p-2 rounded-lg bg-accent/10"><Bell className="w-4 h-4 text-accent" /></div>
           <div>
             <h3 className="font-bold text-sm text-foreground">Eventos de Notificação</h3>
-            <p className="text-[10px] text-muted-foreground">Configure mensagens separadas para Telegram e PushCut em cada evento</p>
+            <p className="text-[10px] text-muted-foreground">Configure mensagens e ative/desative cada canal por plataforma</p>
           </div>
         </div>
 
@@ -385,6 +370,40 @@ const Integrations = () => {
                   <Switch checked={evt.ativo} onCheckedChange={v => setEvents(prev => prev.map((e, i) => i === idx ? { ...e, ativo: v } : e))} />
                 </div>
               </div>
+
+              {/* Per-platform toggles */}
+              {platforms.length > 0 && evt.ativo && (
+                <div className="rounded-lg border border-border/40 p-3 bg-secondary/30">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Ativar por Plataforma</p>
+                  <div className="space-y-1.5">
+                    {platforms.map(plat => {
+                      const toggles = platEventToggles[plat.id]?.[evt.nome] ?? { tg: true, pc: true };
+                      return (
+                        <div key={plat.id} className="flex items-center gap-3 py-1">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: (plat as any).cor ?? "#888" }} />
+                          <span className="text-xs font-medium text-foreground flex-1 truncate">{plat.nome}</span>
+                          <div className="flex items-center gap-1.5">
+                            <Send className="w-3 h-3 text-primary" />
+                            <Switch
+                              checked={toggles.tg}
+                              onCheckedChange={() => togglePlatEvent(plat.id, evt.nome, "tg")}
+                              className="scale-75"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Smartphone className="w-3 h-3 text-neon-amber" />
+                            <Switch
+                              checked={toggles.pc}
+                              onCheckedChange={() => togglePlatEvent(plat.id, evt.nome, "pc")}
+                              className="scale-75"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Telegram + PushCut side by side */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
