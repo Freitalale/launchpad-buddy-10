@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MoreVertical, Settings, Wrench, Trash2 } from "lucide-react";
+import { MoreVertical, Settings, Wrench, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
