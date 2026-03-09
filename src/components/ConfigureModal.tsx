@@ -1012,25 +1012,83 @@ async function testAll(){
   const handleTestStructure = async () => {
     setTestingStructure(true); setStructureResult([]);
     const results: string[] = [];
-    const apiUrl = form.url ? `${form.url.replace(/\/$/, "")}/api.php` : null;
-    if (!apiUrl) { results.push("❌ URL não configurada"); setStructureResult(results); setTestingStructure(false); return; }
-    for (const m of TABLE_META) {
-      if (disabledTables.includes(m.key)) { results.push(`⏭️ ${m.label} — Desativada`); continue; }
-      const action = m.key === "saldo" || m.key === "afiliados" ? "stats" : m.key;
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch(`${apiUrl}?action=${action}`, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (res.ok) {
-          const json = await res.json().catch(() => null);
-          results.push(json?.error ? `❌ ${m.label} (${(form as any)[m.tableField]}) — ${json.error}` : `✅ ${m.label} (${(form as any)[m.tableField]}) — OK`);
-        } else results.push(`❌ ${m.label} — HTTP ${res.status}`);
-      } catch (e: any) { results.push(`❌ ${m.label} — ${e.name === "AbortError" ? "Timeout" : e.message}`); }
+    const rawUrl = form.url ? form.url.replace(/\/$/, "") : null;
+    if (!rawUrl) { results.push("❌ URL não configurada"); setStructureResult(results); setTestingStructure(false); return; }
+    const apiUrl = rawUrl.endsWith("api.php") ? rawUrl : `${rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`}/api.php`;
+
+    // Use diagnostico endpoint (V7) — checks ALL tables/columns in one request
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(`${apiUrl}?action=diagnostico`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      if (json.ok && json.diagnostico?.mapping) {
+        results.push(`🔧 API v${json.version ?? "?"} — Fonte do mapeamento: ${json.diagnostico.mapping_source ?? "inline"}`);
+        for (const m of TABLE_META) {
+          if (disabledTables.includes(m.key)) { results.push(`⏭️ ${m.label} — Desativada`); continue; }
+          const info = json.diagnostico.mapping[m.key];
+          if (!info) { results.push(`⚠️ ${m.label} — Não verificado pelo diagnóstico`); continue; }
+          if (!info.exists) {
+            results.push(`❌ ${m.label} — Tabela "${info.table}" NÃO EXISTE no banco. Verifique o nome na aba Mapeamento.`);
+            continue;
+          }
+          const missing = info.missing_columns ?? [];
+          if (missing.length > 0) {
+            results.push(`⚠️ ${m.label} (${info.table}) — ${info.count} registros, mas colunas faltando: ${missing.join(", ")}. Corrija no Mapeamento.`);
+          } else {
+            results.push(`✅ ${m.label} (${info.table}) — ${info.count} registros, todas as colunas OK`);
+          }
+          // Show column check details
+          if (info.column_checks) {
+            for (const [col, exists] of Object.entries(info.column_checks)) {
+              if (!exists) results.push(`   └ ❌ Coluna "${col}" não encontrada em "${info.table}"`);
+            }
+          }
+        }
+        // Saldo debug
+        if (json.diagnostico.saldo_debug) {
+          const sd = json.diagnostico.saldo_debug;
+          if (sd.column_exists) {
+            results.push(`💰 Saldo: R$ ${sd.total?.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (coluna "${sd.column}" em "${sd.table}")`);
+            if (sd.possible_balance_columns?.length > 1) {
+              results.push(`   💡 Outras colunas de saldo possíveis: ${sd.possible_balance_columns.join(", ")}`);
+            }
+          } else {
+            results.push(`❌ Saldo: Coluna "${sd.column}" NÃO existe em "${sd.table}". Colunas possíveis: ${sd.possible_balance_columns?.join(", ") || "nenhuma"}`);
+          }
+        }
+      } else if (json.error) {
+        // API returned error — maybe old version without diagnostico
+        results.push(`❌ Diagnóstico falhou: ${json.error}`);
+        if (json.error.includes("não reconhecida")) {
+          results.push(`⚠️ Sua API está desatualizada! Baixe a nova v7.0 na aba "Gerar" e suba na hospedagem.`);
+          results.push(`💡 A API v7.0 inclui: diagnostico, users, error_log, get_status_map e mais.`);
+        }
+        // Fallback: test individual endpoints
+        results.push(`\n🔄 Tentando teste individual...`);
+        for (const m of TABLE_META) {
+          if (disabledTables.includes(m.key)) { results.push(`⏭️ ${m.label} — Desativada`); continue; }
+          const action = m.key === "saldo" || m.key === "afiliados" ? "stats" : m.key === "usuarios" ? "users" : m.key;
+          try {
+            const r2 = await fetch(`${apiUrl}?action=${action}`, { signal: AbortSignal.timeout(5000) });
+            const j2 = await r2.json().catch(() => null);
+            results.push(j2?.error ? `❌ ${m.label} — ${j2.error}` : `✅ ${m.label} — OK`);
+          } catch (e2: any) {
+            results.push(`❌ ${m.label} — ${e2.name === "AbortError" || e2.name === "TimeoutError" ? "Timeout" : e2.message}`);
+          }
+        }
+      }
+    } catch (e: any) {
+      results.push(`❌ Erro de conexão: ${e.name === "AbortError" ? "Timeout (10s)" : e.message}`);
+      results.push(`💡 Verifique: 1) URL correta? 2) api.php existe? 3) Servidor online? 4) CORS habilitado?`);
     }
+
     setStructureResult(results);
     setTestingStructure(false);
-    toast({ title: "Teste concluído" });
+    toast({ title: "Teste concluído", description: `${results.filter(r => r.startsWith("✅")).length} OK, ${results.filter(r => r.startsWith("❌")).length} erros` });
   };
 
   const handleTestMappingEndpoint = async () => {
