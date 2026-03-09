@@ -1708,12 +1708,12 @@ async function testAll(){
 
             {TABLE_META.map(meta => renderTableSection(meta))}
 
-            {/* Universal Status Mapping v6.0 */}
+            {/* Universal Status Mapping v7.0 */}
             <div className="rounded-lg border border-accent/40 bg-accent/5 p-3 space-y-3">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-accent" />
                 <div>
-                  <p className="text-xs font-bold text-foreground">🔄 Mapeamento Universal de Status (v6.0)</p>
+                  <p className="text-xs font-bold text-foreground">🔄 Mapeamento Universal de Status (v7.0)</p>
                   <p className="text-[9px] text-muted-foreground">Defina os valores de status que a plataforma usa. Ex: "approved", "1", "paid", "completed".</p>
                 </div>
               </div>
