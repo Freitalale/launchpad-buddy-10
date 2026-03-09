@@ -114,6 +114,11 @@ const PlatformCard = ({ platform: p, index, onConfigure, onManage, onRemove, onE
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-card border-border">
+              {onEdit && (
+                <DropdownMenuItem onClick={() => onEdit(p)} className="text-sm gap-2 cursor-pointer">
+                  <Pencil className="w-3.5 h-3.5" /> Editar
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => onConfigure(p)} className="text-sm gap-2 cursor-pointer">
                 <Settings className="w-3.5 h-3.5" /> Configurar
               </DropdownMenuItem>
