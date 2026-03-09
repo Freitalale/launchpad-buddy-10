@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Server, ScrollText, Settings, LogOut, Zap, ChevronRight, Globe,
   Menu, X, PanelLeftClose, PanelLeft, Bell, Activity, DollarSign, ArrowUpRight,
-  Headphones, BookOpen
+  Headphones, BookOpen, Users, ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
