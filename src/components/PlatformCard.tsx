@@ -35,7 +35,7 @@ interface PlatformCardProps {
   onEdit?: (p: Plataforma) => void;
 }
 
-const PlatformCard = ({ platform: p, index, onConfigure, onManage, onRemove }: PlatformCardProps) => {
+const PlatformCard = ({ platform: p, index, onConfigure, onManage, onRemove, onEdit }: PlatformCardProps) => {
   const color = p.cor ?? "#00c4ff";
   const updatePlatform = useUpdatePlatform();
   const createLog = useCreateLog();
