@@ -197,6 +197,13 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
         saques: { approve: "approved", reject: "rejected", pending: "pending" },
         depositos: { approve: "approved", reject: "rejected", pending: "pending" },
       });
+      setPlatNotif({
+        telegram_ativo: extra.notif_telegram_ativo ?? false,
+        telegram_bot_token: extra.notif_telegram_bot_token ?? "",
+        telegram_chat_id: extra.notif_telegram_chat_id ?? "",
+        pushcut_ativo: extra.notif_pushcut_ativo ?? false,
+        pushcut_url: extra.notif_pushcut_url ?? "",
+      });
     }
   }, [platform]);
 
