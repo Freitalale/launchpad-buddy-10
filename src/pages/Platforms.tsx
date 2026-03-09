@@ -135,7 +135,7 @@ const Platforms = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((p, i) => (
             <PlatformCard key={p.id} platform={p} index={i}
-              onConfigure={setConfiguring} onManage={setManaging} onRemove={handleRemove} />
+              onConfigure={setConfiguring} onManage={setManaging} onRemove={handleRemove} onEdit={setEditing} />
           ))}
         </div>
       )}
