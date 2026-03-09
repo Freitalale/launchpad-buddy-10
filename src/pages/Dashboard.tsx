@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Users, TrendingUp, Wifi, Server, Handshake, DollarSign, HeartCrack, Filter,
-  ArrowUpRight, Headphones, Calendar, RefreshCw, AlertTriangle, Clock, Database, Zap
+  ArrowUpRight, Headphones, Calendar, RefreshCw, AlertTriangle, Clock, Database, Zap,
+  CheckCircle, XCircle, ClockIcon, Ban
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -82,7 +83,13 @@ const Dashboard = () => {
   });
 
   const totalDepositos = filteredDepositos.reduce((s, d) => s + Number(d.valor), 0);
-  const totalSaques = filteredSaques.filter(s => s.status === "aprovado").reduce((s, d) => s + Number(d.valor), 0);
+  const saquesAprovados = filteredSaques.filter(s => s.status === "aprovado");
+  const saquesPendentes = filteredSaques.filter(s => s.status === "pendente");
+  const saquesRejeitados = filteredSaques.filter(s => s.status === "rejeitado");
+  const totalSaquesAprovados = saquesAprovados.reduce((s, d) => s + Number(d.valor), 0);
+  const totalSaquesPendentes = saquesPendentes.reduce((s, d) => s + Number(d.valor), 0);
+  const totalSaquesRejeitados = saquesRejeitados.reduce((s, d) => s + Number(d.valor), 0);
+  const totalSaquesGeral = filteredSaques.reduce((s, d) => s + Number(d.valor), 0);
 
   // Consolidated stats from all platforms
   const onlinePlatforms = platforms.filter(p => p.status === "online").length;
@@ -237,9 +244,16 @@ const Dashboard = () => {
       {/* Financial Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <StatsCard title="Depósitos" value={formatBalance(totalDepositos)} subtitle={`${filteredDepositos.length} no período`} icon={DollarSign} color="green" delay={0.2} />
-        <StatsCard title="Saques" value={formatBalance(totalSaques)} subtitle={`${filteredSaques.length} no período`} icon={ArrowUpRight} color="amber" delay={0.25} />
+        <StatsCard title="Saques (Total)" value={formatBalance(totalSaquesGeral)} subtitle={`${filteredSaques.length} no período`} icon={ArrowUpRight} color="amber" delay={0.25} />
         <StatsCard title="SACs Pendentes" value={filteredSacs.filter(s => s.status === "pendente").length} subtitle={`${filteredSacs.length} total`} icon={Headphones} color="purple" delay={0.3} />
         <StatsCard title="APIs Online" value={onlinePlatforms} subtitle={`${errorPlatforms} com erro`} icon={Wifi} color="blue" delay={0.35} />
+      </div>
+
+      {/* Saques por Status */}
+      <div className="grid grid-cols-3 gap-3 md:gap-4">
+        <StatsCard title="Saques Aprovados" value={formatBalance(totalSaquesAprovados)} subtitle={`${saquesAprovados.length} aprovados`} icon={CheckCircle} color="green" delay={0.4} />
+        <StatsCard title="Saques Pendentes" value={formatBalance(totalSaquesPendentes)} subtitle={`${saquesPendentes.length} aguardando`} icon={Clock} color="amber" delay={0.45} />
+        <StatsCard title="Saques Rejeitados" value={formatBalance(totalSaquesRejeitados)} subtitle={`${saquesRejeitados.length} rejeitados`} icon={Ban} color="red" delay={0.5} />
       </div>
 
       {/* Charts */}

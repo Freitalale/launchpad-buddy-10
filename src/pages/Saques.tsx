@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Search, Filter, CheckCircle, XCircle, TrendingDown } from "lucide-react";
+import { ArrowUpRight, Search, Filter, CheckCircle, XCircle, TrendingDown, Clock, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -73,8 +73,13 @@ const Saques = () => {
     setActionLoading(null);
   };
 
-  const totalValor = filtered.filter(s => s.status !== "rejeitado").reduce((s, d) => s + Number(d.valor), 0);
-  const pendentes = filtered.filter(s => s.status === "pendente").length;
+  const totalValor = filtered.reduce((s, d) => s + Number(d.valor), 0);
+  const aprovados = filtered.filter(s => s.status === "aprovado");
+  const pendentes = filtered.filter(s => s.status === "pendente");
+  const rejeitados = filtered.filter(s => s.status === "rejeitado");
+  const totalAprovados = aprovados.reduce((s, d) => s + Number(d.valor), 0);
+  const totalPendentes = pendentes.reduce((s, d) => s + Number(d.valor), 0);
+  const totalRejeitados = rejeitados.reduce((s, d) => s + Number(d.valor), 0);
   const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
   if (isLoading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /></div>;
@@ -87,24 +92,42 @@ const Saques = () => {
       </motion.div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="rounded-xl border border-border/60 p-4" style={{ background: "hsl(var(--card))" }}>
           <div className="flex items-center gap-2 mb-1">
             <TrendingDown className="w-4 h-4 text-neon-amber" />
-            <span className="text-xs text-muted-foreground font-semibold uppercase">Total Saques</span>
+            <span className="text-xs text-muted-foreground font-semibold uppercase">Total Geral</span>
           </div>
           <p className="text-lg font-black text-neon-amber">{formatCurrency(totalValor)}</p>
           <p className="text-[10px] text-muted-foreground">{filtered.length} saques</p>
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="rounded-xl border border-border/60 p-4" style={{ background: "hsl(var(--card))" }}>
+          className="rounded-xl border border-neon-green/20 p-4" style={{ background: "hsl(var(--card))" }}>
           <div className="flex items-center gap-2 mb-1">
-            <ArrowUpRight className="w-4 h-4 text-neon-red" />
+            <CheckCircle className="w-4 h-4 text-neon-green" />
+            <span className="text-xs text-muted-foreground font-semibold uppercase">Aprovados</span>
+          </div>
+          <p className="text-lg font-black text-neon-green">{formatCurrency(totalAprovados)}</p>
+          <p className="text-[10px] text-muted-foreground">{aprovados.length} aprovados</p>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          className="rounded-xl border border-neon-amber/20 p-4" style={{ background: "hsl(var(--card))" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="w-4 h-4 text-neon-amber" />
             <span className="text-xs text-muted-foreground font-semibold uppercase">Pendentes</span>
           </div>
-          <p className="text-lg font-black text-neon-red">{pendentes}</p>
-          <p className="text-[10px] text-muted-foreground">Aguardando aprovação</p>
+          <p className="text-lg font-black text-neon-amber">{formatCurrency(totalPendentes)}</p>
+          <p className="text-[10px] text-muted-foreground">{pendentes.length} aguardando</p>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+          className="rounded-xl border border-neon-red/20 p-4" style={{ background: "hsl(var(--card))" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Ban className="w-4 h-4 text-neon-red" />
+            <span className="text-xs text-muted-foreground font-semibold uppercase">Rejeitados</span>
+          </div>
+          <p className="text-lg font-black text-neon-red">{formatCurrency(totalRejeitados)}</p>
+          <p className="text-[10px] text-muted-foreground">{rejeitados.length} rejeitados</p>
         </motion.div>
       </div>
 
