@@ -86,7 +86,20 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
   const syncSaquesToSupabase = async (platform: Plataforma, saques: ApiSaque[], userId: string) => {
     if (!saques.length) return 0;
     let synced = 0;
-    const batch = saques.slice(0, 500).map(saq => ({
+
+    // Deduplicate by original_id — keep only the latest entry per ID
+    const byOriginalId = new Map<string, typeof saques[0]>();
+    for (const saq of saques) {
+      const key = saq.id ? String(saq.id) : `${saq.nome_usuario}_${saq.valor}_${saq.created_at}`;
+      const existing = byOriginalId.get(key);
+      if (!existing || new Date(saq.created_at) > new Date(existing.created_at)) {
+        byOriginalId.set(key, saq);
+      }
+    }
+    const dedupedSaques = Array.from(byOriginalId.values());
+    console.log(`[AutoSync] ${platform.nome}: ${saques.length} saques brutos → ${dedupedSaques.length} após deduplicação`);
+
+    const batch = dedupedSaques.slice(0, 500).map(saq => ({
       user_id: userId,
       plataforma_id: platform.id,
       plataforma_nome: platform.nome,
