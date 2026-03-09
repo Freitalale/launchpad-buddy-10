@@ -41,23 +41,21 @@ const Saques = () => {
       await updateSaque.mutateAsync({ id: saque.id, status });
 
       // 2. Also update the remote platform DB via PHP API
-      if (saque.plataforma_id && saque.original_id) {
+      if (saque.plataforma_id) {
         const platform = platforms.find(p => p.id === saque.plataforma_id);
         if (platform) {
-          const remoteId = Number(saque.original_id) || 0;
-          if (remoteId > 0) {
-            const success = status === "aprovado"
-              ? await api.aprovarSaque(platform, remoteId)
-              : await api.rejeitarSaque(platform, remoteId);
-            if (!success) {
-              toast({
-                title: "⚠️ Aviso",
-                description: "Status atualizado localmente, mas falhou ao atualizar no banco remoto da plataforma.",
-                variant: "destructive",
-              });
-              setActionLoading(null);
-              return;
-            }
+          const remoteId = saque.original_id || saque.id;
+          const success = status === "aprovado"
+            ? await api.aprovarSaque(platform, remoteId)
+            : await api.rejeitarSaque(platform, remoteId);
+          if (!success) {
+            toast({
+              title: "⚠️ Aviso",
+              description: "Status atualizado localmente, mas falhou ao atualizar no banco remoto da plataforma.",
+              variant: "destructive",
+            });
+            setActionLoading(null);
+            return;
           }
         }
       }

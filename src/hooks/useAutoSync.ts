@@ -103,7 +103,7 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
       try {
         const { error } = await supabase.from("saques").upsert(chunk, {
           onConflict: "user_id,plataforma_id,nome_usuario,valor,created_at",
-          ignoreDuplicates: true,
+          ignoreDuplicates: false,
         });
         if (error) {
           console.error(`[AutoSync] Erro saques chunk ${i}:`, error.message);
