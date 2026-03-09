@@ -14,7 +14,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { adapterRegistry, classifyWithdrawError, ERROR_LABELS } from "@/lib/platform-adapter";
 import { format } from "date-fns";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const statusColors: Record<string, string> = {
   pendente: "bg-neon-amber/10 text-neon-amber border-neon-amber/20",
