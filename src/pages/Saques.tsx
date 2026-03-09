@@ -221,6 +221,39 @@ const Saques = () => {
         </Select>
       </div>
 
+      {/* Platform Ranking */}
+      {(() => {
+        const byPlat: Record<string, { name: string; total: number; count: number; approved: number; pending: number }> = {};
+        filtered.forEach(s => {
+          const pid = s.plataforma_id ?? "unknown";
+          if (!byPlat[pid]) byPlat[pid] = { name: s.plataforma_nome ?? "Desconhecida", total: 0, count: 0, approved: 0, pending: 0 };
+          byPlat[pid].total += Number(s.valor);
+          byPlat[pid].count++;
+          if (s.status === "aprovado") byPlat[pid].approved += Number(s.valor);
+          if (s.status === "pendente") byPlat[pid].pending += Number(s.valor);
+        });
+        const ranked = Object.values(byPlat).sort((a, b) => b.total - a.total);
+        if (ranked.length <= 1) return null;
+        return (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+            className="rounded-xl border border-border/60 p-4" style={{ background: "hsl(var(--card))" }}>
+            <h3 className="font-bold text-sm text-foreground mb-2">🏆 Ranking de Saques por Plataforma</h3>
+            <div className="space-y-1.5">
+              {ranked.slice(0, 5).map((p, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold w-4">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i+1}.`}</span>
+                  <span className="text-xs font-medium text-foreground flex-1 truncate">{p.name}</span>
+                  <span className="text-[10px] text-neon-green">{formatCurrency(p.approved)} aprovado</span>
+                  <span className="text-[10px] text-neon-amber">{formatCurrency(p.pending)} pendente</span>
+                  <span className="text-xs font-bold text-foreground">{formatCurrency(p.total)}</span>
+                  <span className="text-[10px] text-muted-foreground">{p.count}x</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        );
+      })()}
+
       {/* List */}
       <div className="rounded-xl border border-border/60 overflow-hidden" style={{ background: "hsl(var(--card))" }}>
         <div className="p-4 border-b border-border/50 flex items-center justify-between">
@@ -237,43 +270,60 @@ const Saques = () => {
           <div className="text-center py-12 text-muted-foreground text-sm">Nenhum saque encontrado</div>
         ) : (
           <div className="divide-y divide-border/30 max-h-[600px] overflow-y-auto">
-            {filtered.map((s, i) => (
-              <motion.div key={s.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(i * 0.02, 0.5) }}
-                className="flex items-center gap-4 px-4 py-3 hover:bg-secondary/30 transition-colors">
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-neon-amber/10 flex-shrink-0">
-                  <ArrowUpRight className="w-4 h-4 text-neon-amber" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-foreground">{s.nome_usuario}</p>
-                  <p className="text-[10px] text-muted-foreground">{s.plataforma_nome ?? "—"} · Pix: {s.pix ?? "—"}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-neon-amber">{formatCurrency(Number(s.valor))}</p>
-                  <p className="text-[10px] text-muted-foreground">{format(new Date(s.created_at), "dd/MM/yyyy HH:mm")}</p>
-                </div>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${statusColors[s.status] ?? ""}`}>
-                  {s.status}
-                </span>
-                {s.status === "pendente" && (
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon"
-                      className="w-7 h-7 text-neon-green hover:bg-neon-green/10"
-                      onClick={() => handleAction(s, "aprovado")}
-                      disabled={actionLoading === s.id}
-                      title="Aprovar & Executar">
-                      {actionLoading === s.id ? <Zap className="w-4 h-4 animate-pulse" /> : <CheckCircle className="w-4 h-4" />}
-                    </Button>
-                    <Button variant="ghost" size="icon"
-                      className="w-7 h-7 text-neon-red hover:bg-neon-red/10"
-                      onClick={() => handleAction(s, "rejeitado")}
-                      disabled={actionLoading === s.id}
-                      title="Rejeitar">
-                      <XCircle className="w-4 h-4" />
-                    </Button>
+            {filtered.map((s, i) => {
+              const plat = platforms.find(p => p.id === s.plataforma_id);
+              const hasGateway = !!((plat?.mapeamento_extra as any)?.gateway?.type);
+              return (
+                <motion.div key={s.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(i * 0.02, 0.5) }}
+                  className="flex items-center gap-4 px-4 py-3 hover:bg-secondary/30 transition-colors">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-neon-amber/10 flex-shrink-0">
+                    <ArrowUpRight className="w-4 h-4 text-neon-amber" />
                   </div>
-                )}
-              </motion.div>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground">{s.nome_usuario}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {s.plataforma_nome ?? "—"} · PIX: {s.pix ?? "—"}
+                      {hasGateway && <span className="ml-1 text-neon-green">⚡ Gateway</span>}
+                    </p>
+                    {s.detalhes && <p className="text-[9px] text-destructive mt-0.5">{s.detalhes}</p>}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-neon-amber">{formatCurrency(Number(s.valor))}</p>
+                    <p className="text-[10px] text-muted-foreground">{format(new Date(s.created_at), "dd/MM/yyyy HH:mm")}</p>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${statusColors[s.status] ?? ""}`}>
+                    {s.status}
+                  </span>
+                  {s.status === "pendente" && (
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon"
+                        className="w-7 h-7 text-neon-green hover:bg-neon-green/10"
+                        onClick={() => handleAction(s, "aprovado")}
+                        disabled={actionLoading === s.id}
+                        title="Aprovar & Executar via Gateway">
+                        {actionLoading === s.id ? <Zap className="w-4 h-4 animate-pulse" /> : <CheckCircle className="w-4 h-4" />}
+                      </Button>
+                      <Button variant="ghost" size="icon"
+                        className="w-7 h-7 text-neon-red hover:bg-neon-red/10"
+                        onClick={() => handleAction(s, "rejeitado")}
+                        disabled={actionLoading === s.id}
+                        title="Rejeitar">
+                        <XCircle className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+                  {s.status === "rejeitado" && (
+                    <Button variant="ghost" size="icon"
+                      className="w-7 h-7 text-neon-amber hover:bg-neon-amber/10"
+                      onClick={() => handleAction(s, "pendente")}
+                      disabled={actionLoading === s.id}
+                      title="Revalidar — voltar para pendente">
+                      <AlertTriangle className="w-4 h-4" />
+                    </Button>
+                  )}
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>

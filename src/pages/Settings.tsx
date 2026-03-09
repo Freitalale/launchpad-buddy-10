@@ -109,7 +109,7 @@ const Settings = () => {
             <div className="p-2 rounded-lg bg-neon-amber/10"><Bell className="w-4 h-4 text-neon-amber" /></div>
             <div>
               <h3 className="font-bold text-sm text-foreground">Webhooks Globais</h3>
-              <p className="text-xs text-muted-foreground">Notificações para todas as plataformas</p>
+              <p className="text-xs text-muted-foreground">Notificações para todas as plataformas (Telegram + PushCut)</p>
             </div>
           </div>
           <div className="space-y-3">
@@ -117,6 +117,12 @@ const Settings = () => {
               <Label className="text-xs text-muted-foreground">Webhook Telegram</Label>
               <Input value={form.webhook_telegram_global} onChange={e => setForm(prev => ({ ...prev, webhook_telegram_global: e.target.value }))}
                 className="bg-secondary border-border h-9 text-sm" placeholder="https://api.telegram.org/bot..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Webhook PushCut</Label>
+              <Input value={(form as any).webhook_pushcut_global ?? ""} onChange={e => setForm(prev => ({ ...prev, webhook_pushcut_global: e.target.value } as any))}
+                className="bg-secondary border-border h-9 text-sm" placeholder="https://api.pushcut.io/..." />
+              <p className="text-[10px] text-muted-foreground">Recebe notificações idênticas ao Telegram via PushCut (iOS/Mac)</p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Webhook Discord / Slack / Outro</Label>
