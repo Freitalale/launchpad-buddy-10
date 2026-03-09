@@ -304,7 +304,7 @@ export const usePlatformApi = () => {
     }
   }, []);
 
-  const aprovarSaque = async (platform: Plataforma, saqueId: number): Promise<boolean> => {
+  const aprovarSaque = async (platform: Plataforma, saqueId: number | string): Promise<boolean> => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return false;
     try {
@@ -312,6 +312,9 @@ export const usePlatformApi = () => {
       formData.append("id", String(saqueId));
       const res = await fetchWithRetry(`${apiUrl}?action=aprovar_saque`, { method: "POST", body: formData });
       const data = await res.json();
+      if (data.affected === 0) {
+        console.warn(`[aprovarSaque] Nenhuma linha afetada para ID ${saqueId}`);
+      }
       return !!data.ok;
     } catch (e: any) {
       toast({ title: "Erro ao aprovar saque", description: e.message, variant: "destructive" });
@@ -319,7 +322,7 @@ export const usePlatformApi = () => {
     }
   };
 
-  const rejeitarSaque = async (platform: Plataforma, saqueId: number): Promise<boolean> => {
+  const rejeitarSaque = async (platform: Plataforma, saqueId: number | string): Promise<boolean> => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return false;
     try {
@@ -327,6 +330,9 @@ export const usePlatformApi = () => {
       formData.append("id", String(saqueId));
       const res = await fetchWithRetry(`${apiUrl}?action=rejeitar_saque`, { method: "POST", body: formData });
       const data = await res.json();
+      if (data.affected === 0) {
+        console.warn(`[rejeitarSaque] Nenhuma linha afetada para ID ${saqueId}`);
+      }
       return !!data.ok;
     } catch (e: any) {
       toast({ title: "Erro ao rejeitar saque", description: e.message, variant: "destructive" });

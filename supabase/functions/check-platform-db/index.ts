@@ -110,15 +110,15 @@ if ($action === "saques") {
 }
 
 if ($action === "aprovar_saque") {
-    $id = intval($_POST["id"]);
-    $conn->query("UPDATE ${m.tabela_saques} SET ${m.coluna_status}='aprovado' WHERE id=$id");
-    echo json_encode(["ok" => true]);
+    $id = $conn->real_escape_string($_POST["id"] ?? "");
+    $conn->query("UPDATE ${m.tabela_saques} SET ${m.coluna_status}='approved' WHERE ${m.coluna_id_usuario}='$id'");
+    echo json_encode(["ok" => true, "affected" => $conn->affected_rows]);
 }
 
 if ($action === "rejeitar_saque") {
-    $id = intval($_POST["id"]);
-    $conn->query("UPDATE ${m.tabela_saques} SET ${m.coluna_status}='rejeitado' WHERE id=$id");
-    echo json_encode(["ok" => true]);
+    $id = $conn->real_escape_string($_POST["id"] ?? "");
+    $conn->query("UPDATE ${m.tabela_saques} SET ${m.coluna_status}='rejected' WHERE ${m.coluna_id_usuario}='$id'");
+    echo json_encode(["ok" => true, "affected" => $conn->affected_rows]);
 }
 
 if ($action === "remover_afiliados") {
