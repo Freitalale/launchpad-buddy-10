@@ -131,6 +131,10 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     saques: { approve: "approved", reject: "rejected", pending: "pending" },
     depositos: { approve: "approved", reject: "rejected", pending: "pending" },
   });
+  const [platNotif, setPlatNotif] = useState({
+    telegram_ativo: false, telegram_bot_token: "", telegram_chat_id: "",
+    pushcut_ativo: false, pushcut_url: "",
+  });
 
   const [form, setForm] = useState({
     url: "", db_host: "", db_port: 3306, db_user: "", db_pass: "", db_name: "",
@@ -192,6 +196,13 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
       setStatusMaps(extra.status_maps ?? {
         saques: { approve: "approved", reject: "rejected", pending: "pending" },
         depositos: { approve: "approved", reject: "rejected", pending: "pending" },
+      });
+      setPlatNotif({
+        telegram_ativo: extra.notif_telegram_ativo ?? false,
+        telegram_bot_token: extra.notif_telegram_bot_token ?? "",
+        telegram_chat_id: extra.notif_telegram_chat_id ?? "",
+        pushcut_ativo: extra.notif_pushcut_ativo ?? false,
+        pushcut_url: extra.notif_pushcut_url ?? "",
       });
     }
   }, [platform]);
@@ -329,6 +340,11 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     colunas_extra: extraColumns, tabelas_extra: extraTables,
     colunas_ocultas: hiddenColumns, tabelas_desativadas: disabledTables,
     status_maps: statusMaps,
+    notif_telegram_ativo: platNotif.telegram_ativo,
+    notif_telegram_bot_token: platNotif.telegram_bot_token,
+    notif_telegram_chat_id: platNotif.telegram_chat_id,
+    notif_pushcut_ativo: platNotif.pushcut_ativo,
+    notif_pushcut_url: platNotif.pushcut_url,
   });
 
   const generateConfigPhp = () => {
@@ -1215,14 +1231,15 @@ async function testAll(){
         </div>
 
         <Tabs defaultValue="api" className="w-full">
-          <TabsList className="grid grid-cols-8 w-full">
+          <TabsList className="grid grid-cols-9 w-full">
             <TabsTrigger value="api" className="text-xs gap-1"><Globe className="w-3 h-3" /> API</TabsTrigger>
             <TabsTrigger value="database" className="text-xs gap-1"><Database className="w-3 h-3" /> Banco</TabsTrigger>
             <TabsTrigger value="scanner" className="text-xs gap-1"><Search className="w-3 h-3" /> Scanner</TabsTrigger>
             <TabsTrigger value="mapping" className="text-xs gap-1"><TableProperties className="w-3 h-3" /> Mapeamento</TabsTrigger>
             <TabsTrigger value="gateway" className="text-xs gap-1"><Zap className="w-3 h-3" /> Gateway</TabsTrigger>
             <TabsTrigger value="generate" className="text-xs gap-1"><Code className="w-3 h-3" /> Gerar</TabsTrigger>
-            <TabsTrigger value="webhooks" className="text-xs gap-1"><Wifi className="w-3 h-3" /> Webhooks</TabsTrigger>
+            <TabsTrigger value="notificacoes" className="text-xs gap-1"><Wifi className="w-3 h-3" /> Notif.</TabsTrigger>
+            <TabsTrigger value="webhooks" className="text-xs gap-1"><Key className="w-3 h-3" /> Webhooks</TabsTrigger>
             <TabsTrigger value="cooperation" className="text-xs gap-1"><Server className="w-3 h-3" /> Coop</TabsTrigger>
           </TabsList>
 
@@ -1956,7 +1973,86 @@ async function testAll(){
             </div>
           </TabsContent>
 
-          {/* Webhooks Tab */}
+          {/* Notificações per-platform Tab */}
+          <TabsContent value="notificacoes" className="space-y-4 mt-4">
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+              <p className="text-[10px] text-muted-foreground">
+                Configure Telegram e PushCut <strong>exclusivos desta plataforma</strong>. Cada plataforma pode ter seu próprio bot, chat e webhook — independente da configuração global.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Telegram per-platform */}
+              <div className="rounded-lg border border-primary/20 p-4 space-y-3 bg-primary/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wifi className="w-4 h-4 text-primary" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground">Telegram</p>
+                      <p className="text-[10px] text-muted-foreground">Bot exclusivo para {platform.nome}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-semibold ${platNotif.telegram_ativo ? "text-neon-green" : "text-muted-foreground"}`}>
+                      {platNotif.telegram_ativo ? "Ativo" : "Inativo"}
+                    </span>
+                    <input type="checkbox" checked={platNotif.telegram_ativo}
+                      onChange={e => setPlatNotif(p => ({ ...p, telegram_ativo: e.target.checked }))}
+                      className="w-4 h-4 rounded accent-primary" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground">Bot Token</Label>
+                  <Input value={platNotif.telegram_bot_token}
+                    onChange={e => setPlatNotif(p => ({ ...p, telegram_bot_token: e.target.value }))}
+                    className="bg-secondary h-8 text-[11px] font-mono" placeholder="123456:ABC-DEF..." />
+                  <p className="text-[9px] text-muted-foreground">Crie um bot via @BotFather → copie o token</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground">Chat ID</Label>
+                  <Input value={platNotif.telegram_chat_id}
+                    onChange={e => setPlatNotif(p => ({ ...p, telegram_chat_id: e.target.value }))}
+                    className="bg-secondary h-8 text-[11px] font-mono" placeholder="-1001234567890" />
+                  <p className="text-[9px] text-muted-foreground">Use @userinfobot para obter o Chat ID</p>
+                </div>
+              </div>
+
+              {/* PushCut per-platform */}
+              <div className="rounded-lg border border-neon-amber/20 p-4 space-y-3 bg-neon-amber/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-neon-amber" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground">PushCut</p>
+                      <p className="text-[10px] text-muted-foreground">Webhook exclusivo para {platform.nome}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-semibold ${platNotif.pushcut_ativo ? "text-neon-green" : "text-muted-foreground"}`}>
+                      {platNotif.pushcut_ativo ? "Ativo" : "Inativo"}
+                    </span>
+                    <input type="checkbox" checked={platNotif.pushcut_ativo}
+                      onChange={e => setPlatNotif(p => ({ ...p, pushcut_ativo: e.target.checked }))}
+                      className="w-4 h-4 rounded accent-neon-amber" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground">Webhook URL</Label>
+                  <Input value={platNotif.pushcut_url}
+                    onChange={e => setPlatNotif(p => ({ ...p, pushcut_url: e.target.value }))}
+                    className="bg-secondary h-8 text-[11px] font-mono" placeholder="https://api.pushcut.io/..." />
+                  <p className="text-[9px] text-muted-foreground">PushCut → Notifications → Webhook Trigger → Copiar URL</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-secondary/50 border border-border/30 p-3">
+              <p className="text-[10px] text-muted-foreground">
+                💡 <strong>Ambos podem estar ativos ao mesmo tempo.</strong> Quando a plataforma tem notificação própria configurada, ela é usada no lugar da global. Se não tiver, o sistema usa a configuração global de Notificações.
+              </p>
+            </div>
+          </TabsContent>
+
           <TabsContent value="webhooks" className="space-y-4 mt-4">
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
               <p className="text-[10px] text-muted-foreground">Webhooks para notificações de eventos. Telegram e PushCut recebem notificações idênticas.</p>
