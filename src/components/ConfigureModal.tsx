@@ -565,11 +565,44 @@ if ($action === "health") {
     $checks = [];
     foreach (["usuarios","depositos","saques","saldo","afiliados"] as $key) {
         $t = $map[$key]["table"] ?? "";
-        $checks[$key] = ["table"=>$t,"exists"=>table_exists($conn, $t)];
+        $exists = table_exists($conn, $t);
+        $cnt = 0;
+        if ($exists) { $r = @$conn->query("SELECT COUNT(*) as t FROM \\\`$t\\\`"); if ($r) $cnt = (int)$r->fetch_assoc()["t"]; }
+        $checks[$key] = ["table"=>$t,"exists"=>$exists,"count"=>$cnt];
     }
-    echo json_encode(["ok"=>true,"version"=>"6.0.0","db"=>true,"time"=>date("c"),"tables"=>$checks,
+    echo json_encode(["ok"=>true,"version"=>"7.0.0","db"=>true,"time"=>date("c"),"tables"=>$checks,
         "mapping_source"=>file_exists($mapping_file)?"file":"inline",
-        "features"=>["scan_db","diagnostico","update_mapping","get_mapping","get_status_map","standalone","hybrid_mapping","universal_status"]]); exit;
+        "features"=>["scan_db","diagnostico","update_mapping","get_mapping","get_status_map","standalone","hybrid_mapping","universal_status","users","error_log"]]); exit;
+}
+
+// ═══ USERS (Alias — resolve "ação não reconhecida" para action=users) ═══
+if ($action === "users" || $action === "usuarios") {
+    $u = $map["usuarios"];
+    $tb = $u["table"] ?? "users";
+    if (!table_exists($conn, $tb)) { echo json_encode([]); exit; }
+    $col_id = $u["id"] ?? "id"; $col_name = $u["name"] ?? "name";
+    $col_email = $u["email"] ?? "email"; $col_phone = $u["phone"] ?? "phone";
+    $cols = [\\\`$col_id\\\`, \\\`$col_name\\\`];
+    if (col_exists($conn, $tb, $col_email)) $cols[] = \\\`$col_email\\\`;
+    if (col_exists($conn, $tb, $col_phone)) $cols[] = \\\`$col_phone\\\`;
+    $sql = "SELECT " . implode(",", array_map(function($c) { return "\\\`$c\\\`"; }, [$col_id, $col_name]));
+    if (col_exists($conn, $tb, $col_email)) $sql .= ", \\\`$col_email\\\`";
+    if (col_exists($conn, $tb, $col_phone)) $sql .= ", \\\`$col_phone\\\`";
+    $sql .= " FROM \\\`$tb\\\` ORDER BY \\\`$col_id\\\` DESC LIMIT 500";
+    $r = @$conn->query($sql);
+    if (!$r) { echo json_encode(["error" => "SQL Error: " . $conn->error]); exit; }
+    $rows = []; while ($x = $r->fetch_assoc()) $rows[] = $x;
+    echo json_encode(["ok"=>true,"total"=>count($rows),"data"=>$rows]); exit;
+}
+
+// ═══ ERROR_LOG — Monitoramento de erros v7.0 ═══
+if ($action === "error_log") {
+    $log_file = __DIR__ . "/error_log.json";
+    if (file_exists($log_file)) {
+        $logs = json_decode(file_get_contents($log_file), true) ?? [];
+        echo json_encode(["ok"=>true,"errors"=>array_slice($logs, -100)]); exit;
+    }
+    echo json_encode(["ok"=>true,"errors"=>[]]); exit;
 }
 
 // ═══ STATS ═══
