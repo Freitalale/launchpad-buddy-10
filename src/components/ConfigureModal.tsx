@@ -737,9 +737,10 @@ echo json_encode(["error"=>"Ação não reconhecida: ".$action,
 
   const generateTelegramWebhook = () => {
     return `<?php
-// telegram_webhook.php — Webhook de Notificações Telegram
+// telegram_webhook.php — Webhook de Notificações Telegram v7.0
 // Plataforma: ${platform.nome}
 // Gerado em: ${new Date().toISOString()}
+// EVENTOS: deposito, saque, novo_usuario, gerar_pix, erro_plataforma, cooperacao, test
 
 error_reporting(0);
 ini_set("display_errors", "0");
@@ -801,13 +802,35 @@ if ($event === "novo_usuario" || ($input["type"] ?? "") === "new_user") {
     echo json_encode(["ok" => true, "telegram" => $result]); exit;
 }
 
-if ($event === "test") {
-    $msg = "🔔 <b>TESTE DE NOTIFICAÇÃO</b>\\n\\n✅ Webhook configurado com sucesso!\\n📍 Plataforma: ${platform.nome}\\n⏰ " . date("d/m/Y H:i:s");
+if ($event === "gerar_pix" || ($input["type"] ?? "") === "pix_generated") {
+    $nome = $input["user_name"] ?? $input["nome"] ?? "Desconhecido";
+    $valor = $input["amount"] ?? $input["valor"] ?? 0;
+    $pix = $input["pix"] ?? $input["pix_key"] ?? "N/A";
+    $msg = "🔑 <b>PIX GERADO</b>\\n\\n👤 Usuário: {$nome}\\n💵 Valor: R\$ " . number_format((float)$valor, 2, ",", ".") . "\\n🔗 Chave: {$pix}\\n📍 Plataforma: ${platform.nome}";
     $result = sendTelegram($bot_token, $chat_id, $msg);
     echo json_encode(["ok" => true, "telegram" => $result]); exit;
 }
 
-echo json_encode(["error" => "Evento não reconhecido", "available" => ["deposito", "saque", "novo_usuario", "test"]]);
+if ($event === "erro_plataforma" || ($input["type"] ?? "") === "platform_error") {
+    $erro = $input["error"] ?? $input["erro"] ?? "Erro desconhecido";
+    $msg = "🔴 <b>ERRO NA PLATAFORMA</b>\\n\\n⚠️ Erro: {$erro}\\n📍 Plataforma: ${platform.nome}\\n⏰ " . date("d/m/Y H:i:s");
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+if ($event === "cooperacao" || ($input["type"] ?? "") === "cooperation") {
+    $msg = "🤝 <b>COOPERAÇÃO</b>\\n\\n📍 Plataforma: ${platform.nome}\\n📋 " . ($input["message"] ?? "Evento de cooperação") . "\\n⏰ " . date("d/m/Y H:i:s");
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+if ($event === "test") {
+    $msg = "🔔 <b>TESTE DE NOTIFICAÇÃO v7.0</b>\\n\\n✅ Webhook configurado com sucesso!\\n📍 Plataforma: ${platform.nome}\\n⏰ " . date("d/m/Y H:i:s");
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+echo json_encode(["error" => "Evento não reconhecido", "available" => ["deposito", "saque", "novo_usuario", "gerar_pix", "erro_plataforma", "cooperacao", "test"]]);
 ?>`;
   };
 
@@ -922,20 +945,23 @@ echo json_encode([
     const fullUrl = rawUrl && !rawUrl.startsWith("http") ? `https://${rawUrl}` : rawUrl;
     const apiUrl = fullUrl ? `${fullUrl}/api.php` : "https://seusite.com/api.php";
     return `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v6.0 — ${platform.nome}</title>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v7.0 — ${platform.nome}</title>
 <style>*{box-sizing:border-box}body{font-family:'Segoe UI',monospace;background:#0a0a0f;color:#e0e0e0;padding:20px;margin:0}h1{color:#00c4ff;margin-bottom:5px}h2{color:#888;font-size:14px;margin-top:0}.controls{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}button{background:#00c4ff;color:#000;border:none;padding:10px 18px;cursor:pointer;border-radius:8px;font-weight:bold;font-size:13px;transition:all .2s}button:hover{background:#00a0dd;transform:scale(1.02)}button.scan{background:#a855f7}button.scan:hover{background:#9333ea}button.diag{background:#f59e0b}button.diag:hover{background:#d97706}button.map{background:#22c55e}button.map:hover{background:#16a34a}pre{background:#0d0d15;padding:12px;border-radius:8px;overflow-x:auto;border:1px solid #1a1a2e;max-height:350px;font-size:12px;line-height:1.5}input{width:100%;max-width:600px;padding:10px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;font-size:14px;font-family:monospace}.status-bar{padding:12px;border-radius:8px;margin:10px 0;font-weight:bold;font-size:13px}.status-bar.ok{background:#22c55e15;border:1px solid #22c55e40;color:#22c55e}.status-bar.fail{background:#ef444415;border:1px solid #ef444440;color:#ef4444}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:15px 0}.card{background:#111;border:1px solid #222;border-radius:10px;padding:15px}.card h3{margin:0 0 8px;font-size:13px;color:#00c4ff}.card.ok{border-color:#22c55e}.card.fail{border-color:#ef4444}</style>
 </head><body>
-<h1>🔌 Teste API v6.0 — ${platform.nome}</h1>
-<h2>API Universal — Status Mapping + Hybrid Mapping</h2>
+<h1>🔌 Teste API v7.0 — ${platform.nome}</h1>
+<h2>Platform Adapter Engine — Universal Mapping + Diagnostico</h2>
 <input id="apiUrl" value="${apiUrl}" placeholder="URL da API (api.php)" />
 <div class="controls">
 <button onclick="testEndpoint('health')">🏥 Health</button>
 <button onclick="testEndpoint('stats')">📊 Stats</button>
 <button onclick="testEndpoint('depositos')">💰 Depósitos</button>
 <button onclick="testEndpoint('saques')">💸 Saques</button>
+<button onclick="testEndpoint('users')">👤 Users</button>
 <button class="scan" onclick="testEndpoint('scan_db')">🔍 Scan DB</button>
 <button class="diag" onclick="testEndpoint('diagnostico')">🔧 Diagnóstico</button>
-<button class="map" onclick="testEndpoint('get_mapping')">📋 Ver Mapping</button>
+<button class="map" onclick="testEndpoint('get_mapping')">📋 Mapping</button>
+<button onclick="testEndpoint('get_status_map')">🔄 Status</button>
+<button onclick="testEndpoint('error_log')">🐛 Erros</button>
 <button onclick="testAll()">🚀 Testar Todos</button>
 </div>
 <div id="status"></div>
@@ -954,7 +980,7 @@ async function testEndpoint(a){
   }catch(e){g("status").innerHTML='<div class="status-bar fail">❌ '+e.message+"</div>";g("raw").textContent=e.message}
 }
 async function testAll(){
-  const actions=["health","stats","depositos","saques","get_mapping"];let html="";let allOk=true;
+  const actions=["health","stats","depositos","saques","users","get_mapping","diagnostico","error_log"];let html="";let allOk=true;
   for(const a of actions){try{const t=performance.now();const r=await fetch(api()+"?action="+a);const ms=Math.round(performance.now()-t);const txt=await r.text();
   let d;try{d=JSON.parse(txt)}catch(e){allOk=false;html+='<div class="card fail"><h3>'+a+'</h3><pre>Não é JSON: '+txt.slice(0,300)+"</pre></div>";continue}
   const ok=!d.error;if(!ok)allOk=false;
@@ -1012,25 +1038,83 @@ async function testAll(){
   const handleTestStructure = async () => {
     setTestingStructure(true); setStructureResult([]);
     const results: string[] = [];
-    const apiUrl = form.url ? `${form.url.replace(/\/$/, "")}/api.php` : null;
-    if (!apiUrl) { results.push("❌ URL não configurada"); setStructureResult(results); setTestingStructure(false); return; }
-    for (const m of TABLE_META) {
-      if (disabledTables.includes(m.key)) { results.push(`⏭️ ${m.label} — Desativada`); continue; }
-      const action = m.key === "saldo" || m.key === "afiliados" ? "stats" : m.key;
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch(`${apiUrl}?action=${action}`, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (res.ok) {
-          const json = await res.json().catch(() => null);
-          results.push(json?.error ? `❌ ${m.label} (${(form as any)[m.tableField]}) — ${json.error}` : `✅ ${m.label} (${(form as any)[m.tableField]}) — OK`);
-        } else results.push(`❌ ${m.label} — HTTP ${res.status}`);
-      } catch (e: any) { results.push(`❌ ${m.label} — ${e.name === "AbortError" ? "Timeout" : e.message}`); }
+    const rawUrl = form.url ? form.url.replace(/\/$/, "") : null;
+    if (!rawUrl) { results.push("❌ URL não configurada"); setStructureResult(results); setTestingStructure(false); return; }
+    const apiUrl = rawUrl.endsWith("api.php") ? rawUrl : `${rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`}/api.php`;
+
+    // Use diagnostico endpoint (V7) — checks ALL tables/columns in one request
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(`${apiUrl}?action=diagnostico`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      if (json.ok && json.diagnostico?.mapping) {
+        results.push(`🔧 API v${json.version ?? "?"} — Fonte do mapeamento: ${json.diagnostico.mapping_source ?? "inline"}`);
+        for (const m of TABLE_META) {
+          if (disabledTables.includes(m.key)) { results.push(`⏭️ ${m.label} — Desativada`); continue; }
+          const info = json.diagnostico.mapping[m.key];
+          if (!info) { results.push(`⚠️ ${m.label} — Não verificado pelo diagnóstico`); continue; }
+          if (!info.exists) {
+            results.push(`❌ ${m.label} — Tabela "${info.table}" NÃO EXISTE no banco. Verifique o nome na aba Mapeamento.`);
+            continue;
+          }
+          const missing = info.missing_columns ?? [];
+          if (missing.length > 0) {
+            results.push(`⚠️ ${m.label} (${info.table}) — ${info.count} registros, mas colunas faltando: ${missing.join(", ")}. Corrija no Mapeamento.`);
+          } else {
+            results.push(`✅ ${m.label} (${info.table}) — ${info.count} registros, todas as colunas OK`);
+          }
+          // Show column check details
+          if (info.column_checks) {
+            for (const [col, exists] of Object.entries(info.column_checks)) {
+              if (!exists) results.push(`   └ ❌ Coluna "${col}" não encontrada em "${info.table}"`);
+            }
+          }
+        }
+        // Saldo debug
+        if (json.diagnostico.saldo_debug) {
+          const sd = json.diagnostico.saldo_debug;
+          if (sd.column_exists) {
+            results.push(`💰 Saldo: R$ ${sd.total?.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (coluna "${sd.column}" em "${sd.table}")`);
+            if (sd.possible_balance_columns?.length > 1) {
+              results.push(`   💡 Outras colunas de saldo possíveis: ${sd.possible_balance_columns.join(", ")}`);
+            }
+          } else {
+            results.push(`❌ Saldo: Coluna "${sd.column}" NÃO existe em "${sd.table}". Colunas possíveis: ${sd.possible_balance_columns?.join(", ") || "nenhuma"}`);
+          }
+        }
+      } else if (json.error) {
+        // API returned error — maybe old version without diagnostico
+        results.push(`❌ Diagnóstico falhou: ${json.error}`);
+        if (json.error.includes("não reconhecida")) {
+          results.push(`⚠️ Sua API está desatualizada! Baixe a nova v7.0 na aba "Gerar" e suba na hospedagem.`);
+          results.push(`💡 A API v7.0 inclui: diagnostico, users, error_log, get_status_map e mais.`);
+        }
+        // Fallback: test individual endpoints
+        results.push(`\n🔄 Tentando teste individual...`);
+        for (const m of TABLE_META) {
+          if (disabledTables.includes(m.key)) { results.push(`⏭️ ${m.label} — Desativada`); continue; }
+          const action = m.key === "saldo" || m.key === "afiliados" ? "stats" : m.key === "usuarios" ? "users" : m.key;
+          try {
+            const r2 = await fetch(`${apiUrl}?action=${action}`, { signal: AbortSignal.timeout(5000) });
+            const j2 = await r2.json().catch(() => null);
+            results.push(j2?.error ? `❌ ${m.label} — ${j2.error}` : `✅ ${m.label} — OK`);
+          } catch (e2: any) {
+            results.push(`❌ ${m.label} — ${e2.name === "AbortError" || e2.name === "TimeoutError" ? "Timeout" : e2.message}`);
+          }
+        }
+      }
+    } catch (e: any) {
+      results.push(`❌ Erro de conexão: ${e.name === "AbortError" ? "Timeout (10s)" : e.message}`);
+      results.push(`💡 Verifique: 1) URL correta? 2) api.php existe? 3) Servidor online? 4) CORS habilitado?`);
     }
+
     setStructureResult(results);
     setTestingStructure(false);
-    toast({ title: "Teste concluído" });
+    toast({ title: "Teste concluído", description: `${results.filter(r => r.startsWith("✅")).length} OK, ${results.filter(r => r.startsWith("❌")).length} erros` });
   };
 
   const handleTestMappingEndpoint = async () => {
@@ -1624,7 +1708,7 @@ async function testAll(){
                 <p className="text-[10px] text-muted-foreground">{scanResult.error}</p>
                 <div className="text-[9px] text-muted-foreground space-y-1">
                   <p>Possíveis causas:</p>
-                  <p>• O api.php v5.4 não está instalado na hospedagem</p>
+                  <p>• O api.php v7.0 não está instalado na hospedagem</p>
                   <p>• O endpoint scan_db não está disponível</p>
                   <p>• A URL da plataforma está incorreta</p>
                   <p>• O servidor está offline ou bloqueando CORS</p>
@@ -1638,24 +1722,49 @@ async function testAll(){
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
               <div className="flex items-center gap-2 mb-2">
                 <TableProperties className="w-4 h-4 text-primary" />
-                <p className="text-xs font-bold text-foreground">Mapeamento Completo — Tabelas & Colunas</p>
+                <p className="text-xs font-bold text-foreground">Mapeamento Completo v7.0 — Tabelas & Colunas</p>
               </div>
               <div className="text-[10px] text-muted-foreground space-y-1">
-                <p>Configure os nomes exatos das tabelas e colunas. Use o <strong className="text-primary">Scanner</strong> para preencher automaticamente.</p>
-                <p>• <strong className="text-foreground">Desativar tabela</strong> — ignora na API se não existe.</p>
-                <p>• <strong className="text-foreground">+ Coluna</strong> — adiciona campo extra.</p>
-                <p>• <strong className="text-foreground">✕</strong> — remove coluna que a plataforma não usa.</p>
+                <p>Configure os nomes <strong className="text-foreground">exatos</strong> das tabelas e colunas do banco de dados da plataforma. Cada campo corresponde a uma coluna real no MySQL/MariaDB.</p>
+                <p>• <strong className="text-foreground">Desativar tabela</strong> — ignora na API se não existe no banco da plataforma.</p>
+                <p>• <strong className="text-foreground">+ Coluna</strong> — adiciona campo extra que não está mapeado por padrão.</p>
+                <p>• <strong className="text-foreground">✕</strong> — remove/oculta coluna que a plataforma não usa.</p>
+                <p>• Use o <strong className="text-primary">Scanner</strong> para detectar automaticamente os nomes.</p>
+                <p>• <strong className="text-foreground">Testar Estrutura</strong> abaixo valida se tabelas e colunas existem no banco remoto.</p>
               </div>
+            </div>
+
+            {/* Test Structure Button - prominent at top */}
+            <div className="rounded-lg border border-neon-amber/30 bg-neon-amber/5 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <TestTube className="w-4 h-4 text-neon-amber" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">Validar Mapeamento no Banco Real</p>
+                  <p className="text-[9px] text-muted-foreground">Usa o endpoint <code className="bg-background/50 px-1 rounded">?action=diagnostico</code> da API v7.0 para verificar se cada tabela e coluna existem de verdade no banco de dados remoto.</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleTestStructure} disabled={testingStructure || !form.url}
+                className="w-full gap-2 h-9 text-xs border-neon-amber/40 text-neon-amber hover:bg-neon-amber/10">
+                {testingStructure ? <RefreshCw className="w-3 h-3 animate-spin" /> : <TestTube className="w-3 h-3" />}
+                {testingStructure ? "Diagnosticando..." : "🔍 Testar Estrutura no Banco Remoto"}
+              </Button>
+              {structureResult.length > 0 && (
+                <div className="rounded-lg border border-border/50 bg-secondary/30 p-3 space-y-1 max-h-72 overflow-y-auto">
+                  {structureResult.map((r, i) => (
+                    <p key={i} className={`text-[10px] font-mono ${r.startsWith("✅") ? "text-neon-green" : r.startsWith("❌") ? "text-destructive" : r.startsWith("⚠️") ? "text-neon-amber" : r.startsWith("💰") || r.startsWith("💡") ? "text-primary" : r.startsWith("🔧") ? "text-chart-4" : "text-muted-foreground"}`}>{r}</p>
+                  ))}
+                </div>
+              )}
             </div>
 
             {TABLE_META.map(meta => renderTableSection(meta))}
 
-            {/* Universal Status Mapping v6.0 */}
+            {/* Universal Status Mapping v7.0 */}
             <div className="rounded-lg border border-accent/40 bg-accent/5 p-3 space-y-3">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-accent" />
                 <div>
-                  <p className="text-xs font-bold text-foreground">🔄 Mapeamento Universal de Status (v6.0)</p>
+                  <p className="text-xs font-bold text-foreground">🔄 Mapeamento Universal de Status (v7.0)</p>
                   <p className="text-[9px] text-muted-foreground">Defina os valores de status que a plataforma usa. Ex: "approved", "1", "paid", "completed".</p>
                 </div>
               </div>
@@ -1767,18 +1876,6 @@ async function testAll(){
               </p>
             </div>
 
-            <Button variant="outline" size="sm" onClick={handleTestStructure} disabled={testingStructure || !form.url} className="w-full gap-2 h-9 text-xs">
-              {testingStructure ? <RefreshCw className="w-3 h-3 animate-spin" /> : <TestTube className="w-3 h-3" />}
-              {testingStructure ? "Testando..." : "Testar Estrutura"}
-            </Button>
-
-            {structureResult.length > 0 && (
-              <div className="rounded-lg border border-border/50 bg-secondary/30 p-3 space-y-1 max-h-60 overflow-y-auto">
-                {structureResult.map((r, i) => (
-                  <p key={i} className={`text-[10px] font-mono ${r.startsWith("✅") ? "text-neon-green" : r.startsWith("❌") ? "text-destructive" : "text-muted-foreground"}`}>{r}</p>
-                ))}
-              </div>
-            )}
           </TabsContent>
 
           <TabsContent value="generate" className="space-y-4 mt-4">
@@ -1868,12 +1965,12 @@ async function testAll(){
 
             {/* Individual files with separate Generate Preview / Download */}
             {[
-              { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v6.0 Universal Status Mapping", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento + Status Maps", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
-              { name: "test_api.html", label: "📄 test_api.html — v6.0", gen: generateTestHtml, field: "test_html", type: "text/html" },
-              { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
-              { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
+              { name: "config.php", label: "📄 config.php — Conexão ao banco de dados", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
+              { name: "api.php", label: "📄 api.php — v7.0 Platform Adapter Engine", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento Universal + Status Maps", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
+              { name: "test_api.html", label: "📄 test_api.html — v7.0 Teste Completo", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "telegram_webhook.php", label: "📄 telegram_webhook.php — Notificações Telegram", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
+              { name: "webhook_pix.php", label: "📄 webhook_pix.php — Callback de Gateway PIX", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => {
               const isPreviewOpen = previewFiles[f.name] ?? false;
               return (
