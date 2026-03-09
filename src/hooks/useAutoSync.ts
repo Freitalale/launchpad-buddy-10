@@ -22,24 +22,135 @@ interface PlatformSyncState {
   saquesSynced?: number;
 }
 
-/** Normalize English statuses to Portuguese */
 function normalizeStatus(status: string | null | undefined): string {
   if (!status) return "pendente";
   const s = status.toLowerCase().trim();
   const map: Record<string, string> = {
-    pending: "pendente",
-    approved: "aprovado",
-    rejected: "rejeitado",
-    completed: "aprovado",
-    declined: "rejeitado",
-    canceled: "rejeitado",
-    cancelled: "rejeitado",
-    denied: "rejeitado",
-    paid: "aprovado",
+    pending: "pendente", approved: "aprovado", rejected: "rejeitado",
+    completed: "aprovado", declined: "rejeitado", canceled: "rejeitado",
+    cancelled: "rejeitado", denied: "rejeitado", paid: "aprovado",
     processing: "pendente",
   };
   return map[s] ?? s;
 }
+
+// ==================== Notification Dispatcher ====================
+
+async function dispatchNotification(
+  userId: string,
+  eventName: string,
+  platformName: string,
+  platformId: string,
+  variables: Record<string, string>,
+) {
+  try {
+    // Get telegram config
+    const { data: tgConfig } = await supabase
+      .from("telegram_config")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("ativo", true)
+      .maybeSingle();
+
+    // Get event templates
+    const { data: events } = await supabase
+      .from("telegram_eventos")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("nome", eventName)
+      .eq("ativo", true)
+      .maybeSingle();
+
+    if (!events) return;
+
+    // Get per-platform toggles
+    const { data: platData } = await supabase
+      .from("plataformas")
+      .select("mapeamento_extra")
+      .eq("id", platformId)
+      .single();
+
+    const extra = (platData?.mapeamento_extra as any) ?? {};
+    const toggles = extra.notif_event_toggles?.[eventName] ?? { tg: true, pc: true };
+
+    // Resolve variables in message
+    const resolve = (msg: string) => {
+      let result = msg;
+      for (const [key, val] of Object.entries(variables)) {
+        result = result.replace(new RegExp(`\\{${key}\\}`, "g"), val);
+      }
+      return result;
+    };
+
+    // Send Telegram
+    if (tgConfig?.bot_token && tgConfig?.chat_id && toggles.tg) {
+      const tgMsg = resolve(events.mensagem);
+      const notifFlag = `notif_${eventName === "novo_usuario" ? "novo_usuario" : 
+        eventName === "deposito" ? "deposito" : 
+        eventName === "saque" ? "saque" : 
+        eventName === "plataforma_offline" ? "plataforma_offline" :
+        eventName === "erro" ? "erro" : 
+        eventName === "cooperacao" ? "cooperacao" : "deposito"}`;
+      
+      const shouldSend = (tgConfig as any)[notifFlag] !== false;
+      if (shouldSend) {
+        await supabase.functions.invoke("send-telegram", {
+          body: { bot_token: tgConfig.bot_token, chat_id: tgConfig.chat_id, message: tgMsg },
+        });
+        console.log(`[Notif] ✅ Telegram enviado: ${eventName} → ${platformName}`);
+      }
+    }
+
+    // Send PushCut
+    if ((tgConfig as any)?.pushcut_url && (tgConfig as any)?.pushcut_ativo && toggles.pc) {
+      const pcMsg = resolve(events.mensagem_pushcut || events.mensagem);
+      try {
+        await fetch((tgConfig as any).pushcut_url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `${eventName === "deposito" ? "💰" : eventName === "saque" ? "💸" : eventName === "novo_usuario" ? "🆕" : "📢"} ${platformName}`,
+            text: pcMsg,
+          }),
+        });
+        console.log(`[Notif] ✅ PushCut enviado: ${eventName} → ${platformName}`);
+      } catch (e) {
+        console.warn(`[Notif] ⚠️ PushCut falhou:`, e);
+      }
+    }
+
+    // Also check per-platform specific pushcut/telegram settings
+    const platPcUrl = extra.notif_pushcut_url;
+    const platPcAtivo = extra.notif_pushcut_ativo;
+    if (platPcUrl && platPcAtivo && toggles.pc) {
+      const pcMsg = resolve(events.mensagem_pushcut || events.mensagem);
+      try {
+        await fetch(platPcUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `${eventName === "deposito" ? "💰" : eventName === "saque" ? "💸" : "📢"} ${platformName}`,
+            text: pcMsg,
+          }),
+        });
+      } catch { /* skip */ }
+    }
+
+    const platTgToken = extra.notif_telegram_bot_token;
+    const platTgChatId = extra.notif_telegram_chat_id;
+    const platTgAtivo = extra.notif_telegram_ativo;
+    if (platTgToken && platTgChatId && platTgAtivo && toggles.tg) {
+      const tgMsg = resolve(events.mensagem);
+      await supabase.functions.invoke("send-telegram", {
+        body: { bot_token: platTgToken, chat_id: platTgChatId, message: tgMsg },
+      });
+    }
+  } catch (e) {
+    console.warn(`[Notif] ⚠️ dispatchNotification falhou para ${eventName}:`, e);
+  }
+}
+
+// ==================== Auto Sync Hook ====================
 
 export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
   const { user } = useAuth();
@@ -51,6 +162,12 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const offlineTimersRef = useRef<Map<string, number>>(new Map());
   const syncingRef = useRef(false);
+
+  // Track previously seen data to detect NEW items
+  const prevDepositCountRef = useRef<Map<string, number>>(new Map());
+  const prevSaqueCountRef = useRef<Map<string, number>>(new Map());
+  const prevUserCountRef = useRef<Map<string, number>>(new Map());
+  const initialSyncDoneRef = useRef(false);
 
   const syncDepositsToSupabase = async (platform: Plataforma, deposits: ApiDeposito[], userId: string) => {
     if (!deposits.length) return 0;
@@ -86,8 +203,6 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
   const syncSaquesToSupabase = async (platform: Plataforma, saques: ApiSaque[], userId: string) => {
     if (!saques.length) return 0;
     let synced = 0;
-
-    // Deduplicate by original_id — keep only the latest entry per ID
     const byOriginalId = new Map<string, typeof saques[0]>();
     for (const saq of saques) {
       const key = saq.id ? String(saq.id) : `${saq.nome_usuario}_${saq.valor}_${saq.created_at}`;
@@ -97,7 +212,6 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
       }
     }
     const dedupedSaques = Array.from(byOriginalId.values());
-    console.log(`[AutoSync] ${platform.nome}: ${saques.length} saques brutos → ${dedupedSaques.length} após deduplicação`);
 
     const batch = dedupedSaques.slice(0, 500).map(saq => ({
       user_id: userId,
@@ -136,36 +250,22 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
     const results = await Promise.all(
       platforms.filter(p => p.url).map(async (p) => {
         const state: PlatformSyncState = {
-          platform_id: p.id,
-          platform_name: p.nome,
-          status: "offline",
-          lastSync: null,
-          lastLatency: 0,
+          platform_id: p.id, platform_name: p.nome, status: "offline",
+          lastSync: null, lastLatency: 0,
           offlineSince: offlineTimersRef.current.get(p.id) ?? null,
-          alertSent: false,
-          fromCache: false,
+          alertSent: false, fromCache: false,
         };
 
         const [statsResult, depositsResult, saquesResult] = await Promise.all([
-          api.fetchStats(p),
-          api.fetchDepositos(p),
-          api.fetchSaques(p),
+          api.fetchStats(p), api.fetchDepositos(p), api.fetchSaques(p),
         ]);
 
-        // Log saques errors explicitly
-        if (saquesResult.error) {
-          console.error(`[AutoSync] ❌ Saques ERRO em ${p.nome}:`, saquesResult.error.message, saquesResult.error.cause);
-        }
-        if (depositsResult.error) {
-          console.error(`[AutoSync] ❌ Depositos ERRO em ${p.nome}:`, depositsResult.error.message);
-        }
-
-        console.log(`[AutoSync] ${p.nome}: depositos=${depositsResult.data.length}, saques=${saquesResult.data.length}`);
+        if (saquesResult.error) console.error(`[AutoSync] ❌ Saques ERRO em ${p.nome}:`, saquesResult.error.message);
+        if (depositsResult.error) console.error(`[AutoSync] ❌ Depositos ERRO em ${p.nome}:`, depositsResult.error.message);
 
         state.fromCache = statsResult.fromCache;
         state.errorMessage = statsResult.error?.message;
 
-        // Sync deposits and saques even if stats fail (as long as we got data)
         const hasAnyData = statsResult.data || depositsResult.data.length > 0 || saquesResult.data.length > 0;
 
         if (hasAnyData) {
@@ -174,33 +274,110 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
           offlineTimersRef.current.delete(p.id);
 
           if (statsResult.data) {
-            // SALDO: valor direto da API, NUNCA incremental
             const saldoValue = Number(statsResult.data.saldo_total) || 0;
-            console.log(`[AutoSync] ${p.nome}: saldo_total RAW da API = ${statsResult.data.saldo_total} → parsed = ${saldoValue}`);
-            const updatePayload = {
+            const { error: updateError } = await supabase.from("plataformas").update({
               total_usuarios: statsResult.data.total_usuarios ?? 0,
               total_afiliados: statsResult.data.total_afiliados ?? 0,
               saldo_total: saldoValue,
               status: "online" as const,
               ultimo_sync: new Date().toISOString(),
-            };
-            const { error: updateError } = await supabase.from("plataformas").update(updatePayload).eq("id", p.id);
-            if (updateError) {
-              console.error(`[AutoSync] Erro atualizar plataforma ${p.nome}:`, updateError.message);
+            }).eq("id", p.id);
+            if (updateError) console.error(`[AutoSync] Erro atualizar ${p.nome}:`, updateError.message);
+
+            // === DETECT NEW USERS → NOTIFY ===
+            if (initialSyncDoneRef.current) {
+              const prevUsers = prevUserCountRef.current.get(p.id) ?? 0;
+              const currentUsers = statsResult.data.total_usuarios ?? 0;
+              if (currentUsers > prevUsers && prevUsers > 0) {
+                const diff = currentUsers - prevUsers;
+                console.log(`[AutoSync] 🆕 ${diff} novo(s) usuário(s) em ${p.nome}`);
+                await dispatchNotification(user.id, "novo_usuario", p.nome, p.id, {
+                  nome_usuario: `${diff} novo(s)`,
+                  nome_plataforma: p.nome,
+                  quantidade_usuarios: String(currentUsers),
+                });
+                await supabase.from("notificacoes").insert({
+                  user_id: user.id,
+                  titulo: `🆕 ${diff} novo(s) usuário(s) — ${p.nome}`,
+                  mensagem: `${diff} novo(s) cadastro(s) detectado(s). Total: ${currentUsers}`,
+                  tipo: "info",
+                  plataforma_nome: p.nome,
+                  plataforma_id: p.id,
+                } as any);
+              }
+              prevUserCountRef.current.set(p.id, currentUsers);
             } else {
-              console.log(`[AutoSync] ✅ ${p.nome}: usuarios=${updatePayload.total_usuarios}, afiliados=${updatePayload.total_afiliados}, saldo=R$${saldoValue.toFixed(2)} (direto da API, sem incremento)`);
+              prevUserCountRef.current.set(p.id, statsResult.data.total_usuarios ?? 0);
             }
           }
 
+          // === DETECT NEW DEPOSITS → NOTIFY ===
           if (depositsResult.data.length > 0) {
             state.depositsSynced = await syncDepositsToSupabase(p, depositsResult.data, user.id);
-            console.log(`[AutoSync] ${p.nome}: ${state.depositsSynced} depositos sincronizados`);
+
+            if (initialSyncDoneRef.current) {
+              const prevCount = prevDepositCountRef.current.get(p.id) ?? 0;
+              const currentCount = depositsResult.data.length;
+              if (currentCount > prevCount && prevCount > 0) {
+                const newDeps = depositsResult.data.slice(0, currentCount - prevCount);
+                for (const dep of newDeps.slice(0, 5)) { // max 5 notifications per cycle
+                  console.log(`[AutoSync] 💰 Novo depósito em ${p.nome}: ${dep.nome_usuario} R$${dep.valor}`);
+                  await dispatchNotification(user.id, "deposito", p.nome, p.id, {
+                    nome_usuario: dep.nome_usuario || "Usuário",
+                    valor: `R$ ${Number(dep.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+                    nome_plataforma: p.nome,
+                    pix: dep.pix || "N/A",
+                  });
+                  await supabase.from("notificacoes").insert({
+                    user_id: user.id,
+                    titulo: `💰 Depósito — ${p.nome}`,
+                    mensagem: `${dep.nome_usuario} depositou R$ ${Number(dep.valor).toFixed(2)}`,
+                    tipo: "info",
+                    plataforma_nome: p.nome,
+                    plataforma_id: p.id,
+                  } as any);
+                }
+              }
+              prevDepositCountRef.current.set(p.id, currentCount);
+            } else {
+              prevDepositCountRef.current.set(p.id, depositsResult.data.length);
+            }
           }
+
+          // === DETECT NEW SAQUES → NOTIFY ===
           if (saquesResult.data.length > 0) {
             state.saquesSynced = await syncSaquesToSupabase(p, saquesResult.data, user.id);
-            console.log(`[AutoSync] ${p.nome}: ${state.saquesSynced} saques sincronizados`);
+
+            if (initialSyncDoneRef.current) {
+              const prevCount = prevSaqueCountRef.current.get(p.id) ?? 0;
+              const currentCount = saquesResult.data.length;
+              if (currentCount > prevCount && prevCount > 0) {
+                const newSaques = saquesResult.data.slice(0, currentCount - prevCount);
+                for (const saq of newSaques.slice(0, 5)) {
+                  console.log(`[AutoSync] 💸 Novo saque em ${p.nome}: ${saq.nome_usuario} R$${saq.valor}`);
+                  await dispatchNotification(user.id, "saque", p.nome, p.id, {
+                    nome_usuario: saq.nome_usuario || "Usuário",
+                    valor: `R$ ${Number(saq.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+                    nome_plataforma: p.nome,
+                    pix: saq.pix || "N/A",
+                  });
+                  await supabase.from("notificacoes").insert({
+                    user_id: user.id,
+                    titulo: `💸 Saque — ${p.nome}`,
+                    mensagem: `${saq.nome_usuario} solicitou saque de R$ ${Number(saq.valor).toFixed(2)}`,
+                    tipo: "warning",
+                    plataforma_nome: p.nome,
+                    plataforma_id: p.id,
+                  } as any);
+                }
+              }
+              prevSaqueCountRef.current.set(p.id, currentCount);
+            } else {
+              prevSaqueCountRef.current.set(p.id, saquesResult.data.length);
+            }
           }
         } else {
+          // Platform offline
           state.status = "offline";
           if (!offlineTimersRef.current.has(p.id)) {
             offlineTimersRef.current.set(p.id, Date.now());
@@ -219,57 +396,15 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
               plataforma_id: p.id,
             } as any);
 
-            const { data: telegramConfig } = await supabase
-              .from("telegram_config")
-              .select("*")
-              .eq("user_id", user.id)
-              .eq("ativo", true)
-              .maybeSingle();
-
-            if (telegramConfig?.bot_token && telegramConfig?.chat_id && telegramConfig?.notif_plataforma_offline) {
-              const alertMsg = `🚨 <b>PLATAFORMA OFFLINE</b>\n\n📍 ${p.nome}\n⏱ Offline há: ${Math.round(offlineDuration / 1000)}s\n❌ ${statsResult.error?.message ?? "Sem resposta"}`;
-              
-              await supabase.functions.invoke("send-telegram", {
-                body: {
-                  bot_token: telegramConfig.bot_token,
-                  chat_id: telegramConfig.chat_id,
-                  message: alertMsg,
-                },
-              });
-
-              // PushCut — notificação idêntica ao Telegram
-              const { data: settingsData } = await supabase
-                .from("configuracoes")
-                .select("webhook_outro_global")
-                .eq("user_id", user.id)
-                .maybeSingle();
-              
-              const pushcutUrl = settingsData?.webhook_outro_global;
-              if (pushcutUrl) {
-                try {
-                  await fetch(pushcutUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      title: `🚨 PLATAFORMA OFFLINE — ${p.nome}`,
-                      text: `Offline há ${Math.round(offlineDuration / 1000)}s. ${statsResult.error?.message ?? "Sem resposta"}`,
-                    }),
-                  });
-                  console.log(`[AutoSync] ✅ PushCut notificado para ${p.nome}`);
-                } catch (e) {
-                  console.warn(`[AutoSync] ⚠️ Falha PushCut:`, e);
-                }
-              }
-            }
+            await dispatchNotification(user.id, "plataforma_offline", p.nome, p.id, {
+              nome_plataforma: p.nome,
+            });
 
             await supabase.from("plataformas").update({ status: "offline" as const }).eq("id", p.id);
             await supabase.from("logs").insert({
-              user_id: user.id,
-              acao: "API Offline Detectada",
+              user_id: user.id, acao: "API Offline Detectada",
               detalhes: `${p.nome} offline há ${Math.round(offlineDuration / 1000)}s — ${statsResult.error?.message ?? ""}`,
-              plataforma_nome: p.nome,
-              plataforma_id: p.id,
-              tipo: "error",
+              plataforma_nome: p.nome, plataforma_id: p.id, tipo: "error",
             });
           }
         }
@@ -277,6 +412,12 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
         return state;
       })
     );
+
+    // Mark initial sync as done so future cycles can detect NEW data
+    if (!initialSyncDoneRef.current) {
+      initialSyncDoneRef.current = true;
+      console.log("[AutoSync] 🏁 Sync inicial completo — próximos ciclos detectarão novos eventos");
+    }
 
     const newMap = new Map<string, PlatformSyncState>();
     results.forEach(s => newMap.set(s.platform_id, s));
@@ -299,10 +440,5 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
     };
   }, [enabled, user, platforms.length, syncAll]);
 
-  return {
-    syncStates,
-    lastGlobalSync,
-    syncing,
-    syncNow: syncAll,
-  };
+  return { syncStates, lastGlobalSync, syncing, syncNow: syncAll };
 };
