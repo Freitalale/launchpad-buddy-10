@@ -20,7 +20,7 @@ const navItems = [
   { to: "/eventos", label: "Eventos", icon: Zap },
   { to: "/logs", label: "Logs", icon: ScrollText },
   { to: "/integrations", label: "Telegram", icon: Send },
-  { to: "/health", label: "Saúde", icon: Activity },
+  { to: "/health", label: "Diagnóstico", icon: Activity },
   { to: "/settings", label: "Configurações", icon: Settings },
   { to: "/tutorial", label: "Tutorial", icon: BookOpen },
 ];
@@ -66,7 +66,7 @@ const Layout = () => {
           {!collapsed && (
             <div>
               <p className="font-black text-sm tracking-tight gradient-text">MASTER PAINEL</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Pro v3.0 Enterprise</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">V7 Enterprise</p>
             </div>
           )}
         </div>
@@ -174,7 +174,7 @@ const Layout = () => {
             <NotificationsDropdown />
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/60 border border-border/50">
               <div className="w-2 h-2 rounded-full status-online" />
-              <span className="text-xs text-muted-foreground mono">v3.0.0</span>
+              <span className="text-xs text-muted-foreground mono">v7.0.0</span>
             </div>
           </div>
         </header>

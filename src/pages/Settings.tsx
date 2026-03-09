@@ -1,11 +1,11 @@
-// Simplified Settings page
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Shield, Bell, Key, Globe, Save, Zap } from "lucide-react";
+import { Shield, Bell, Key, Globe, Save, Zap, Timer, RefreshCw, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
@@ -42,7 +42,7 @@ const Settings = () => {
   const handleSaveSettings = async () => {
     try {
       await updateSettings.mutateAsync(form);
-      toast({ title: "Configurações salvas!" });
+      toast({ title: "✅ Configurações salvas!" });
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     }
@@ -56,7 +56,7 @@ const Settings = () => {
     try {
       const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
       if (error) throw error;
-      toast({ title: "Senha alterada com sucesso!" });
+      toast({ title: "✅ Senha alterada com sucesso!" });
       setPasswordForm({ current: "", newPass: "" });
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
@@ -74,11 +74,12 @@ const Settings = () => {
   return (
     <div className="p-4 md:p-6 space-y-6">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <h1 className="text-xl md:text-2xl font-black text-foreground">Configurações</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Ajustes globais, segurança e notificações</p>
+        <h1 className="text-xl md:text-2xl font-black text-foreground">Configurações <span className="gradient-text">V7</span></h1>
+        <p className="text-muted-foreground text-sm mt-0.5">Ajustes globais, segurança, gateway e sincronização</p>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Security */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="rounded-xl border border-border/60 p-5 space-y-4" style={{ background: "hsl(var(--card))" }}>
           <div className="flex items-center gap-3">
@@ -95,19 +96,20 @@ const Settings = () => {
                 className="bg-secondary border-border h-9 text-sm" placeholder="••••••••" />
             </div>
             <Button size="sm" onClick={handleChangePassword} className="h-8 text-xs"
-              style={{ background: "linear-gradient(135deg, hsl(var(--neon-blue)), hsl(220 100% 60%))" }}>
+              style={{ background: "var(--gradient-primary)" }}>
               Salvar Senha
             </Button>
           </div>
         </motion.div>
 
+        {/* Notifications */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className="rounded-xl border border-border/60 p-5 space-y-4" style={{ background: "hsl(var(--card))" }}>
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-neon-amber/10"><Bell className="w-4 h-4 text-neon-amber" /></div>
             <div>
-              <h3 className="font-bold text-sm text-foreground">Notificações Globais</h3>
-              <p className="text-xs text-muted-foreground">Webhooks para todas as plataformas</p>
+              <h3 className="font-bold text-sm text-foreground">Webhooks Globais</h3>
+              <p className="text-xs text-muted-foreground">Notificações para todas as plataformas</p>
             </div>
           </div>
           <div className="space-y-3">
@@ -117,26 +119,31 @@ const Settings = () => {
                 className="bg-secondary border-border h-9 text-sm" placeholder="https://api.telegram.org/bot..." />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Webhook Discord / Slack</Label>
+              <Label className="text-xs text-muted-foreground">Webhook Discord / Slack / Outro</Label>
               <Input value={form.webhook_outro_global} onChange={e => setForm(prev => ({ ...prev, webhook_outro_global: e.target.value }))}
                 className="bg-secondary border-border h-9 text-sm" placeholder="https://..." />
             </div>
           </div>
         </motion.div>
 
+        {/* Gateway */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="rounded-xl border border-border/60 p-5 space-y-4" style={{ background: "hsl(var(--card))" }}>
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-neon-green/10"><Key className="w-4 h-4 text-neon-green" /></div>
             <div>
               <h3 className="font-bold text-sm text-foreground">Gateway de Pagamento Global</h3>
-              <p className="text-xs text-muted-foreground">Chave padrão para todas as plataformas</p>
+              <p className="text-xs text-muted-foreground">Chave padrão para plataformas sem gateway próprio</p>
             </div>
           </div>
           <Input value={form.gateway_chave_global} onChange={e => setForm(prev => ({ ...prev, gateway_chave_global: e.target.value }))}
             className="bg-secondary border-border h-9 text-sm font-mono" placeholder="pk_live_..." />
+          <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+            <p className="text-[10px] text-primary font-semibold">💡 V7: Cada plataforma pode ter seu próprio gateway configurado no mapeamento extra (PIX API, REST, Webhook, SQL).</p>
+          </div>
         </motion.div>
 
+        {/* Cooperation */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
           className="rounded-xl border border-border/60 p-5 space-y-4" style={{ background: "hsl(var(--card))" }}>
           <div className="flex items-center gap-3">
@@ -163,27 +170,39 @@ const Settings = () => {
           </div>
         </motion.div>
 
+        {/* Save */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
           className="lg:col-span-2 flex justify-end">
           <Button onClick={handleSaveSettings} disabled={updateSettings.isPending} className="h-9 text-sm gap-2"
-            style={{ background: "linear-gradient(135deg, hsl(var(--neon-blue)), hsl(220 100% 60%))" }}>
+            style={{ background: "var(--gradient-primary)" }}>
             <Save className="w-3.5 h-3.5" /> Salvar Configurações Globais
           </Button>
         </motion.div>
 
+        {/* Version info */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
           className="lg:col-span-2 rounded-xl border border-border/60 p-4 flex items-center justify-between"
           style={{ background: "hsl(var(--card))" }}>
           <div className="flex items-center gap-3">
             <Zap className="w-4 h-4 text-primary" />
             <div>
-              <p className="text-sm font-semibold text-foreground">Master Painel Pro Enterprise Edition</p>
-              <p className="text-xs text-muted-foreground mono">v3.0.0 — Build 2026.03.07</p>
+              <p className="text-sm font-semibold text-foreground">Master Painel V7 — Platform Adapter Engine</p>
+              <p className="text-xs text-muted-foreground mono">v7.0.0 — Build 2026.03.09</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full status-online" />
-            <span className="text-xs text-neon-green font-medium">Sistema Saudável</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Database className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground">Cache Inteligente</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground">Auto-Sync</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full status-online" />
+              <span className="text-xs text-neon-green font-medium">Operacional</span>
+            </div>
           </div>
         </motion.div>
       </div>
