@@ -131,6 +131,10 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     saques: { approve: "approved", reject: "rejected", pending: "pending" },
     depositos: { approve: "approved", reject: "rejected", pending: "pending" },
   });
+  const [platNotif, setPlatNotif] = useState({
+    telegram_ativo: false, telegram_bot_token: "", telegram_chat_id: "",
+    pushcut_ativo: false, pushcut_url: "",
+  });
 
   const [form, setForm] = useState({
     url: "", db_host: "", db_port: 3306, db_user: "", db_pass: "", db_name: "",
