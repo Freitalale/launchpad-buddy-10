@@ -737,9 +737,10 @@ echo json_encode(["error"=>"Ação não reconhecida: ".$action,
 
   const generateTelegramWebhook = () => {
     return `<?php
-// telegram_webhook.php — Webhook de Notificações Telegram
+// telegram_webhook.php — Webhook de Notificações Telegram v7.0
 // Plataforma: ${platform.nome}
 // Gerado em: ${new Date().toISOString()}
+// EVENTOS: deposito, saque, novo_usuario, gerar_pix, erro_plataforma, cooperacao, test
 
 error_reporting(0);
 ini_set("display_errors", "0");
@@ -801,13 +802,35 @@ if ($event === "novo_usuario" || ($input["type"] ?? "") === "new_user") {
     echo json_encode(["ok" => true, "telegram" => $result]); exit;
 }
 
-if ($event === "test") {
-    $msg = "🔔 <b>TESTE DE NOTIFICAÇÃO</b>\\n\\n✅ Webhook configurado com sucesso!\\n📍 Plataforma: ${platform.nome}\\n⏰ " . date("d/m/Y H:i:s");
+if ($event === "gerar_pix" || ($input["type"] ?? "") === "pix_generated") {
+    $nome = $input["user_name"] ?? $input["nome"] ?? "Desconhecido";
+    $valor = $input["amount"] ?? $input["valor"] ?? 0;
+    $pix = $input["pix"] ?? $input["pix_key"] ?? "N/A";
+    $msg = "🔑 <b>PIX GERADO</b>\\n\\n👤 Usuário: {$nome}\\n💵 Valor: R\$ " . number_format((float)$valor, 2, ",", ".") . "\\n🔗 Chave: {$pix}\\n📍 Plataforma: ${platform.nome}";
     $result = sendTelegram($bot_token, $chat_id, $msg);
     echo json_encode(["ok" => true, "telegram" => $result]); exit;
 }
 
-echo json_encode(["error" => "Evento não reconhecido", "available" => ["deposito", "saque", "novo_usuario", "test"]]);
+if ($event === "erro_plataforma" || ($input["type"] ?? "") === "platform_error") {
+    $erro = $input["error"] ?? $input["erro"] ?? "Erro desconhecido";
+    $msg = "🔴 <b>ERRO NA PLATAFORMA</b>\\n\\n⚠️ Erro: {$erro}\\n📍 Plataforma: ${platform.nome}\\n⏰ " . date("d/m/Y H:i:s");
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+if ($event === "cooperacao" || ($input["type"] ?? "") === "cooperation") {
+    $msg = "🤝 <b>COOPERAÇÃO</b>\\n\\n📍 Plataforma: ${platform.nome}\\n📋 " . ($input["message"] ?? "Evento de cooperação") . "\\n⏰ " . date("d/m/Y H:i:s");
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+if ($event === "test") {
+    $msg = "🔔 <b>TESTE DE NOTIFICAÇÃO v7.0</b>\\n\\n✅ Webhook configurado com sucesso!\\n📍 Plataforma: ${platform.nome}\\n⏰ " . date("d/m/Y H:i:s");
+    $result = sendTelegram($bot_token, $chat_id, $msg);
+    echo json_encode(["ok" => true, "telegram" => $result]); exit;
+}
+
+echo json_encode(["error" => "Evento não reconhecido", "available" => ["deposito", "saque", "novo_usuario", "gerar_pix", "erro_plataforma", "cooperacao", "test"]]);
 ?>`;
   };
 
