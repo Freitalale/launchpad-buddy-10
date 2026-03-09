@@ -1973,7 +1973,86 @@ async function testAll(){
             </div>
           </TabsContent>
 
-          {/* Webhooks Tab */}
+          {/* Notificações per-platform Tab */}
+          <TabsContent value="notificacoes" className="space-y-4 mt-4">
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+              <p className="text-[10px] text-muted-foreground">
+                Configure Telegram e PushCut <strong>exclusivos desta plataforma</strong>. Cada plataforma pode ter seu próprio bot, chat e webhook — independente da configuração global.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Telegram per-platform */}
+              <div className="rounded-lg border border-primary/20 p-4 space-y-3 bg-primary/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wifi className="w-4 h-4 text-primary" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground">Telegram</p>
+                      <p className="text-[10px] text-muted-foreground">Bot exclusivo para {platform.nome}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-semibold ${platNotif.telegram_ativo ? "text-neon-green" : "text-muted-foreground"}`}>
+                      {platNotif.telegram_ativo ? "Ativo" : "Inativo"}
+                    </span>
+                    <input type="checkbox" checked={platNotif.telegram_ativo}
+                      onChange={e => setPlatNotif(p => ({ ...p, telegram_ativo: e.target.checked }))}
+                      className="w-4 h-4 rounded accent-primary" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground">Bot Token</Label>
+                  <Input value={platNotif.telegram_bot_token}
+                    onChange={e => setPlatNotif(p => ({ ...p, telegram_bot_token: e.target.value }))}
+                    className="bg-secondary h-8 text-[11px] font-mono" placeholder="123456:ABC-DEF..." />
+                  <p className="text-[9px] text-muted-foreground">Crie um bot via @BotFather → copie o token</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground">Chat ID</Label>
+                  <Input value={platNotif.telegram_chat_id}
+                    onChange={e => setPlatNotif(p => ({ ...p, telegram_chat_id: e.target.value }))}
+                    className="bg-secondary h-8 text-[11px] font-mono" placeholder="-1001234567890" />
+                  <p className="text-[9px] text-muted-foreground">Use @userinfobot para obter o Chat ID</p>
+                </div>
+              </div>
+
+              {/* PushCut per-platform */}
+              <div className="rounded-lg border border-neon-amber/20 p-4 space-y-3 bg-neon-amber/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-neon-amber" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground">PushCut</p>
+                      <p className="text-[10px] text-muted-foreground">Webhook exclusivo para {platform.nome}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-semibold ${platNotif.pushcut_ativo ? "text-neon-green" : "text-muted-foreground"}`}>
+                      {platNotif.pushcut_ativo ? "Ativo" : "Inativo"}
+                    </span>
+                    <input type="checkbox" checked={platNotif.pushcut_ativo}
+                      onChange={e => setPlatNotif(p => ({ ...p, pushcut_ativo: e.target.checked }))}
+                      className="w-4 h-4 rounded accent-neon-amber" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground">Webhook URL</Label>
+                  <Input value={platNotif.pushcut_url}
+                    onChange={e => setPlatNotif(p => ({ ...p, pushcut_url: e.target.value }))}
+                    className="bg-secondary h-8 text-[11px] font-mono" placeholder="https://api.pushcut.io/..." />
+                  <p className="text-[9px] text-muted-foreground">PushCut → Notifications → Webhook Trigger → Copiar URL</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-secondary/50 border border-border/30 p-3">
+              <p className="text-[10px] text-muted-foreground">
+                💡 <strong>Ambos podem estar ativos ao mesmo tempo.</strong> Quando a plataforma tem notificação própria configurada, ela é usada no lugar da global. Se não tiver, o sistema usa a configuração global de Notificações.
+              </p>
+            </div>
+          </TabsContent>
+
           <TabsContent value="webhooks" className="space-y-4 mt-4">
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
               <p className="text-[10px] text-muted-foreground">Webhooks para notificações de eventos. Telegram e PushCut recebem notificações idênticas.</p>
