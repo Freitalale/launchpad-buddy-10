@@ -1590,6 +1590,59 @@ async function testAll(){
 
             {TABLE_META.map(meta => renderTableSection(meta))}
 
+            {/* Universal Status Mapping v6.0 */}
+            <div className="rounded-lg border border-accent/40 bg-accent/5 p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-accent" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">🔄 Mapeamento Universal de Status (v6.0)</p>
+                  <p className="text-[9px] text-muted-foreground">Defina os valores de status que a plataforma usa. Ex: "approved", "1", "paid", "completed".</p>
+                </div>
+              </div>
+
+              {(["saques", "depositos"] as const).map(entity => {
+                const sm = statusMaps[entity] ?? { approve: "approved", reject: "rejected", pending: "pending" };
+                const icon = entity === "saques" ? "💸" : "💰";
+                const label = entity === "saques" ? "Saques" : "Depósitos";
+                return (
+                  <div key={entity} className="rounded-lg border border-border/50 bg-secondary/30 p-3 space-y-2">
+                    <p className="text-[10px] font-bold text-foreground">{icon} {label} — Valores de Status</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-[9px] text-neon-green font-bold">✅ Aprovado</Label>
+                        <Input value={sm.approve ?? "approved"} 
+                          onChange={e => setStatusMaps(prev => ({ ...prev, [entity]: { ...prev[entity], approve: e.target.value } }))}
+                          className="bg-neon-green/10 h-7 text-[11px] font-mono border-neon-green/30" placeholder="approved" />
+                      </div>
+                      <div>
+                        <Label className="text-[9px] text-destructive font-bold">❌ Rejeitado</Label>
+                        <Input value={sm.reject ?? "rejected"} 
+                          onChange={e => setStatusMaps(prev => ({ ...prev, [entity]: { ...prev[entity], reject: e.target.value } }))}
+                          className="bg-destructive/10 h-7 text-[11px] font-mono border-destructive/30" placeholder="rejected" />
+                      </div>
+                      <div>
+                        <Label className="text-[9px] text-neon-amber font-bold">⏳ Pendente</Label>
+                        <Input value={sm.pending ?? "pending"} 
+                          onChange={e => setStatusMaps(prev => ({ ...prev, [entity]: { ...prev[entity], pending: e.target.value } }))}
+                          className="bg-neon-amber/10 h-7 text-[11px] font-mono border-neon-amber/30" placeholder="pending" />
+                      </div>
+                    </div>
+                    <p className="text-[8px] text-muted-foreground">
+                      Quando aprovar saque, API faz: <code className="bg-background/50 px-1 rounded">SET status = '{sm.approve}'</code> | 
+                      Rejeitar: <code className="bg-background/50 px-1 rounded">SET status = '{sm.reject}'</code>
+                    </p>
+                  </div>
+                );
+              })}
+
+              <div className="rounded-lg bg-primary/5 border border-primary/20 p-2">
+                <p className="text-[9px] text-muted-foreground">
+                  💡 <strong className="text-foreground">Dica:</strong> Use o endpoint <code className="bg-background/50 px-1 rounded text-primary">?action=get_status_map</code> 
+                  na API para detectar automaticamente os valores DISTINCT de status do banco remoto.
+                </p>
+              </div>
+            </div>
+
             {/* Extra custom tables */}
             {extraTables.map((et, tableIdx) => (
               <div key={et.key} className="rounded-lg border border-dashed border-primary/40 p-3 space-y-2">
