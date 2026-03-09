@@ -94,12 +94,17 @@ const RETRY_DELAY = 2_000;
 function getApiUrl(platform: Plataforma): string | null {
   if (!platform.url) return null;
   let base = platform.url.replace(/\/$/, "");
-  // Always ensure protocol
   if (!base.startsWith("http://") && !base.startsWith("https://")) {
     base = `https://${base}`;
   }
   if (base.endsWith("api.php")) return base;
-  return `${base}/api.php`;
+  // Parse URL to always place api.php at root, avoiding /api/api.php
+  try {
+    const parsed = new URL(base);
+    return `${parsed.origin}/api.php`;
+  } catch {
+    return `${base}/api.php`;
+  }
 }
 
 function classifyError(e: any, endpoint: string): DiagnosticError {

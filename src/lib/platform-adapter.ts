@@ -208,7 +208,12 @@ function getApiUrl(platform: Plataforma): string | undefined {
     base = `https://${base}`;
   }
   if (base.endsWith("api.php")) return base;
-  return `${base}/api.php`;
+  try {
+    const parsed = new URL(base);
+    return `${parsed.origin}/api.php`;
+  } catch {
+    return `${base}/api.php`;
+  }
 }
 
 // ==================== Adapter Registry ====================
