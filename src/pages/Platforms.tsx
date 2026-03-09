@@ -43,6 +43,7 @@ const Platforms = () => {
   const [configuring, setConfiguring] = useState<Plataforma | null>(null);
   const [managing, setManaging] = useState<Plataforma | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<Plataforma | null>(null);
 
   const filtered = platforms.filter(p => {
     const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase()) || (p.url ?? "").toLowerCase().includes(search.toLowerCase());
