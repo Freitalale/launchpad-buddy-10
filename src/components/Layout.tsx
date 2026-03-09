@@ -3,7 +3,7 @@ import { useNavigate, Outlet, NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Server, ScrollText, Settings, LogOut, Zap, ChevronRight, Globe,
-  Menu, X, PanelLeftClose, PanelLeft, Send, Activity, DollarSign, ArrowUpRight,
+  Menu, X, PanelLeftClose, PanelLeft, Bell, Activity, DollarSign, ArrowUpRight,
   Headphones, BookOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
