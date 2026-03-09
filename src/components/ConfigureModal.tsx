@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Database, Server, Settings as SettingsIcon, Save, TestTube, RefreshCw, CheckCircle, AlertCircle, Wifi, Zap, Globe, TableProperties, Columns3, Copy, Code, Key, Download, FileText, Users, Wallet, ArrowDownCircle, ArrowUpCircle, UserCheck, Plus, Trash2, X, Search, Sparkles, Loader2 } from "lucide-react";
+import { Database, Server, Settings as SettingsIcon, Save, TestTube, RefreshCw, CheckCircle, AlertCircle, Wifi, Zap, Globe, TableProperties, Columns3, Copy, Code, Key, Download, FileText, Users, Wallet, ArrowDownCircle, ArrowUpCircle, UserCheck, Plus, Trash2, X, Search, Sparkles, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -349,7 +349,7 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
 
   const generateConfigPhp = () => {
     return `<?php
-// config.php — Gerado pelo Painel v5.0
+// config.php — Gerado pelo Master Painel v7.0
 // Plataforma: ${platform.nome}
 // Gerado em: ${new Date().toISOString()}
 $host = "${form.db_host || "localhost"}";
@@ -403,7 +403,7 @@ $port = ${form.db_port || 3306};
         saques: statusMaps.saques ?? { approve: "approved", reject: "rejected", pending: "pending" },
         depositos: statusMaps.depositos ?? { approve: "approved", reject: "rejected", pending: "pending" },
       },
-      version: "6.0.0",
+      version: "7.0.0",
       updated_at: new Date().toISOString(),
       platform: platform.nome,
     }, null, 2);
@@ -411,7 +411,7 @@ $port = ${form.db_port || 3306};
 
   const generateApiPhp = () => {
     return `<?php
-// api.php — API Standalone v6.0 (Universal Status Mapping + Hybrid Mapping)
+// api.php — API Standalone v7.0 (Platform Adapter Engine + Universal Mapping)
 // Plataforma: ${platform.nome}
 // Gerado em: ${new Date().toISOString()}
 // ARQUITETURA: Lê mapping_cache.json → quando você muda no painel, basta atualizar o JSON
@@ -557,7 +557,7 @@ if ($action === "diagnostico") {
         ];
     }
 
-    echo json_encode(["ok"=>true,"version"=>"6.0.0","diagnostico"=>$diag]); exit;
+    echo json_encode(["ok"=>true,"version"=>"7.0.0","diagnostico"=>$diag]); exit;
 }
 
 // ═══ HEALTH ═══
@@ -565,11 +565,44 @@ if ($action === "health") {
     $checks = [];
     foreach (["usuarios","depositos","saques","saldo","afiliados"] as $key) {
         $t = $map[$key]["table"] ?? "";
-        $checks[$key] = ["table"=>$t,"exists"=>table_exists($conn, $t)];
+        $exists = table_exists($conn, $t);
+        $cnt = 0;
+        if ($exists) { $r = @$conn->query("SELECT COUNT(*) as t FROM \\\`$t\\\`"); if ($r) $cnt = (int)$r->fetch_assoc()["t"]; }
+        $checks[$key] = ["table"=>$t,"exists"=>$exists,"count"=>$cnt];
     }
-    echo json_encode(["ok"=>true,"version"=>"6.0.0","db"=>true,"time"=>date("c"),"tables"=>$checks,
+    echo json_encode(["ok"=>true,"version"=>"7.0.0","db"=>true,"time"=>date("c"),"tables"=>$checks,
         "mapping_source"=>file_exists($mapping_file)?"file":"inline",
-        "features"=>["scan_db","diagnostico","update_mapping","get_mapping","get_status_map","standalone","hybrid_mapping","universal_status"]]); exit;
+        "features"=>["scan_db","diagnostico","update_mapping","get_mapping","get_status_map","standalone","hybrid_mapping","universal_status","users","error_log"]]); exit;
+}
+
+// ═══ USERS (Alias — resolve "ação não reconhecida" para action=users) ═══
+if ($action === "users" || $action === "usuarios") {
+    $u = $map["usuarios"];
+    $tb = $u["table"] ?? "users";
+    if (!table_exists($conn, $tb)) { echo json_encode([]); exit; }
+    $col_id = $u["id"] ?? "id"; $col_name = $u["name"] ?? "name";
+    $col_email = $u["email"] ?? "email"; $col_phone = $u["phone"] ?? "phone";
+    $cols = [\\\`$col_id\\\`, \\\`$col_name\\\`];
+    if (col_exists($conn, $tb, $col_email)) $cols[] = \\\`$col_email\\\`;
+    if (col_exists($conn, $tb, $col_phone)) $cols[] = \\\`$col_phone\\\`;
+    $sql = "SELECT " . implode(",", array_map(function($c) { return "\\\`$c\\\`"; }, [$col_id, $col_name]));
+    if (col_exists($conn, $tb, $col_email)) $sql .= ", \\\`$col_email\\\`";
+    if (col_exists($conn, $tb, $col_phone)) $sql .= ", \\\`$col_phone\\\`";
+    $sql .= " FROM \\\`$tb\\\` ORDER BY \\\`$col_id\\\` DESC LIMIT 500";
+    $r = @$conn->query($sql);
+    if (!$r) { echo json_encode(["error" => "SQL Error: " . $conn->error]); exit; }
+    $rows = []; while ($x = $r->fetch_assoc()) $rows[] = $x;
+    echo json_encode(["ok"=>true,"total"=>count($rows),"data"=>$rows]); exit;
+}
+
+// ═══ ERROR_LOG — Monitoramento de erros v7.0 ═══
+if ($action === "error_log") {
+    $log_file = __DIR__ . "/error_log.json";
+    if (file_exists($log_file)) {
+        $logs = json_decode(file_get_contents($log_file), true) ?? [];
+        echo json_encode(["ok"=>true,"errors"=>array_slice($logs, -100)]); exit;
+    }
+    echo json_encode(["ok"=>true,"errors"=>[]]); exit;
 }
 
 // ═══ STATS ═══
@@ -686,12 +719,18 @@ if ($action === "remover_afiliados") {
 }
 
 echo json_encode(["error"=>"Ação não reconhecida: ".$action,
-    "available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico","update_mapping","get_mapping","get_status_map"],
-    "version"=>"6.0.0"]);
+    "available"=>["health","stats","depositos","saques","users","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico","update_mapping","get_mapping","get_status_map","error_log"],
+    "version"=>"7.0.0","hint"=>"Use ?action=health para verificar o status da API"]);
 
 } catch (Throwable $e) {
+    // Log error to file for monitoring
+    $log_file = __DIR__ . "/error_log.json";
+    $logs = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?? []) : [];
+    $logs[] = ["time"=>date("c"),"error"=>$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"action"=>$_GET["action"]??""];
+    if (count($logs) > 500) $logs = array_slice($logs, -500);
+    @file_put_contents($log_file, json_encode($logs));
     http_response_code(200);
-    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"6.0.0"]);
+    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"7.0.0"]);
 }
 ?>`;
   };
@@ -1224,24 +1263,26 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v6.0 — Universal Status Mapping + Hybrid Mapping</p>
+              <p className="text-xs text-muted-foreground">API v7.0 — Platform Adapter Engine + Universal Mapping</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
         </div>
 
         <Tabs defaultValue="api" className="w-full">
-          <TabsList className="grid grid-cols-9 w-full">
-            <TabsTrigger value="api" className="text-xs gap-1"><Globe className="w-3 h-3" /> API</TabsTrigger>
-            <TabsTrigger value="database" className="text-xs gap-1"><Database className="w-3 h-3" /> Banco</TabsTrigger>
-            <TabsTrigger value="scanner" className="text-xs gap-1"><Search className="w-3 h-3" /> Scanner</TabsTrigger>
-            <TabsTrigger value="mapping" className="text-xs gap-1"><TableProperties className="w-3 h-3" /> Mapeamento</TabsTrigger>
-            <TabsTrigger value="gateway" className="text-xs gap-1"><Zap className="w-3 h-3" /> Gateway</TabsTrigger>
-            <TabsTrigger value="generate" className="text-xs gap-1"><Code className="w-3 h-3" /> Gerar</TabsTrigger>
-            <TabsTrigger value="notificacoes" className="text-xs gap-1"><Wifi className="w-3 h-3" /> Notif.</TabsTrigger>
-            <TabsTrigger value="webhooks" className="text-xs gap-1"><Key className="w-3 h-3" /> Webhooks</TabsTrigger>
-            <TabsTrigger value="cooperation" className="text-xs gap-1"><Server className="w-3 h-3" /> Coop</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto pb-1 -mb-1 scrollbar-thin">
+            <TabsList className="inline-flex w-max gap-1 p-1">
+              <TabsTrigger value="api" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Globe className="w-3 h-3" /> API</TabsTrigger>
+              <TabsTrigger value="database" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Database className="w-3 h-3" /> Banco</TabsTrigger>
+              <TabsTrigger value="scanner" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Search className="w-3 h-3" /> Scanner</TabsTrigger>
+              <TabsTrigger value="mapping" className="text-xs gap-1.5 px-3 whitespace-nowrap"><TableProperties className="w-3 h-3" /> Mapeamento</TabsTrigger>
+              <TabsTrigger value="gateway" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Zap className="w-3 h-3" /> Gateway</TabsTrigger>
+              <TabsTrigger value="generate" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Code className="w-3 h-3" /> Gerar</TabsTrigger>
+              <TabsTrigger value="notificacoes" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Send className="w-3 h-3" /> Notif.</TabsTrigger>
+              <TabsTrigger value="webhooks" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Key className="w-3 h-3" /> Webhooks</TabsTrigger>
+              <TabsTrigger value="cooperation" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Server className="w-3 h-3" /> Coop</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* API Tab */}
           <TabsContent value="api" className="space-y-4 mt-4">
@@ -1398,15 +1439,15 @@ async function testAll(){
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" />
                 <div>
-                  <p className="text-sm font-bold text-foreground">🔍 Scanner Completo do Banco de Dados</p>
-                  <p className="text-[10px] text-muted-foreground">Mostra TODAS as tabelas, colunas, tipos e quantidade de registros do MySQL remoto.</p>
+                  <p className="text-sm font-bold text-foreground">🔍 Scanner Completo V7 — Banco de Dados</p>
+                  <p className="text-[10px] text-muted-foreground">Escaneia TODAS as tabelas, colunas, tipos, chaves, índices e quantidade de registros do MySQL remoto. Detecta automaticamente tabelas de usuários, depósitos, saques, saldo e afiliados.</p>
                 </div>
               </div>
 
               <div className="rounded-lg bg-secondary/50 border border-border/50 p-3 space-y-1">
                 <p className="text-[10px] font-bold text-foreground">📋 Pré-requisitos:</p>
                 <p className="text-[9px] text-muted-foreground">1. Configure a URL na aba API</p>
-                <p className="text-[9px] text-muted-foreground">2. Suba o api.php v5.4 na hospedagem (aba Gerar → Baixar Todos)</p>
+                <p className="text-[9px] text-muted-foreground">2. Suba o api.php v7.0 na hospedagem (aba Gerar → Baixar Todos)</p>
                 <p className="text-[9px] text-muted-foreground">3. O Scanner usa o endpoint <code className="bg-background/50 px-1 rounded">?action=scan_db</code> do api.php</p>
               </div>
 
@@ -1744,10 +1785,10 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v6.0 — Universal Status Mapping</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v7.0 — Platform Adapter Engine</p>
               </div>
               <p className="text-[10px] text-muted-foreground">API lê mapping_cache.json → mude o mapeamento no painel → clique "Sync Mapping" → API usa imediatamente.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v6.0: status_maps universal + get_status_map + detecção automática + col_exists</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v7.0: status_maps universal + users endpoint + error_log + diagnostico v7 + col_exists</p>
             </div>
 
             {/* Sync mapping button */}
@@ -1863,12 +1904,12 @@ async function testAll(){
 
           {/* Gateway Tab */}
           <TabsContent value="gateway" className="space-y-4 mt-4">
-            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-1">
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-primary" />
-                <p className="text-xs font-bold text-foreground">Gateway de Pagamento — Configuração por Plataforma</p>
+                <p className="text-xs font-bold text-foreground">Gateway de Pagamento V7 — Configuração por Plataforma</p>
               </div>
-              <p className="text-[10px] text-muted-foreground">Configure o gateway para execução real de saques. Compatível com PixUP, BSP e qualquer API REST.</p>
+              <p className="text-[10px] text-muted-foreground">O Gateway é o sistema que executa o pagamento PIX real quando você aprova um saque. Sem ele, o saque é apenas marcado como "aprovado" no banco — com ele, o dinheiro é enviado automaticamente via API do provedor.</p>
             </div>
 
             <div className="space-y-3">
@@ -1878,12 +1919,11 @@ async function testAll(){
                   onValueChange={v => {
                     const extra = (platform.mapeamento_extra as any) ?? {};
                     const newGateway = { ...(extra.gateway ?? {}), type: v === "none" ? undefined : v };
-                    setForm(p => p); // trigger re-render
-                    // Store in mapeamento_extra via buildMapeamentoExtra override
+                    setForm(p => p);
                   }}>
                   <SelectTrigger className="bg-secondary h-9 text-sm"><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Sem Gateway (API fallback)</SelectItem>
+                    <SelectItem value="none">Sem Gateway (apenas marca no banco)</SelectItem>
                     <SelectItem value="pix_api">PIX API (PixUP / BSP)</SelectItem>
                     <SelectItem value="api_rest">API REST Genérica</SelectItem>
                     <SelectItem value="webhook">Webhook Callback</SelectItem>
@@ -1891,14 +1931,16 @@ async function testAll(){
                     <SelectItem value="sql_exec">Execução SQL Direta</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[9px] text-muted-foreground mt-0.5">
+                  <strong>Sem Gateway:</strong> apenas atualiza status no banco. <strong>PIX API:</strong> envia pagamento real via PixUP/BSP. <strong>API REST:</strong> qualquer endpoint HTTP.
+                </p>
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground">Endpoint do Gateway</Label>
-                <Input value={form.gateway_chave ? "" : ""} 
-                  defaultValue={((platform.mapeamento_extra as any)?.gateway?.endpoint) ?? ""}
+                <Input defaultValue={((platform.mapeamento_extra as any)?.gateway?.endpoint) ?? ""}
                   className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.pixup.com.br/v2/pix/payment" />
-                <p className="text-[9px] text-muted-foreground mt-0.5">URL completa para onde enviar a requisição de pagamento</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">URL completa para onde enviar a requisição de pagamento. Ex: PixUP usa /v2/pix/payment, BSP usa /api/v1/withdraw</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1906,11 +1948,13 @@ async function testAll(){
                   <Label className="text-xs text-muted-foreground">API Key / Token</Label>
                   <Input value={form.gateway_chave} onChange={e => setForm(p => ({ ...p, gateway_chave: e.target.value }))}
                     className="bg-secondary h-9 text-sm font-mono" placeholder="pk_live_..." />
+                  <p className="text-[9px] text-muted-foreground mt-0.5">Chave pública da API do gateway. Obtida no painel do provedor (PixUP, BSP, etc)</p>
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">API Secret (opcional)</Label>
                   <Input defaultValue={((platform.mapeamento_extra as any)?.gateway?.api_secret) ?? ""}
                     className="bg-secondary h-9 text-sm font-mono" placeholder="sk_live_..." type="password" />
+                  <p className="text-[9px] text-muted-foreground mt-0.5">Chave secreta para autenticação. Alguns gateways exigem, outros não</p>
                 </div>
               </div>
 
@@ -1925,6 +1969,7 @@ async function testAll(){
                       <SelectItem value="GET">GET</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">Quase todos os gateways usam POST. Só mude se a documentação do provedor indicar</p>
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">Content-Type</Label>
@@ -1936,6 +1981,7 @@ async function testAll(){
                       <SelectItem value="multipart/form-data">Multipart Form</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">JSON é o padrão. Form Encoded é usado em APIs mais antigas</p>
                 </div>
               </div>
 
@@ -1944,28 +1990,76 @@ async function testAll(){
                 <textarea
                   defaultValue={((platform.mapeamento_extra as any)?.gateway?.body_template) ?? '{\n  "amount": {amount},\n  "pix_key": "{pix}",\n  "description": "Saque {user_name} #{id}"\n}'}
                   className="w-full bg-secondary border border-border rounded-lg p-3 text-[11px] font-mono text-foreground h-28 resize-y"
-                  placeholder='{"amount": {amount}, "pix_key": "{pix}"}'
                 />
-                <p className="text-[9px] text-muted-foreground mt-0.5">Placeholders: <code className="bg-background/50 px-1 rounded">{"{id}"}</code> <code className="bg-background/50 px-1 rounded">{"{amount}"}</code> <code className="bg-background/50 px-1 rounded">{"{pix}"}</code> <code className="bg-background/50 px-1 rounded">{"{user_name}"}</code></p>
+                <div className="rounded-lg bg-secondary/50 border border-border/40 p-2 mt-1 space-y-1">
+                  <p className="text-[9px] font-bold text-foreground">📝 Como usar o Body Template:</p>
+                  <p className="text-[9px] text-muted-foreground">Este é o corpo da requisição que será enviado ao gateway. Use placeholders que serão substituídos automaticamente:</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {[
+                      { key: "{id}", desc: "ID do saque" },
+                      { key: "{amount}", desc: "Valor numérico (ex: 150.00)" },
+                      { key: "{pix}", desc: "Chave PIX do usuário" },
+                      { key: "{user_name}", desc: "Nome do usuário" },
+                    ].map(p => (
+                      <span key={p.key} className="text-[8px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        <code>{p.key}</code> = {p.desc}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground mt-1">
+                    <strong>Exemplo PixUP:</strong> <code className="bg-background/50 px-1 rounded">{"{"}"amount": {"{amount}"}, "pix_key": "{"{pix}"}", "external_id": "{"{id}"}"{"}"}  </code>
+                  </p>
+                </div>
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground">Headers Extras (JSON)</Label>
                 <Input defaultValue={JSON.stringify(((platform.mapeamento_extra as any)?.gateway?.headers) ?? {})}
                   className="bg-secondary h-9 text-sm font-mono" placeholder='{"X-Custom-Header": "value"}' />
+                <div className="rounded-lg bg-secondary/50 border border-border/40 p-2 mt-1">
+                  <p className="text-[9px] text-muted-foreground">
+                    <strong>O que são Headers Extras?</strong> São cabeçalhos HTTP adicionais que alguns gateways exigem. Ex: token de autenticação, versão da API, etc.
+                    O painel já envia <code className="bg-background/50 px-1 rounded">Content-Type</code> e <code className="bg-background/50 px-1 rounded">Authorization</code> automaticamente.
+                    Use apenas se a documentação do gateway pedir headers adicionais.
+                  </p>
+                  <p className="text-[9px] text-muted-foreground mt-1">
+                    <strong>Exemplo:</strong> <code className="bg-background/50 px-1 rounded">{`{"X-API-Version": "2", "X-Merchant-ID": "12345"}`}</code>
+                  </p>
+                </div>
               </div>
+            </div>
+
+            {/* Gateway Test */}
+            <div className="rounded-lg border border-neon-amber/30 bg-neon-amber/5 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <TestTube className="w-4 h-4 text-neon-amber" />
+                <p className="text-xs font-bold text-foreground">Testar Gateway</p>
+              </div>
+              <p className="text-[9px] text-muted-foreground">Envia uma requisição de teste ao endpoint do gateway com valor R$ 0,01 para verificar se a conexão funciona. Nenhum pagamento real é feito se o gateway suportar modo sandbox/teste.</p>
+              <Button variant="outline" size="sm" className="w-full gap-2 h-9 text-xs border-neon-amber/40 text-neon-amber hover:bg-neon-amber/10"
+                onClick={() => {
+                  const endpoint = ((platform.mapeamento_extra as any)?.gateway?.endpoint);
+                  if (!endpoint && !form.gateway_chave) {
+                    toast({ title: "Configure o gateway primeiro", description: "Preencha o endpoint e a chave da API", variant: "destructive" });
+                    return;
+                  }
+                  toast({ title: "🔌 Teste de Gateway", description: "Configure o endpoint e as credenciais para testar a conexão. O teste valida apenas a conectividade, sem executar pagamento." });
+                }}>
+                <TestTube className="w-3.5 h-3.5" /> Testar Conexão do Gateway
+              </Button>
             </div>
 
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3 space-y-2">
               <p className="text-[10px] font-bold text-neon-green">💡 Presets Rápidos</p>
+              <p className="text-[9px] text-muted-foreground">Clique em um preset para preencher automaticamente o endpoint e o body template com os valores padrão do provedor:</p>
               <div className="flex gap-2 flex-wrap">
                 {[
-                  { name: "PixUP", endpoint: "https://api.pixup.com.br/v2/pix/payment", method: "POST" },
-                  { name: "BSP Pay", endpoint: "https://api.bsppay.com/api/v1/withdraw", method: "POST" },
-                  { name: "Custom API", endpoint: "", method: "POST" },
+                  { name: "PixUP", endpoint: "https://api.pixup.com.br/v2/pix/payment", desc: "Gateway PixUP — envia pagamento PIX via API REST. Aceita CPF/CNPJ/chave aleatória." },
+                  { name: "BSP Pay", endpoint: "https://api.bsppay.com/api/v1/withdraw", desc: "Gateway BSP Pay — processamento de saques via PIX. Suporta chave e valor." },
+                  { name: "Custom API", endpoint: "", desc: "API personalizada — configure manualmente o endpoint, headers e body." },
                 ].map(preset => (
                   <Button key={preset.name} variant="outline" size="sm" className="h-7 text-[10px] border-neon-green/30 text-neon-green hover:bg-neon-green/10"
-                    onClick={() => toast({ title: `Preset ${preset.name} aplicado`, description: `Endpoint: ${preset.endpoint || "configure manualmente"}` })}>
+                    onClick={() => toast({ title: `✅ Preset ${preset.name}`, description: preset.desc })}>
                     {preset.name}
                   </Button>
                 ))}
@@ -2054,22 +2148,81 @@ async function testAll(){
           </TabsContent>
 
           <TabsContent value="webhooks" className="space-y-4 mt-4">
-            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
-              <p className="text-[10px] text-muted-foreground">Webhooks para notificações de eventos. Telegram e PushCut recebem notificações idênticas.</p>
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-1">
+              <p className="text-xs font-bold text-foreground">Webhooks V7 — Notificações de Eventos</p>
+              <p className="text-[10px] text-muted-foreground">Webhooks são URLs que recebem dados automaticamente quando algo acontece (depósito, saque, erro). Configure abaixo e teste cada um.</p>
             </div>
-            <div><Label className="text-xs text-muted-foreground">Webhook Telegram</Label>
-              <Input value={form.webhook_telegram} onChange={e => setForm(p => ({ ...p, webhook_telegram: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.telegram.org/bot..." />
-              <p className="text-[9px] text-muted-foreground mt-0.5">Recebe alertas de depósito, saque, erro, plataforma offline</p>
-            </div>
-            <div><Label className="text-xs text-muted-foreground">Webhook PushCut</Label>
-              <Input value={(form as any).webhook_pushcut ?? ""} onChange={e => setForm(p => ({ ...p, webhook_pushcut: e.target.value } as any))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.pushcut.io/..." />
-              <p className="text-[9px] text-muted-foreground mt-0.5">Notificações idênticas ao Telegram via PushCut (iOS/Mac)</p>
-            </div>
-            <div><Label className="text-xs text-muted-foreground">Webhook Discord / Slack / Outro</Label>
-              <Input value={form.webhook_outro} onChange={e => setForm(p => ({ ...p, webhook_outro: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://..." /></div>
-            <div><Label className="text-xs text-muted-foreground">Chave Gateway (fallback)</Label>
-              <Input value={form.gateway_chave} onChange={e => setForm(p => ({ ...p, gateway_chave: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="pk_live_..." />
-              <p className="text-[9px] text-muted-foreground mt-0.5">Chave do gateway PixUP/BSP usada como fallback se não configurada na aba Gateway</p>
+
+            <div className="space-y-3">
+              <div className="rounded-lg border border-primary/20 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground font-semibold">Webhook Telegram</Label>
+                    <p className="text-[9px] text-muted-foreground">Recebe alertas de depósito, saque, erro, plataforma offline</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                    disabled={!form.webhook_telegram}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(form.webhook_telegram, { method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ text: `✅ Teste Webhook V7 — ${platform.nome} — ${new Date().toLocaleString("pt-BR")}` }) });
+                        toast(res.ok ? { title: "✅ Webhook Telegram OK!" } : { title: "❌ Falhou", description: `HTTP ${res.status}`, variant: "destructive" });
+                      } catch (e: any) { toast({ title: "❌ Erro", description: e.message, variant: "destructive" }); }
+                    }}>
+                    <TestTube className="w-3 h-3" /> Testar
+                  </Button>
+                </div>
+                <Input value={form.webhook_telegram} onChange={e => setForm(p => ({ ...p, webhook_telegram: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.telegram.org/bot..." />
+              </div>
+
+              <div className="rounded-lg border border-neon-amber/20 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground font-semibold">Webhook PushCut</Label>
+                    <p className="text-[9px] text-muted-foreground">Notificações ricas no iOS/Mac via PushCut</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-neon-amber/30 text-neon-amber hover:bg-neon-amber/10"
+                    disabled={!(form as any).webhook_pushcut}
+                    onClick={async () => {
+                      try {
+                        const url = (form as any).webhook_pushcut;
+                        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ title: "✅ Teste V7", text: `${platform.nome} — ${new Date().toLocaleString("pt-BR")}` }) });
+                        toast((res.ok || res.status === 204) ? { title: "✅ Webhook PushCut OK!" } : { title: "❌ Falhou", description: `HTTP ${res.status}`, variant: "destructive" });
+                      } catch (e: any) { toast({ title: "❌ Erro", description: e.message, variant: "destructive" }); }
+                    }}>
+                    <TestTube className="w-3 h-3" /> Testar
+                  </Button>
+                </div>
+                <Input value={(form as any).webhook_pushcut ?? ""} onChange={e => setForm(p => ({ ...p, webhook_pushcut: e.target.value } as any))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.pushcut.io/..." />
+              </div>
+
+              <div className="rounded-lg border border-border/40 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-xs text-muted-foreground font-semibold">Webhook Discord / Slack / Outro</Label>
+                    <p className="text-[9px] text-muted-foreground">Qualquer URL que aceite POST com JSON</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-border text-muted-foreground hover:bg-secondary"
+                    disabled={!form.webhook_outro}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(form.webhook_outro, { method: "POST", headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ content: `✅ Teste V7 — ${platform.nome}`, text: `Teste — ${new Date().toLocaleString("pt-BR")}` }) });
+                        toast(res.ok ? { title: "✅ Webhook OK!" } : { title: "❌ Falhou", description: `HTTP ${res.status}`, variant: "destructive" });
+                      } catch (e: any) { toast({ title: "❌ Erro", description: e.message, variant: "destructive" }); }
+                    }}>
+                    <TestTube className="w-3 h-3" /> Testar
+                  </Button>
+                </div>
+                <Input value={form.webhook_outro} onChange={e => setForm(p => ({ ...p, webhook_outro: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://..." />
+              </div>
+
+              <div className="rounded-lg border border-border/40 p-3 space-y-2">
+                <Label className="text-xs text-muted-foreground font-semibold">Chave Gateway (fallback)</Label>
+                <Input value={form.gateway_chave} onChange={e => setForm(p => ({ ...p, gateway_chave: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="pk_live_..." />
+                <p className="text-[9px] text-muted-foreground">Chave do gateway PixUP/BSP usada como fallback se não configurada na aba Gateway</p>
+              </div>
             </div>
           </TabsContent>
 
