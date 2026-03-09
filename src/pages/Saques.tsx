@@ -79,16 +79,32 @@ const Saques = () => {
                 usuario: saque.nome_usuario,
               });
 
-              // Notification
+              // Notification + PushCut
               if (user) {
+                const errorMsg = `${errorLabel}\nPlataforma: ${platform.nome}\nUsuário: ${saque.nome_usuario}\nValor: R$ ${Number(saque.valor).toFixed(2)}\nMotivo: ${gatewayResult.error_message}`;
                 await supabase.from("notificacoes").insert({
                   user_id: user.id,
                   titulo: `❌ Erro ao aprovar saque`,
-                  mensagem: `${errorLabel}\nPlataforma: ${platform.nome}\nUsuário: ${saque.nome_usuario}\nValor: R$ ${Number(saque.valor).toFixed(2)}\nMotivo: ${gatewayResult.error_message}`,
+                  mensagem: errorMsg,
                   tipo: "error",
                   plataforma_nome: platform.nome,
                   plataforma_id: platform.id,
                 } as any);
+
+                // PushCut webhook
+                const pushcutUrl = platform.webhook_outro;
+                if (pushcutUrl && pushcutUrl.includes("pushcut")) {
+                  try {
+                    await fetch(pushcutUrl, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        title: `❌ Erro Saque — ${platform.nome}`,
+                        text: `${saque.nome_usuario} · R$ ${Number(saque.valor).toFixed(2)} · ${gatewayResult.error_message}`,
+                      }),
+                    });
+                  } catch { /* silent */ }
+                }
               }
 
               setActionLoading(null);
