@@ -483,6 +483,8 @@ export type Database = {
           notif_novo_usuario: boolean | null
           notif_plataforma_offline: boolean | null
           notif_saque: boolean | null
+          pushcut_ativo: boolean | null
+          pushcut_url: string | null
           user_id: string
         }
         Insert: {
@@ -497,6 +499,8 @@ export type Database = {
           notif_novo_usuario?: boolean | null
           notif_plataforma_offline?: boolean | null
           notif_saque?: boolean | null
+          pushcut_ativo?: boolean | null
+          pushcut_url?: string | null
           user_id: string
         }
         Update: {
@@ -511,6 +515,8 @@ export type Database = {
           notif_novo_usuario?: boolean | null
           notif_plataforma_offline?: boolean | null
           notif_saque?: boolean | null
+          pushcut_ativo?: boolean | null
+          pushcut_url?: string | null
           user_id?: string
         }
         Relationships: []
@@ -521,6 +527,7 @@ export type Database = {
           created_at: string
           id: string
           mensagem: string
+          mensagem_pushcut: string | null
           nome: string
           user_id: string
         }
@@ -529,6 +536,7 @@ export type Database = {
           created_at?: string
           id?: string
           mensagem: string
+          mensagem_pushcut?: string | null
           nome: string
           user_id: string
         }
@@ -537,6 +545,7 @@ export type Database = {
           created_at?: string
           id?: string
           mensagem?: string
+          mensagem_pushcut?: string | null
           nome?: string
           user_id?: string
         }
