@@ -238,15 +238,14 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
               });
 
               // PushCut — notificação idêntica ao Telegram
-              const { data: settings } = await supabase
+              const { data: settingsData } = await supabase
                 .from("configuracoes")
                 .select("webhook_outro_global")
                 .eq("user_id", user.id)
                 .maybeSingle();
               
-              // Try PushCut webhook from platform or global settings
-              const pushcutUrl = p.webhook_outro || (settings?.webhook_outro_global);
-              if (pushcutUrl && pushcutUrl.includes("pushcut")) {
+              const pushcutUrl = settingsData?.webhook_outro_global;
+              if (pushcutUrl) {
                 try {
                   await fetch(pushcutUrl, {
                     method: "POST",
