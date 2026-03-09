@@ -1926,12 +1926,12 @@ async function testAll(){
 
             {/* Individual files with separate Generate Preview / Download */}
             {[
-              { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v6.0 Universal Status Mapping", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento + Status Maps", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
-              { name: "test_api.html", label: "📄 test_api.html — v6.0", gen: generateTestHtml, field: "test_html", type: "text/html" },
-              { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
-              { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
+              { name: "config.php", label: "📄 config.php — Conexão ao banco de dados", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
+              { name: "api.php", label: "📄 api.php — v7.0 Platform Adapter Engine", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento Universal + Status Maps", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
+              { name: "test_api.html", label: "📄 test_api.html — v7.0 Teste Completo", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "telegram_webhook.php", label: "📄 telegram_webhook.php — Notificações Telegram", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
+              { name: "webhook_pix.php", label: "📄 webhook_pix.php — Callback de Gateway PIX", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => {
               const isPreviewOpen = previewFiles[f.name] ?? false;
               return (
