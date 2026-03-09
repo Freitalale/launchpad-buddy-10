@@ -82,7 +82,7 @@ const Dashboard = () => {
   });
 
   const totalDepositos = filteredDepositos.reduce((s, d) => s + Number(d.valor), 0);
-  const totalSaques = filteredSaques.reduce((s, d) => s + Number(d.valor), 0);
+  const totalSaques = filteredSaques.filter(s => s.status === "aprovado").reduce((s, d) => s + Number(d.valor), 0);
 
   // Consolidated stats from all platforms
   const onlinePlatforms = platforms.filter(p => p.status === "online").length;

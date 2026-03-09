@@ -37,37 +37,43 @@ const Saques = () => {
   const handleAction = async (saque: typeof saques[0], status: string) => {
     setActionLoading(saque.id);
     try {
-      // 1. Update local Supabase table
-      await updateSaque.mutateAsync({ id: saque.id, status });
-
-      // 2. Also update the remote platform DB via PHP API
+      // 1. FIRST: Update remote platform DB via PHP API
       if (saque.plataforma_id) {
         const platform = platforms.find(p => p.id === saque.plataforma_id);
         if (platform) {
           const remoteId = saque.original_id || saque.id;
+          console.log(`[Saque] Enviando ${status} para plataforma ${platform.nome}, original_id=${saque.original_id}, remoteId=${remoteId}`);
+          
           const success = status === "aprovado"
             ? await api.aprovarSaque(platform, remoteId)
             : await api.rejeitarSaque(platform, remoteId);
+          
           if (!success) {
             toast({
-              title: "⚠️ Aviso",
-              description: "Status atualizado localmente, mas falhou ao atualizar no banco remoto da plataforma.",
+              title: "❌ Falha ao executar no banco remoto",
+              description: `Não foi possível ${status === "aprovado" ? "aprovar" : "rejeitar"} o saque na plataforma ${platform.nome}. Status local NÃO foi alterado.`,
               variant: "destructive",
             });
             setActionLoading(null);
             return;
           }
+          console.log(`[Saque] ✅ Remoto atualizado com sucesso para ${remoteId}`);
         }
       }
 
+      // 2. ONLY THEN: Update local Supabase table
+      await updateSaque.mutateAsync({ id: saque.id, status });
+      console.log(`[Saque] ✅ Local atualizado: ${saque.id} → ${status}`);
+
       toast({ title: status === "aprovado" ? "✅ Saque aprovado!" : "❌ Saque rejeitado" });
     } catch (e: any) {
+      console.error(`[Saque] ❌ Erro:`, e);
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
     setActionLoading(null);
   };
 
-  const totalValor = filtered.reduce((s, d) => s + Number(d.valor), 0);
+  const totalValor = filtered.filter(s => s.status !== "rejeitado").reduce((s, d) => s + Number(d.valor), 0);
   const pendentes = filtered.filter(s => s.status === "pendente").length;
   const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
