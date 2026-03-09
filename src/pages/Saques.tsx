@@ -73,8 +73,13 @@ const Saques = () => {
     setActionLoading(null);
   };
 
-  const totalValor = filtered.filter(s => s.status !== "rejeitado").reduce((s, d) => s + Number(d.valor), 0);
-  const pendentes = filtered.filter(s => s.status === "pendente").length;
+  const totalValor = filtered.reduce((s, d) => s + Number(d.valor), 0);
+  const aprovados = filtered.filter(s => s.status === "aprovado");
+  const pendentes = filtered.filter(s => s.status === "pendente");
+  const rejeitados = filtered.filter(s => s.status === "rejeitado");
+  const totalAprovados = aprovados.reduce((s, d) => s + Number(d.valor), 0);
+  const totalPendentes = pendentes.reduce((s, d) => s + Number(d.valor), 0);
+  const totalRejeitados = rejeitados.reduce((s, d) => s + Number(d.valor), 0);
   const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
   if (isLoading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-primary/40 border-t-primary rounded-full animate-spin" /></div>;
