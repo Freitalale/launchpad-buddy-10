@@ -1785,10 +1785,10 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v6.0 — Universal Status Mapping</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v7.0 — Platform Adapter Engine</p>
               </div>
               <p className="text-[10px] text-muted-foreground">API lê mapping_cache.json → mude o mapeamento no painel → clique "Sync Mapping" → API usa imediatamente.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v6.0: status_maps universal + get_status_map + detecção automática + col_exists</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v7.0: status_maps universal + users endpoint + error_log + diagnostico v7 + col_exists</p>
             </div>
 
             {/* Sync mapping button */}
