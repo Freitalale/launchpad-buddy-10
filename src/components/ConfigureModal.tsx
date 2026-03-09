@@ -1439,15 +1439,15 @@ async function testAll(){
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" />
                 <div>
-                  <p className="text-sm font-bold text-foreground">🔍 Scanner Completo do Banco de Dados</p>
-                  <p className="text-[10px] text-muted-foreground">Mostra TODAS as tabelas, colunas, tipos e quantidade de registros do MySQL remoto.</p>
+                  <p className="text-sm font-bold text-foreground">🔍 Scanner Completo V7 — Banco de Dados</p>
+                  <p className="text-[10px] text-muted-foreground">Escaneia TODAS as tabelas, colunas, tipos, chaves, índices e quantidade de registros do MySQL remoto. Detecta automaticamente tabelas de usuários, depósitos, saques, saldo e afiliados.</p>
                 </div>
               </div>
 
               <div className="rounded-lg bg-secondary/50 border border-border/50 p-3 space-y-1">
                 <p className="text-[10px] font-bold text-foreground">📋 Pré-requisitos:</p>
                 <p className="text-[9px] text-muted-foreground">1. Configure a URL na aba API</p>
-                <p className="text-[9px] text-muted-foreground">2. Suba o api.php v5.4 na hospedagem (aba Gerar → Baixar Todos)</p>
+                <p className="text-[9px] text-muted-foreground">2. Suba o api.php v7.0 na hospedagem (aba Gerar → Baixar Todos)</p>
                 <p className="text-[9px] text-muted-foreground">3. O Scanner usa o endpoint <code className="bg-background/50 px-1 rounded">?action=scan_db</code> do api.php</p>
               </div>
 
