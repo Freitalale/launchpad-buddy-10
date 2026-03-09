@@ -3,7 +3,7 @@ import { useNavigate, Outlet, NavLink, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Server, ScrollText, Settings, LogOut, Zap, ChevronRight, Globe,
-  Menu, X, PanelLeftClose, PanelLeft, Send, Activity, DollarSign, ArrowUpRight,
+  Menu, X, PanelLeftClose, PanelLeft, Bell, Activity, DollarSign, ArrowUpRight,
   Headphones, BookOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ const navItems = [
   { to: "/sacs", label: "SACs", icon: Headphones },
   { to: "/eventos", label: "Eventos", icon: Zap },
   { to: "/logs", label: "Logs", icon: ScrollText },
-  { to: "/integrations", label: "Telegram", icon: Send },
+  { to: "/integrations", label: "Notificações", icon: Bell },
   { to: "/health", label: "Diagnóstico", icon: Activity },
   { to: "/settings", label: "Configurações", icon: Settings },
   { to: "/tutorial", label: "Tutorial", icon: BookOpen },

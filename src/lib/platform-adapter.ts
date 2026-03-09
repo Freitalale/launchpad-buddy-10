@@ -111,26 +111,51 @@ export interface AdapterConfig {
 
 // ==================== Status Normalizer ====================
 
-const STATUS_MAP: Record<string, "pendente" | "aprovado" | "rejeitado"> = {
+const STATUS_MAP: Record<string, "pendente" | "aprovado" | "rejeitado" | "pago" | "cancelado" | "falha"> = {
+  // English
   pending: "pendente",
   approved: "aprovado",
   rejected: "rejeitado",
   completed: "aprovado",
   declined: "rejeitado",
-  canceled: "rejeitado",
-  cancelled: "rejeitado",
+  canceled: "cancelado",
+  cancelled: "cancelado",
   denied: "rejeitado",
-  paid: "aprovado",
+  paid: "pago",
   processing: "pendente",
+  failed: "falha",
+  error: "falha",
+  refunded: "cancelado",
+  expired: "cancelado",
+  waiting: "pendente",
+  confirmed: "aprovado",
+  success: "aprovado",
+  // Portuguese
   pendente: "pendente",
   aprovado: "aprovado",
   rejeitado: "rejeitado",
+  pago: "pago",
+  cancelado: "cancelado",
+  falha: "falha",
+  concluido: "aprovado",
+  finalizado: "aprovado",
+  recusado: "rejeitado",
+  negado: "rejeitado",
+  expirado: "cancelado",
+  aguardando: "pendente",
+  processando: "pendente",
+  // Numeric
   "0": "pendente",
   "1": "aprovado",
   "2": "rejeitado",
+  "3": "cancelado",
+  "4": "pago",
+  "5": "falha",
 };
 
-export function normalizeStatus(status: string | number | null | undefined): "pendente" | "aprovado" | "rejeitado" {
+export type NormalizedStatus = "pendente" | "aprovado" | "rejeitado" | "pago" | "cancelado" | "falha";
+
+export function normalizeStatus(status: string | number | null | undefined): NormalizedStatus {
   if (status === null || status === undefined) return "pendente";
   const s = String(status).toLowerCase().trim();
   return STATUS_MAP[s] ?? "pendente";
