@@ -1682,7 +1682,7 @@ async function testAll(){
                 <p className="text-[10px] text-muted-foreground">{scanResult.error}</p>
                 <div className="text-[9px] text-muted-foreground space-y-1">
                   <p>Possíveis causas:</p>
-                  <p>• O api.php v5.4 não está instalado na hospedagem</p>
+                  <p>• O api.php v7.0 não está instalado na hospedagem</p>
                   <p>• O endpoint scan_db não está disponível</p>
                   <p>• A URL da plataforma está incorreta</p>
                   <p>• O servidor está offline ou bloqueando CORS</p>
