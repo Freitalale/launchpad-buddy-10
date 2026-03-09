@@ -117,8 +117,11 @@ const TestSuite = () => {
 
     // === PER-PLATFORM TESTS ===
     for (const p of platforms.filter(pl => pl.url)) {
+      const pUrl = p.url!.replace(/\/$/, "");
+      const apiUrl = pUrl.endsWith("api.php") ? pUrl : `${pUrl}/api.php`;
+
       await runTest(`health_${p.id}`, "Health Check", "API Plataforma", async () => {
-        const r = await api.testEndpoint(api.getApiUrl(p), "health");
+        const r = await api.testEndpoint(apiUrl, "health");
         tick();
         return r.ok ? { ok: true, msg: `Online — ${r.latency_ms}ms` } : { ok: false, msg: r.error || "Offline" };
       }, p.nome);
