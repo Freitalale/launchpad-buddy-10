@@ -50,6 +50,7 @@ serve(async (req) => {
     const extraTables = extra.tabelas_extra ?? [];
     const hiddenCols = extra.colunas_ocultas ?? {};
     const disabledTables: string[] = extra.tabelas_desativadas ?? [];
+    const statusMapsRaw = extra.status_maps ?? {};
 
     // Build per-table column mappings (include extras, exclude hidden)
     const buildColumns = (tableKey: string, defaults: Record<string, string>) => {
@@ -124,6 +125,10 @@ serve(async (req) => {
       platform_name: p.nome,
       tables,
       columns,
+      status_maps: {
+        saques: statusMapsRaw.saques ?? { approve: "approved", reject: "rejected", pending: "pending" },
+        depositos: statusMapsRaw.depositos ?? { approve: "approved", reject: "rejected", pending: "pending" },
+      },
       disabled_tables: disabledTables,
       extra_tables: extraTablesMapping,
       updated_at: new Date().toISOString(),
