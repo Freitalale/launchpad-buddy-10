@@ -21,6 +21,7 @@ import NotFound from "./pages/NotFound";
 import ErrorPanel from "./pages/ErrorPanel";
 import UsersPage from "./pages/Users";
 import NotificationLogs from "./pages/NotificationLogs";
+import TestSuite from "./pages/TestSuite";
 const queryClient = new QueryClient();
 
 const App = () => (
