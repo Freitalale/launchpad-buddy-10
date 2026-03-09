@@ -340,6 +340,11 @@ const ConfigureModal = ({ platform, onClose }: ConfigureModalProps) => {
     colunas_extra: extraColumns, tabelas_extra: extraTables,
     colunas_ocultas: hiddenColumns, tabelas_desativadas: disabledTables,
     status_maps: statusMaps,
+    notif_telegram_ativo: platNotif.telegram_ativo,
+    notif_telegram_bot_token: platNotif.telegram_bot_token,
+    notif_telegram_chat_id: platNotif.telegram_chat_id,
+    notif_pushcut_ativo: platNotif.pushcut_ativo,
+    notif_pushcut_url: platNotif.pushcut_url,
   });
 
   const generateConfigPhp = () => {
