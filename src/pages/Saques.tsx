@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSaques, useUpdateSaque } from "@/hooks/useSaques";
 import { usePlatforms } from "@/hooks/usePlatforms";
+import { usePlatformApi } from "@/hooks/usePlatformApi";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -19,10 +20,12 @@ const Saques = () => {
   const { data: saques = [], isLoading } = useSaques();
   const { data: platforms = [] } = usePlatforms();
   const updateSaque = useUpdateSaque();
+  const api = usePlatformApi();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [filterPlat, setFilterPlat] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const filtered = saques.filter(s => {
     if (search && !s.nome_usuario.toLowerCase().includes(search.toLowerCase())) return false;
@@ -31,13 +34,39 @@ const Saques = () => {
     return true;
   });
 
-  const handleAction = async (id: string, status: string) => {
+  const handleAction = async (saque: typeof saques[0], status: string) => {
+    setActionLoading(saque.id);
     try {
-      await updateSaque.mutateAsync({ id, status });
+      // 1. Update local Supabase table
+      await updateSaque.mutateAsync({ id: saque.id, status });
+
+      // 2. Also update the remote platform DB via PHP API
+      if (saque.plataforma_id && saque.original_id) {
+        const platform = platforms.find(p => p.id === saque.plataforma_id);
+        if (platform) {
+          const remoteId = Number(saque.original_id) || 0;
+          if (remoteId > 0) {
+            const success = status === "aprovado"
+              ? await api.aprovarSaque(platform, remoteId)
+              : await api.rejeitarSaque(platform, remoteId);
+            if (!success) {
+              toast({
+                title: "⚠️ Aviso",
+                description: "Status atualizado localmente, mas falhou ao atualizar no banco remoto da plataforma.",
+                variant: "destructive",
+              });
+              setActionLoading(null);
+              return;
+            }
+          }
+        }
+      }
+
       toast({ title: status === "aprovado" ? "✅ Saque aprovado!" : "❌ Saque rejeitado" });
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
+    setActionLoading(null);
   };
 
   const totalValor = filtered.reduce((s, d) => s + Number(d.valor), 0);
@@ -123,11 +152,17 @@ const Saques = () => {
                 </span>
                 {s.status === "pendente" && (
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="w-7 h-7 text-neon-green hover:bg-neon-green/10" onClick={() => handleAction(s.id, "aprovado")}
+                    <Button variant="ghost" size="icon"
+                      className="w-7 h-7 text-neon-green hover:bg-neon-green/10"
+                      onClick={() => handleAction(s, "aprovado")}
+                      disabled={actionLoading === s.id}
                       title="Aprovar">
                       <CheckCircle className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="w-7 h-7 text-neon-red hover:bg-neon-red/10" onClick={() => handleAction(s.id, "rejeitado")}
+                    <Button variant="ghost" size="icon"
+                      className="w-7 h-7 text-neon-red hover:bg-neon-red/10"
+                      onClick={() => handleAction(s, "rejeitado")}
+                      disabled={actionLoading === s.id}
                       title="Reprovar">
                       <XCircle className="w-4 h-4" />
                     </Button>
