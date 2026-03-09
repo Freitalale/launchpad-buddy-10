@@ -1876,18 +1876,6 @@ async function testAll(){
               </p>
             </div>
 
-            <Button variant="outline" size="sm" onClick={handleTestStructure} disabled={testingStructure || !form.url} className="w-full gap-2 h-9 text-xs">
-              {testingStructure ? <RefreshCw className="w-3 h-3 animate-spin" /> : <TestTube className="w-3 h-3" />}
-              {testingStructure ? "Testando..." : "Testar Estrutura"}
-            </Button>
-
-            {structureResult.length > 0 && (
-              <div className="rounded-lg border border-border/50 bg-secondary/30 p-3 space-y-1 max-h-60 overflow-y-auto">
-                {structureResult.map((r, i) => (
-                  <p key={i} className={`text-[10px] font-mono ${r.startsWith("✅") ? "text-neon-green" : r.startsWith("❌") ? "text-destructive" : "text-muted-foreground"}`}>{r}</p>
-                ))}
-              </div>
-            )}
           </TabsContent>
 
           <TabsContent value="generate" className="space-y-4 mt-4">
