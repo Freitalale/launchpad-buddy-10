@@ -8,6 +8,7 @@ import PlatformCard from "@/components/PlatformCard";
 import ConfigureModal from "@/components/ConfigureModal";
 import ManageModal from "@/components/ManageModal";
 import AddPlatformModal from "@/components/AddPlatformModal";
+import EditPlatformModal from "@/components/EditPlatformModal";
 import { usePlatforms, useDeletePlatform, type Plataforma } from "@/hooks/usePlatforms";
 import { useCreateLog } from "@/hooks/useLogs";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +43,7 @@ const Platforms = () => {
   const [configuring, setConfiguring] = useState<Plataforma | null>(null);
   const [managing, setManaging] = useState<Plataforma | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<Plataforma | null>(null);
 
   const filtered = platforms.filter(p => {
     const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase()) || (p.url ?? "").toLowerCase().includes(search.toLowerCase());
@@ -133,7 +135,7 @@ const Platforms = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((p, i) => (
             <PlatformCard key={p.id} platform={p} index={i}
-              onConfigure={setConfiguring} onManage={setManaging} onRemove={handleRemove} />
+              onConfigure={setConfiguring} onManage={setManaging} onRemove={handleRemove} onEdit={setEditing} />
           ))}
         </div>
       )}
@@ -141,6 +143,7 @@ const Platforms = () => {
       {configuring && <ConfigureModal platform={configuring} onClose={() => setConfiguring(null)} />}
       {managing && <ManageModal platform={managing} onClose={() => setManaging(null)} />}
       <AddPlatformModal open={addOpen} onClose={() => setAddOpen(false)} />
+      {editing && <EditPlatformModal platform={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MoreVertical, Settings, Wrench, Trash2 } from "lucide-react";
+import { MoreVertical, Settings, Wrench, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -32,9 +32,10 @@ interface PlatformCardProps {
   onConfigure: (p: Plataforma) => void;
   onManage: (p: Plataforma) => void;
   onRemove: (p: Plataforma) => void;
+  onEdit?: (p: Plataforma) => void;
 }
 
-const PlatformCard = ({ platform: p, index, onConfigure, onManage, onRemove }: PlatformCardProps) => {
+const PlatformCard = ({ platform: p, index, onConfigure, onManage, onRemove, onEdit }: PlatformCardProps) => {
   const color = p.cor ?? "#00c4ff";
   const updatePlatform = useUpdatePlatform();
   const createLog = useCreateLog();
@@ -108,11 +109,16 @@ const PlatformCard = ({ platform: p, index, onConfigure, onManage, onRemove }: P
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground">
                 <MoreVertical className="w-3.5 h-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-card border-border">
+              {onEdit && (
+                <DropdownMenuItem onClick={() => onEdit(p)} className="text-sm gap-2 cursor-pointer">
+                  <Pencil className="w-3.5 h-3.5" /> Editar
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => onConfigure(p)} className="text-sm gap-2 cursor-pointer">
                 <Settings className="w-3.5 h-3.5" /> Configurar
               </DropdownMenuItem>
