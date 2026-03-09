@@ -1231,17 +1231,19 @@ async function testAll(){
         </div>
 
         <Tabs defaultValue="api" className="w-full">
-          <TabsList className="grid grid-cols-9 w-full">
-            <TabsTrigger value="api" className="text-xs gap-1"><Globe className="w-3 h-3" /> API</TabsTrigger>
-            <TabsTrigger value="database" className="text-xs gap-1"><Database className="w-3 h-3" /> Banco</TabsTrigger>
-            <TabsTrigger value="scanner" className="text-xs gap-1"><Search className="w-3 h-3" /> Scanner</TabsTrigger>
-            <TabsTrigger value="mapping" className="text-xs gap-1"><TableProperties className="w-3 h-3" /> Mapeamento</TabsTrigger>
-            <TabsTrigger value="gateway" className="text-xs gap-1"><Zap className="w-3 h-3" /> Gateway</TabsTrigger>
-            <TabsTrigger value="generate" className="text-xs gap-1"><Code className="w-3 h-3" /> Gerar</TabsTrigger>
-            <TabsTrigger value="notificacoes" className="text-xs gap-1"><Wifi className="w-3 h-3" /> Notif.</TabsTrigger>
-            <TabsTrigger value="webhooks" className="text-xs gap-1"><Key className="w-3 h-3" /> Webhooks</TabsTrigger>
-            <TabsTrigger value="cooperation" className="text-xs gap-1"><Server className="w-3 h-3" /> Coop</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto pb-1 -mb-1 scrollbar-thin">
+            <TabsList className="inline-flex w-max gap-1 p-1">
+              <TabsTrigger value="api" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Globe className="w-3 h-3" /> API</TabsTrigger>
+              <TabsTrigger value="database" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Database className="w-3 h-3" /> Banco</TabsTrigger>
+              <TabsTrigger value="scanner" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Search className="w-3 h-3" /> Scanner</TabsTrigger>
+              <TabsTrigger value="mapping" className="text-xs gap-1.5 px-3 whitespace-nowrap"><TableProperties className="w-3 h-3" /> Mapeamento</TabsTrigger>
+              <TabsTrigger value="gateway" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Zap className="w-3 h-3" /> Gateway</TabsTrigger>
+              <TabsTrigger value="generate" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Code className="w-3 h-3" /> Gerar</TabsTrigger>
+              <TabsTrigger value="notificacoes" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Send className="w-3 h-3" /> Notif.</TabsTrigger>
+              <TabsTrigger value="webhooks" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Key className="w-3 h-3" /> Webhooks</TabsTrigger>
+              <TabsTrigger value="cooperation" className="text-xs gap-1.5 px-3 whitespace-nowrap"><Server className="w-3 h-3" /> Coop</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* API Tab */}
           <TabsContent value="api" className="space-y-4 mt-4">
