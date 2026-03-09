@@ -719,12 +719,18 @@ if ($action === "remover_afiliados") {
 }
 
 echo json_encode(["error"=>"Ação não reconhecida: ".$action,
-    "available"=>["health","stats","depositos","saques","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico","update_mapping","get_mapping","get_status_map"],
-    "version"=>"6.0.0"]);
+    "available"=>["health","stats","depositos","saques","users","aprovar_saque","rejeitar_saque","remover_afiliados","scan_db","diagnostico","update_mapping","get_mapping","get_status_map","error_log"],
+    "version"=>"7.0.0","hint"=>"Use ?action=health para verificar o status da API"]);
 
 } catch (Throwable $e) {
+    // Log error to file for monitoring
+    $log_file = __DIR__ . "/error_log.json";
+    $logs = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?? []) : [];
+    $logs[] = ["time"=>date("c"),"error"=>$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"action"=>$_GET["action"]??""];
+    if (count($logs) > 500) $logs = array_slice($logs, -500);
+    @file_put_contents($log_file, json_encode($logs));
     http_response_code(200);
-    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"6.0.0"]);
+    echo json_encode(["error"=>"PHP Exception: ".$e->getMessage(),"file"=>basename($e->getFile()),"line"=>$e->getLine(),"version"=>"7.0.0"]);
 }
 ?>`;
   };
