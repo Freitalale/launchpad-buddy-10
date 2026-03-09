@@ -137,7 +137,57 @@ const SystemHealth = () => {
       issues.push({ severity: "critical", area: "Saques", title: "Erro ao buscar saques", detail: saqResult.error.message, fix: saqResult.error.solution ?? "Verifique mapeamento." });
     }
 
-    // 4. Diagnostico endpoint
+    // 4. Duplication detection — deposits
+    if (depsResult.data.length > 0) {
+      const depKeys = new Set<string>();
+      let depDuplicates = 0;
+      for (const d of depsResult.data) {
+        const key = `${d.nome_usuario}_${d.valor}_${d.created_at}`;
+        if (depKeys.has(key)) depDuplicates++;
+        else depKeys.add(key);
+      }
+      if (depDuplicates > 0) {
+        issues.push({ severity: "warning", area: "Depósitos", title: `${depDuplicates} depósito(s) duplicado(s)`, detail: `Encontrados registros com mesmo usuário+valor+data. Pode inflar totais.`, fix: "Verifique no banco se há registros duplicados na tabela de depósitos." });
+      }
+    }
+
+    // 5. Duplication detection — saques
+    if (saqResult.data.length > 0) {
+      const saqKeys = new Set<string>();
+      let saqDuplicates = 0;
+      for (const s of saqResult.data) {
+        const key = `${s.nome_usuario}_${s.valor}_${s.created_at}`;
+        if (saqKeys.has(key)) saqDuplicates++;
+        else saqKeys.add(key);
+      }
+      if (saqDuplicates > 0) {
+        issues.push({ severity: "warning", area: "Saques", title: `${saqDuplicates} saque(s) duplicado(s)`, detail: `Registros com mesmo usuário+valor+data.`, fix: "Verifique duplicações na tabela de saques do banco remoto." });
+      }
+    }
+
+    // 6. Status inconsistency detection
+    if (saqResult.data.length > 0) {
+      const unknownStatuses = new Set<string>();
+      const knownStatuses = ["pending", "approved", "rejected", "completed", "paid", "canceled", "cancelled", "denied", "processing", "pendente", "aprovado", "rejeitado", "pago", "cancelado", "falha", "0", "1", "2", "3"];
+      for (const s of saqResult.data) {
+        const st = String(s.status ?? "").toLowerCase().trim();
+        if (st && !knownStatuses.includes(st)) unknownStatuses.add(st);
+      }
+      if (unknownStatuses.size > 0) {
+        issues.push({ severity: "warning", area: "Status", title: `Status não reconhecido(s): ${[...unknownStatuses].join(", ")}`, detail: `O painel não sabe mapear esses valores de status. Eles serão tratados como "pendente".`, fix: `Configure o Mapeamento Universal de Status na aba Mapeamento → seção Status. Adicione esses valores ao mapeamento.` });
+      }
+    }
+
+    // 7. Balance divergence check
+    if (statsData && saldoTotal > 0) {
+      const totalApprovedSaques = saqResult.data.filter(s => ["approved", "aprovado", "paid", "pago", "completed"].includes(String(s.status).toLowerCase())).reduce((sum, s) => sum + Number(s.valor), 0);
+      const totalApprovedDeposits = depsResult.data.filter(d => ["approved", "aprovado", "paid", "pago", "completed"].includes(String(d.status).toLowerCase())).reduce((sum, d) => sum + Number(d.valor), 0);
+      if (totalApprovedSaques > totalApprovedDeposits * 1.5 && totalApprovedDeposits > 0) {
+        issues.push({ severity: "warning", area: "Financeiro", title: "Saques superam depósitos em 50%+", detail: `Depósitos aprovados: R$${totalApprovedDeposits.toFixed(2)} | Saques aprovados: R$${totalApprovedSaques.toFixed(2)}`, fix: "Verifique se há saques irregulares ou depósitos não sendo contabilizados corretamente." });
+      }
+    }
+
+    // 8. Diagnostico endpoint
     try {
       const apiUrl = platform.url?.replace(/\/$/, "");
       if (apiUrl) {
@@ -156,23 +206,27 @@ const SystemHealth = () => {
             if (info?.exists === false) {
               issues.push({ severity: "critical", area: `Tabela ${key}`, title: `Tabela "${info.table}" NÃO EXISTE`, detail: `Mapeada como "${key}" mas não encontrada.`, fix: "Use o Scanner para encontrar o nome correto." });
             }
+            // Check missing columns
+            if (info?.missing_columns?.length > 0) {
+              issues.push({ severity: "critical", area: `Colunas ${key}`, title: `${info.missing_columns.length} coluna(s) inexistente(s) em "${info.table}"`, detail: `Colunas: ${info.missing_columns.join(", ")}`, fix: "Corrija o mapeamento de colunas na aba Mapeamento ou verifique se os nomes estão corretos." });
+            }
           }
         } catch { /* invalid json */ }
       }
     } catch { /* endpoint unavailable */ }
 
-    // 5. Version check
-    if (apiVersion && !apiVersion.startsWith("5.6") && !apiVersion.startsWith("7.")) {
-      issues.push({ severity: "warning", area: "Versão", title: `API desatualizada (v${apiVersion})`, detail: "Recomendado v7.0", fix: "Gere novo api.php na aba Gerar." });
+    // 9. Version check
+    if (apiVersion && !apiVersion.startsWith("5.6") && !apiVersion.startsWith("6.") && !apiVersion.startsWith("7.")) {
+      issues.push({ severity: "warning", area: "Versão", title: `API desatualizada (v${apiVersion})`, detail: "Recomendado v6.0+ ou v7.0", fix: "Gere novo api.php na aba Gerar." });
     }
 
-    // 6. Config checks
+    // 10. Config checks
     if (!platform.url) issues.push({ severity: "critical", area: "Config", title: "URL não configurada", detail: "Sem URL.", fix: "Configure a URL da API." });
-    if (!platform.db_host) issues.push({ severity: "warning", area: "Config", title: "Credenciais DB ausentes", detail: "Scanner não funcionará.", fix: "Preencha as credenciais do banco." });
+    if (!platform.db_host) issues.push({ severity: "info", area: "Config", title: "Credenciais DB ausentes", detail: "Scanner não funcionará sem credenciais.", fix: "Preencha as credenciais do banco se precisar do Scanner." });
 
-    // 7. Gateway check
+    // 11. Gateway check
     if (!config.gateway && !platform.gateway_chave) {
-      issues.push({ severity: "info", area: "Gateway", title: "Sem gateway configurado", detail: "Aprovação de saque usa apenas API. Configure um gateway para pagamento automático.", fix: "Configure gateway no mapeamento extra da plataforma." });
+      issues.push({ severity: "info", area: "Gateway", title: "Sem gateway configurado", detail: "Aprovação de saque usa apenas API. Configure um gateway para pagamento automático.", fix: "Configure gateway na aba Gateway da plataforma." });
     }
 
     // Health errors
