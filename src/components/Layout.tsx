@@ -19,7 +19,7 @@ const navItems = [
   { to: "/sacs", label: "SACs", icon: Headphones },
   { to: "/eventos", label: "Eventos", icon: Zap },
   { to: "/logs", label: "Logs", icon: ScrollText },
-  { to: "/integrations", label: "Telegram", icon: Send },
+  { to: "/integrations", label: "Notificações", icon: Bell },
   { to: "/health", label: "Diagnóstico", icon: Activity },
   { to: "/settings", label: "Configurações", icon: Settings },
   { to: "/tutorial", label: "Tutorial", icon: BookOpen },
