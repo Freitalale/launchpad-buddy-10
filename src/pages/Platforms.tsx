@@ -143,6 +143,7 @@ const Platforms = () => {
       {configuring && <ConfigureModal platform={configuring} onClose={() => setConfiguring(null)} />}
       {managing && <ManageModal platform={managing} onClose={() => setManaging(null)} />}
       <AddPlatformModal open={addOpen} onClose={() => setAddOpen(false)} />
+      {editing && <EditPlatformModal platform={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 };
