@@ -11,7 +11,7 @@ import Platforms from "./pages/Platforms";
 import Logs from "./pages/Logs";
 import Settings from "./pages/Settings";
 import Integrations from "./pages/Integrations";
-import Eventos from "./pages/Eventos";
+
 import Depositos from "./pages/Depositos";
 import Saques from "./pages/Saques";
 import Sacs from "./pages/Sacs";
