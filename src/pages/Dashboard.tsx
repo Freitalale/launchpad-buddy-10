@@ -83,7 +83,13 @@ const Dashboard = () => {
   });
 
   const totalDepositos = filteredDepositos.reduce((s, d) => s + Number(d.valor), 0);
-  const totalSaques = filteredSaques.filter(s => s.status === "aprovado").reduce((s, d) => s + Number(d.valor), 0);
+  const saquesAprovados = filteredSaques.filter(s => s.status === "aprovado");
+  const saquesPendentes = filteredSaques.filter(s => s.status === "pendente");
+  const saquesRejeitados = filteredSaques.filter(s => s.status === "rejeitado");
+  const totalSaquesAprovados = saquesAprovados.reduce((s, d) => s + Number(d.valor), 0);
+  const totalSaquesPendentes = saquesPendentes.reduce((s, d) => s + Number(d.valor), 0);
+  const totalSaquesRejeitados = saquesRejeitados.reduce((s, d) => s + Number(d.valor), 0);
+  const totalSaquesGeral = filteredSaques.reduce((s, d) => s + Number(d.valor), 0);
 
   // Consolidated stats from all platforms
   const onlinePlatforms = platforms.filter(p => p.status === "online").length;
