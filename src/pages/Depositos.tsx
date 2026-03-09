@@ -272,25 +272,64 @@ const Depositos = () => {
         )}
       </div>
 
+      {/* Conversion Tracking */}
+      {(() => {
+        // Detect platforms that stopped converting (no deposits in last 24h but had some before)
+        const now = new Date();
+        const last24h = subDays(now, 1);
+        const stalledPlatforms = platforms.filter(p => {
+          const platDeposits = depositos.filter(d => d.plataforma_id === p.id);
+          if (platDeposits.length === 0) return false;
+          const recentDeposits = platDeposits.filter(d => new Date(d.created_at) > last24h);
+          return recentDeposits.length === 0;
+        });
+        if (stalledPlatforms.length === 0) return null;
+        return (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}
+            className="rounded-xl border border-neon-amber/40 bg-neon-amber/5 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="w-4 h-4 text-neon-amber" />
+              <h3 className="font-bold text-sm text-foreground">⚠️ Plataformas sem conversão (24h)</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {stalledPlatforms.map(p => {
+                const lastDep = depositos.filter(d => d.plataforma_id === p.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+                const hoursAgo = lastDep ? Math.round((now.getTime() - new Date(lastDep.created_at).getTime()) / 3600000) : 0;
+                return (
+                  <div key={p.id} className="rounded-lg border border-neon-amber/30 bg-background/50 px-3 py-2 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-neon-amber" />
+                    <span className="text-xs font-semibold text-foreground">{p.nome}</span>
+                    <span className="text-[10px] text-muted-foreground">Último depósito: {hoursAgo}h atrás</span>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        );
+      })()}
+
       {/* By Platform + Top Depositors */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* By Platform */}
+        {/* By Platform — Ranking */}
         {byPlatform.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
             className="rounded-xl border border-border/60 p-4" style={{ background: "hsl(var(--card))" }}>
-            <h3 className="font-bold text-sm text-foreground mb-3">🏆 Por Plataforma</h3>
+            <h3 className="font-bold text-sm text-foreground mb-3">🏆 Ranking por Plataforma</h3>
             <div className="space-y-2">
               {byPlatform.slice(0, 6).map((p, i) => {
                 const pct = totalValor > 0 ? (p.total / totalValor) * 100 : 0;
+                const avgPerDeposit = p.count > 0 ? p.total / p.count : 0;
                 return (
                   <div key={i} className="flex items-center gap-3">
+                    <span className="text-[10px] font-bold text-muted-foreground w-4">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i+1}.`}</span>
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
                     <span className="text-xs text-foreground font-medium flex-1 truncate">{p.name}</span>
                     <div className="w-24 h-1.5 rounded-full bg-secondary overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: p.color }} />
                     </div>
                     <span className="text-xs font-bold text-foreground w-20 text-right">{formatCurrency(p.total)}</span>
-                    <span className="text-[10px] text-muted-foreground w-8 text-right">{p.count}</span>
+                    <span className="text-[10px] text-muted-foreground w-16 text-right">avg {formatCompact(avgPerDeposit)}</span>
+                    <span className="text-[10px] text-muted-foreground w-8 text-right">{p.count}x</span>
                   </div>
                 );
               })}

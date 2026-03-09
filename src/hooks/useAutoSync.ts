@@ -227,13 +227,40 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
               .maybeSingle();
 
             if (telegramConfig?.bot_token && telegramConfig?.chat_id && telegramConfig?.notif_plataforma_offline) {
+              const alertMsg = `🚨 <b>PLATAFORMA OFFLINE</b>\n\n📍 ${p.nome}\n⏱ Offline há: ${Math.round(offlineDuration / 1000)}s\n❌ ${statsResult.error?.message ?? "Sem resposta"}`;
+              
               await supabase.functions.invoke("send-telegram", {
                 body: {
                   bot_token: telegramConfig.bot_token,
                   chat_id: telegramConfig.chat_id,
-                  message: `🚨 <b>PLATAFORMA OFFLINE</b>\n\n📍 ${p.nome}\n⏱ Offline há: ${Math.round(offlineDuration / 1000)}s\n❌ ${statsResult.error?.message ?? "Sem resposta"}`,
+                  message: alertMsg,
                 },
               });
+
+              // PushCut — notificação idêntica ao Telegram
+              const { data: settings } = await supabase
+                .from("configuracoes")
+                .select("webhook_outro_global")
+                .eq("user_id", user.id)
+                .maybeSingle();
+              
+              // Try PushCut webhook from platform or global settings
+              const pushcutUrl = p.webhook_outro || (settings?.webhook_outro_global);
+              if (pushcutUrl && pushcutUrl.includes("pushcut")) {
+                try {
+                  await fetch(pushcutUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      title: `🚨 PLATAFORMA OFFLINE — ${p.nome}`,
+                      text: `Offline há ${Math.round(offlineDuration / 1000)}s. ${statsResult.error?.message ?? "Sem resposta"}`,
+                    }),
+                  });
+                  console.log(`[AutoSync] ✅ PushCut notificado para ${p.nome}`);
+                } catch (e) {
+                  console.warn(`[AutoSync] ⚠️ Falha PushCut:`, e);
+                }
+              }
             }
 
             await supabase.from("plataformas").update({ status: "offline" as const }).eq("id", p.id);

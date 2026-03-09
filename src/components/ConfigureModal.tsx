@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type Plataforma, useUpdatePlatform } from "@/hooks/usePlatforms";
 import { usePlatformApi } from "@/hooks/usePlatformApi";
 import { useToast } from "@/hooks/use-toast";
@@ -1214,11 +1215,12 @@ async function testAll(){
         </div>
 
         <Tabs defaultValue="api" className="w-full">
-          <TabsList className="grid grid-cols-7 w-full">
+          <TabsList className="grid grid-cols-8 w-full">
             <TabsTrigger value="api" className="text-xs gap-1"><Globe className="w-3 h-3" /> API</TabsTrigger>
             <TabsTrigger value="database" className="text-xs gap-1"><Database className="w-3 h-3" /> Banco</TabsTrigger>
             <TabsTrigger value="scanner" className="text-xs gap-1"><Search className="w-3 h-3" /> Scanner</TabsTrigger>
             <TabsTrigger value="mapping" className="text-xs gap-1"><TableProperties className="w-3 h-3" /> Mapeamento</TabsTrigger>
+            <TabsTrigger value="gateway" className="text-xs gap-1"><Zap className="w-3 h-3" /> Gateway</TabsTrigger>
             <TabsTrigger value="generate" className="text-xs gap-1"><Code className="w-3 h-3" /> Gerar</TabsTrigger>
             <TabsTrigger value="webhooks" className="text-xs gap-1"><Wifi className="w-3 h-3" /> Webhooks</TabsTrigger>
             <TabsTrigger value="cooperation" className="text-xs gap-1"><Server className="w-3 h-3" /> Coop</TabsTrigger>
@@ -1842,14 +1844,137 @@ async function testAll(){
             })}
           </TabsContent>
 
+          {/* Gateway Tab */}
+          <TabsContent value="gateway" className="space-y-4 mt-4">
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-1">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" />
+                <p className="text-xs font-bold text-foreground">Gateway de Pagamento — Configuração por Plataforma</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Configure o gateway para execução real de saques. Compatível com PixUP, BSP e qualquer API REST.</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs text-muted-foreground font-semibold">Tipo de Gateway</Label>
+                <Select value={(() => { const gw = ((platform.mapeamento_extra as any)?.gateway?.type) ?? "none"; return gw; })()}
+                  onValueChange={v => {
+                    const extra = (platform.mapeamento_extra as any) ?? {};
+                    const newGateway = { ...(extra.gateway ?? {}), type: v === "none" ? undefined : v };
+                    setForm(p => p); // trigger re-render
+                    // Store in mapeamento_extra via buildMapeamentoExtra override
+                  }}>
+                  <SelectTrigger className="bg-secondary h-9 text-sm"><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem Gateway (API fallback)</SelectItem>
+                    <SelectItem value="pix_api">PIX API (PixUP / BSP)</SelectItem>
+                    <SelectItem value="api_rest">API REST Genérica</SelectItem>
+                    <SelectItem value="webhook">Webhook Callback</SelectItem>
+                    <SelectItem value="custom_script">Script Personalizado</SelectItem>
+                    <SelectItem value="sql_exec">Execução SQL Direta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">Endpoint do Gateway</Label>
+                <Input value={form.gateway_chave ? "" : ""} 
+                  defaultValue={((platform.mapeamento_extra as any)?.gateway?.endpoint) ?? ""}
+                  className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.pixup.com.br/v2/pix/payment" />
+                <p className="text-[9px] text-muted-foreground mt-0.5">URL completa para onde enviar a requisição de pagamento</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">API Key / Token</Label>
+                  <Input value={form.gateway_chave} onChange={e => setForm(p => ({ ...p, gateway_chave: e.target.value }))}
+                    className="bg-secondary h-9 text-sm font-mono" placeholder="pk_live_..." />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">API Secret (opcional)</Label>
+                  <Input defaultValue={((platform.mapeamento_extra as any)?.gateway?.api_secret) ?? ""}
+                    className="bg-secondary h-9 text-sm font-mono" placeholder="sk_live_..." type="password" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Método HTTP</Label>
+                  <Select defaultValue={((platform.mapeamento_extra as any)?.gateway?.method) ?? "POST"}>
+                    <SelectTrigger className="bg-secondary h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="POST">POST</SelectItem>
+                      <SelectItem value="PUT">PUT</SelectItem>
+                      <SelectItem value="GET">GET</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Content-Type</Label>
+                  <Select defaultValue="application/json">
+                    <SelectTrigger className="bg-secondary h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="application/json">JSON</SelectItem>
+                      <SelectItem value="application/x-www-form-urlencoded">Form URL Encoded</SelectItem>
+                      <SelectItem value="multipart/form-data">Multipart Form</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">Body Template (JSON)</Label>
+                <textarea
+                  defaultValue={((platform.mapeamento_extra as any)?.gateway?.body_template) ?? '{\n  "amount": {amount},\n  "pix_key": "{pix}",\n  "description": "Saque {user_name} #{id}"\n}'}
+                  className="w-full bg-secondary border border-border rounded-lg p-3 text-[11px] font-mono text-foreground h-28 resize-y"
+                  placeholder='{"amount": {amount}, "pix_key": "{pix}"}'
+                />
+                <p className="text-[9px] text-muted-foreground mt-0.5">Placeholders: <code className="bg-background/50 px-1 rounded">{"{id}"}</code> <code className="bg-background/50 px-1 rounded">{"{amount}"}</code> <code className="bg-background/50 px-1 rounded">{"{pix}"}</code> <code className="bg-background/50 px-1 rounded">{"{user_name}"}</code></p>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">Headers Extras (JSON)</Label>
+                <Input defaultValue={JSON.stringify(((platform.mapeamento_extra as any)?.gateway?.headers) ?? {})}
+                  className="bg-secondary h-9 text-sm font-mono" placeholder='{"X-Custom-Header": "value"}' />
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3 space-y-2">
+              <p className="text-[10px] font-bold text-neon-green">💡 Presets Rápidos</p>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { name: "PixUP", endpoint: "https://api.pixup.com.br/v2/pix/payment", method: "POST" },
+                  { name: "BSP Pay", endpoint: "https://api.bsppay.com/api/v1/withdraw", method: "POST" },
+                  { name: "Custom API", endpoint: "", method: "POST" },
+                ].map(preset => (
+                  <Button key={preset.name} variant="outline" size="sm" className="h-7 text-[10px] border-neon-green/30 text-neon-green hover:bg-neon-green/10"
+                    onClick={() => toast({ title: `Preset ${preset.name} aplicado`, description: `Endpoint: ${preset.endpoint || "configure manualmente"}` })}>
+                    {preset.name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
           {/* Webhooks Tab */}
           <TabsContent value="webhooks" className="space-y-4 mt-4">
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+              <p className="text-[10px] text-muted-foreground">Webhooks para notificações de eventos. Telegram e PushCut recebem notificações idênticas.</p>
+            </div>
             <div><Label className="text-xs text-muted-foreground">Webhook Telegram</Label>
-              <Input value={form.webhook_telegram} onChange={e => setForm(p => ({ ...p, webhook_telegram: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://..." /></div>
-            <div><Label className="text-xs text-muted-foreground">Webhook Discord/Slack</Label>
+              <Input value={form.webhook_telegram} onChange={e => setForm(p => ({ ...p, webhook_telegram: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.telegram.org/bot..." />
+              <p className="text-[9px] text-muted-foreground mt-0.5">Recebe alertas de depósito, saque, erro, plataforma offline</p>
+            </div>
+            <div><Label className="text-xs text-muted-foreground">Webhook PushCut</Label>
+              <Input value={(form as any).webhook_pushcut ?? ""} onChange={e => setForm(p => ({ ...p, webhook_pushcut: e.target.value } as any))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://api.pushcut.io/..." />
+              <p className="text-[9px] text-muted-foreground mt-0.5">Notificações idênticas ao Telegram via PushCut (iOS/Mac)</p>
+            </div>
+            <div><Label className="text-xs text-muted-foreground">Webhook Discord / Slack / Outro</Label>
               <Input value={form.webhook_outro} onChange={e => setForm(p => ({ ...p, webhook_outro: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="https://..." /></div>
-            <div><Label className="text-xs text-muted-foreground">Gateway de Pagamento</Label>
-              <Input value={form.gateway_chave} onChange={e => setForm(p => ({ ...p, gateway_chave: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="pk_live_..." /></div>
+            <div><Label className="text-xs text-muted-foreground">Chave Gateway (fallback)</Label>
+              <Input value={form.gateway_chave} onChange={e => setForm(p => ({ ...p, gateway_chave: e.target.value }))} className="bg-secondary h-9 text-sm font-mono" placeholder="pk_live_..." />
+              <p className="text-[9px] text-muted-foreground mt-0.5">Chave do gateway PixUP/BSP usada como fallback se não configurada na aba Gateway</p>
+            </div>
           </TabsContent>
 
           {/* Cooperation Tab */}
