@@ -304,33 +304,47 @@ export const usePlatformApi = () => {
     }
   }, []);
 
+  const getStatusMap = (platform: Plataforma): { approve: string; reject: string; pending: string } => {
+    const extra = (platform.mapeamento_extra as any) ?? {};
+    const maps = extra.status_maps?.saques ?? {};
+    return {
+      approve: maps.approve ?? "approved",
+      reject: maps.reject ?? "rejected",
+      pending: maps.pending ?? "pending",
+    };
+  };
+
   const aprovarSaque = async (platform: Plataforma, saqueId: number | string): Promise<boolean> => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) {
       console.error(`[aprovarSaque] URL da API não configurada para ${platform.nome}`);
       return false;
     }
+    const statusMap = getStatusMap(platform);
     try {
       const formData = new FormData();
       formData.append("id", String(saqueId));
-      console.log(`[aprovarSaque] POST ${apiUrl}?action=aprovar_saque | id=${saqueId}`);
+      formData.append("status", statusMap.approve);
+      console.log(`[aprovarSaque] POST ${apiUrl}?action=aprovar_saque | id=${saqueId} | status_map.approve="${statusMap.approve}"`);
       const res = await fetchWithRetry(`${apiUrl}?action=aprovar_saque`, { method: "POST", body: formData });
       const text = await res.text();
-      console.log(`[aprovarSaque] HTTP ${res.status} | Resposta:`, text);
+      console.log(`[aprovarSaque] HTTP ${res.status} | Resposta bruta:`, text);
       try {
         const data = JSON.parse(text);
         if (data.affected === 0) {
-          console.warn(`[aprovarSaque] ⚠️ Nenhuma linha afetada para ID ${saqueId} — verifique se o ID existe no banco remoto`);
-          toast({ title: "⚠️ Nenhuma linha afetada", description: `O ID ${saqueId} pode não existir na tabela de saques da plataforma.`, variant: "destructive" });
+          console.warn(`[aprovarSaque] ⚠️ 0 linhas afetadas para ID ${saqueId} — o ID pode não existir ou o status já é "${statusMap.approve}"`);
+          toast({ title: "⚠️ Nenhuma linha afetada", description: `ID ${saqueId} não existe ou já está aprovado no banco remoto.`, variant: "destructive" });
+        } else {
+          console.log(`[aprovarSaque] ✅ ${data.affected} linha(s) atualizada(s)`);
         }
         return !!data.ok;
       } catch {
-        console.error(`[aprovarSaque] Resposta não é JSON válido:`, text.substring(0, 200));
-        toast({ title: "Erro na API", description: "A resposta da API não é JSON válido. Verifique o api.php.", variant: "destructive" });
+        console.error(`[aprovarSaque] ❌ Resposta não é JSON:`, text.substring(0, 300));
+        toast({ title: "Erro na API", description: "Resposta da API não é JSON. Verifique o api.php por erros PHP.", variant: "destructive" });
         return false;
       }
     } catch (e: any) {
-      console.error(`[aprovarSaque] Erro de rede:`, e);
+      console.error(`[aprovarSaque] ❌ Erro de rede:`, e);
       toast({ title: "Erro ao aprovar saque", description: e.message, variant: "destructive" });
       return false;
     }
@@ -342,27 +356,31 @@ export const usePlatformApi = () => {
       console.error(`[rejeitarSaque] URL da API não configurada para ${platform.nome}`);
       return false;
     }
+    const statusMap = getStatusMap(platform);
     try {
       const formData = new FormData();
       formData.append("id", String(saqueId));
-      console.log(`[rejeitarSaque] POST ${apiUrl}?action=rejeitar_saque | id=${saqueId}`);
+      formData.append("status", statusMap.reject);
+      console.log(`[rejeitarSaque] POST ${apiUrl}?action=rejeitar_saque | id=${saqueId} | status_map.reject="${statusMap.reject}"`);
       const res = await fetchWithRetry(`${apiUrl}?action=rejeitar_saque`, { method: "POST", body: formData });
       const text = await res.text();
-      console.log(`[rejeitarSaque] HTTP ${res.status} | Resposta:`, text);
+      console.log(`[rejeitarSaque] HTTP ${res.status} | Resposta bruta:`, text);
       try {
         const data = JSON.parse(text);
         if (data.affected === 0) {
-          console.warn(`[rejeitarSaque] ⚠️ Nenhuma linha afetada para ID ${saqueId}`);
-          toast({ title: "⚠️ Nenhuma linha afetada", description: `O ID ${saqueId} pode não existir na tabela de saques da plataforma.`, variant: "destructive" });
+          console.warn(`[rejeitarSaque] ⚠️ 0 linhas afetadas para ID ${saqueId}`);
+          toast({ title: "⚠️ Nenhuma linha afetada", description: `ID ${saqueId} não existe ou já foi rejeitado.`, variant: "destructive" });
+        } else {
+          console.log(`[rejeitarSaque] ✅ ${data.affected} linha(s) atualizada(s)`);
         }
         return !!data.ok;
       } catch {
-        console.error(`[rejeitarSaque] Resposta não é JSON válido:`, text.substring(0, 200));
-        toast({ title: "Erro na API", description: "A resposta da API não é JSON válido.", variant: "destructive" });
+        console.error(`[rejeitarSaque] ❌ Resposta não é JSON:`, text.substring(0, 300));
+        toast({ title: "Erro na API", description: "Resposta não é JSON válido.", variant: "destructive" });
         return false;
       }
     } catch (e: any) {
-      console.error(`[rejeitarSaque] Erro de rede:`, e);
+      console.error(`[rejeitarSaque] ❌ Erro de rede:`, e);
       toast({ title: "Erro ao rejeitar saque", description: e.message, variant: "destructive" });
       return false;
     }

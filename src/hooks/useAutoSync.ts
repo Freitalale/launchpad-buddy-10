@@ -174,7 +174,9 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
           offlineTimersRef.current.delete(p.id);
 
           if (statsResult.data) {
+            // SALDO: valor direto da API, NUNCA incremental
             const saldoValue = Number(statsResult.data.saldo_total) || 0;
+            console.log(`[AutoSync] ${p.nome}: saldo_total RAW da API = ${statsResult.data.saldo_total} → parsed = ${saldoValue}`);
             const updatePayload = {
               total_usuarios: statsResult.data.total_usuarios ?? 0,
               total_afiliados: statsResult.data.total_afiliados ?? 0,
@@ -186,7 +188,7 @@ export const useAutoSync = (platforms: Plataforma[], enabled = true) => {
             if (updateError) {
               console.error(`[AutoSync] Erro atualizar plataforma ${p.nome}:`, updateError.message);
             } else {
-              console.log(`[AutoSync] ${p.nome}: usuarios=${updatePayload.total_usuarios}, saldo=R$${saldoValue.toFixed(2)}`);
+              console.log(`[AutoSync] ✅ ${p.nome}: usuarios=${updatePayload.total_usuarios}, afiliados=${updatePayload.total_afiliados}, saldo=R$${saldoValue.toFixed(2)} (direto da API, sem incremento)`);
             }
           }
 
