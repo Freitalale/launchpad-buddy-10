@@ -18,6 +18,8 @@ import Sacs from "./pages/Sacs";
 import SystemHealth from "./pages/SystemHealth";
 import Tutorial from "./pages/Tutorial";
 import NotFound from "./pages/NotFound";
+import ErrorPanel from "./pages/ErrorPanel";
+import UsersPage from "./pages/Users";
 
 const queryClient = new QueryClient();
 
@@ -33,9 +35,11 @@ const App = () => (
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/platforms" element={<Platforms />} />
+              <Route path="/users" element={<UsersPage />} />
               <Route path="/depositos" element={<Depositos />} />
               <Route path="/saques" element={<Saques />} />
               <Route path="/sacs" element={<Sacs />} />
+              <Route path="/errors" element={<ErrorPanel />} />
               <Route path="/eventos" element={<Integrations />} />
               <Route path="/logs" element={<Logs />} />
               <Route path="/integrations" element={<Integrations />} />
