@@ -8,6 +8,7 @@ import PlatformCard from "@/components/PlatformCard";
 import ConfigureModal from "@/components/ConfigureModal";
 import ManageModal from "@/components/ManageModal";
 import AddPlatformModal from "@/components/AddPlatformModal";
+import EditPlatformModal from "@/components/EditPlatformModal";
 import { usePlatforms, useDeletePlatform, type Plataforma } from "@/hooks/usePlatforms";
 import { useCreateLog } from "@/hooks/useLogs";
 import { useToast } from "@/hooks/use-toast";
