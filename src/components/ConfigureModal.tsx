@@ -485,7 +485,7 @@ if ($action === "scan_db") {
     echo json_encode(["ok"=>true,"database"=>$db,"tables"=>$tables,"total"=>count($tables)]); exit;
 }
 
-// ═══ DIAGNOSTICO PROFUNDO v5.8 ═══
+// ═══ DIAGNOSTICO PROFUNDO v6.0 ═══
 if ($action === "diagnostico") {
     $diag = ["mapping"=>[],"column_checks"=>[],"saldo_debug"=>null,"mapping_source"=>file_exists($mapping_file)?"file":"inline"];
     $entities = [
@@ -866,11 +866,11 @@ echo json_encode([
     const fullUrl = rawUrl && !rawUrl.startsWith("http") ? `https://${rawUrl}` : rawUrl;
     const apiUrl = fullUrl ? `${fullUrl}/api.php` : "https://seusite.com/api.php";
     return `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v5.8 — ${platform.nome}</title>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Teste API v6.0 — ${platform.nome}</title>
 <style>*{box-sizing:border-box}body{font-family:'Segoe UI',monospace;background:#0a0a0f;color:#e0e0e0;padding:20px;margin:0}h1{color:#00c4ff;margin-bottom:5px}h2{color:#888;font-size:14px;margin-top:0}.controls{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}button{background:#00c4ff;color:#000;border:none;padding:10px 18px;cursor:pointer;border-radius:8px;font-weight:bold;font-size:13px;transition:all .2s}button:hover{background:#00a0dd;transform:scale(1.02)}button.scan{background:#a855f7}button.scan:hover{background:#9333ea}button.diag{background:#f59e0b}button.diag:hover{background:#d97706}button.map{background:#22c55e}button.map:hover{background:#16a34a}pre{background:#0d0d15;padding:12px;border-radius:8px;overflow-x:auto;border:1px solid #1a1a2e;max-height:350px;font-size:12px;line-height:1.5}input{width:100%;max-width:600px;padding:10px;background:#111;color:#fff;border:1px solid #333;border-radius:8px;font-size:14px;font-family:monospace}.status-bar{padding:12px;border-radius:8px;margin:10px 0;font-weight:bold;font-size:13px}.status-bar.ok{background:#22c55e15;border:1px solid #22c55e40;color:#22c55e}.status-bar.fail{background:#ef444415;border:1px solid #ef444440;color:#ef4444}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:15px 0}.card{background:#111;border:1px solid #222;border-radius:10px;padding:15px}.card h3{margin:0 0 8px;font-size:13px;color:#00c4ff}.card.ok{border-color:#22c55e}.card.fail{border-color:#ef4444}</style>
 </head><body>
-<h1>🔌 Teste API v5.8 — ${platform.nome}</h1>
-<h2>API Híbrida — mapping_cache.json + Direct Mapping</h2>
+<h1>🔌 Teste API v6.0 — ${platform.nome}</h1>
+<h2>API Universal — Status Mapping + Hybrid Mapping</h2>
 <input id="apiUrl" value="${apiUrl}" placeholder="URL da API (api.php)" />
 <div class="controls">
 <button onclick="testEndpoint('health')">🏥 Health</button>
@@ -1207,7 +1207,7 @@ async function testAll(){
             <div className="p-2 rounded-lg bg-primary/10"><SettingsIcon className="w-4 h-4 text-primary" /></div>
             <div>
               <h2 className="font-bold text-lg text-foreground">Configurar — {platform.nome}</h2>
-              <p className="text-xs text-muted-foreground">API v5.8 — Mapeamento Híbrido (mapping_cache.json + Direct Mapping)</p>
+              <p className="text-xs text-muted-foreground">API v6.0 — Universal Status Mapping + Hybrid Mapping</p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl">×</button>
@@ -1672,10 +1672,10 @@ async function testAll(){
             <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3">
              <div className="flex items-center gap-2 mb-1">
                 <Code className="w-4 h-4 text-neon-green" />
-                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v5.8 — Hybrid Mapping</p>
+                <p className="text-xs font-bold text-foreground">Gerar Arquivos da API v6.0 — Universal Status Mapping</p>
               </div>
               <p className="text-[10px] text-muted-foreground">API lê mapping_cache.json → mude o mapeamento no painel → clique "Sync Mapping" → API usa imediatamente.</p>
-              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v5.8: mapping_cache.json + update_mapping + col_exists + diagnóstico de colunas</p>
+              <p className="text-[10px] text-accent-foreground font-semibold mt-1">⚡ v6.0: status_maps universal + get_status_map + detecção automática + col_exists</p>
             </div>
 
             {/* Sync mapping button */}
@@ -1756,9 +1756,9 @@ async function testAll(){
             {/* Individual files with separate Generate Preview / Download */}
             {[
               { name: "config.php", label: "📄 config.php", gen: generateConfigPhp, field: "config_php", type: "text/plain" },
-              { name: "api.php", label: "📄 api.php — v5.8 Hybrid Mapping", gen: generateApiPhp, field: "api_php", type: "text/plain" },
-              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento Dinâmico", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
-              { name: "test_api.html", label: "📄 test_api.html — v5.8", gen: generateTestHtml, field: "test_html", type: "text/html" },
+              { name: "api.php", label: "📄 api.php — v6.0 Universal Status Mapping", gen: generateApiPhp, field: "api_php", type: "text/plain" },
+              { name: "mapping_cache.json", label: "📋 mapping_cache.json — Mapeamento + Status Maps", gen: generateMappingJson, field: "mapping_json", type: "application/json" },
+              { name: "test_api.html", label: "📄 test_api.html — v6.0", gen: generateTestHtml, field: "test_html", type: "text/html" },
               { name: "telegram_webhook.php", label: "📄 telegram_webhook.php", gen: generateTelegramWebhook, field: "telegram_php", type: "text/plain" },
               { name: "webhook_pix.php", label: "📄 webhook_pix.php", gen: generateWebhookPix, field: "webhook_pix_php", type: "text/plain" },
             ].map(f => {
