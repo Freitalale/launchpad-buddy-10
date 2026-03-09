@@ -14,9 +14,11 @@ import ThemeToggle from "@/components/ThemeToggle";
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/platforms", label: "Plataformas", icon: Server },
+  { to: "/users", label: "Usuários", icon: Users },
   { to: "/depositos", label: "Depósitos", icon: DollarSign },
   { to: "/saques", label: "Saques", icon: ArrowUpRight },
   { to: "/sacs", label: "SACs", icon: Headphones },
+  { to: "/errors", label: "Erros", icon: ShieldAlert },
   { to: "/logs", label: "Logs", icon: ScrollText },
   { to: "/integrations", label: "Notificações", icon: Bell },
   { to: "/health", label: "Diagnóstico", icon: Activity },
