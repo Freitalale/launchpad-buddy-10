@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight, Code, FileText, Globe, Copy, CheckCircle, RefreshCw, Search, Sparkles, Activity, CreditCard, Layers } from "lucide-react";
+import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight, Code, FileText, Globe, Copy, CheckCircle, RefreshCw, Search, Sparkles, Activity, CreditCard, Layers, Smartphone } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
