@@ -298,7 +298,7 @@ const TestSuite = () => {
       // Gateway
       await runTest(`gw_${p.id}`, "Gateway Pagamento", `🌐 ${p.nome}`, async () => {
         tick();
-        if (!p.gateway_chave) return { ok: false, msg: "Chave do gateway não configurada", solution: "Adicione a chave do gateway na edição da plataforma" };
+        if (!p.gateway_chave) return { ok: false, warn: true, msg: "⚠️ Chave do gateway não configurada", solution: "Adicione a chave do gateway na edição da plataforma" };
         const extra = (p.mapeamento_extra as any) ?? {};
         const gw = extra.gateway;
         return { ok: true, msg: `Chave: ${p.gateway_chave.substring(0, 12)}...${gw?.endpoint ? ` · Endpoint: ${gw.endpoint}` : " · PixUP padrão"}` };
