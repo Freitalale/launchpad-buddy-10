@@ -159,6 +159,24 @@ function classifyHttpError(status: number, endpoint: string): DiagnosticError {
   };
 }
 
+async function proxyFetch(url: string, method = "GET", payload?: any): Promise<{ ok: boolean; status: number; data: any; error?: string; type?: string }> {
+  const { supabase: sb } = await import("@/integrations/supabase/client");
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    try {
+      const { data, error } = await sb.functions.invoke("api-proxy", {
+        body: { url, method, payload },
+      });
+      if (error) throw new Error(error.message);
+      return data as any;
+    } catch (e: any) {
+      if (i === MAX_RETRIES - 1) throw e;
+      await new Promise(r => setTimeout(r, RETRY_DELAY * (i + 1)));
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
+// Legacy wrapper for compatibility
 async function fetchWithRetry(url: string, options?: RequestInit, retries = MAX_RETRIES): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
