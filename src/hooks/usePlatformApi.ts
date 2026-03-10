@@ -217,34 +217,23 @@ export const usePlatformApi = () => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: null, fromCache: false };
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=stats`);
-      if (!res.ok) {
-        const err = classifyHttpError(res.status, "stats");
+      const result = await proxyFetch(`${apiUrl}?action=stats`);
+      if (!result.ok) {
+        const err = classifyHttpError(result.status, "stats");
         return { data: null, fromCache: false, error: err };
       }
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (data.total_usuarios === undefined) {
-          return { data: null, fromCache: false, error: {
-            endpoint: "stats", type: "MISSING_FIELDS",
-            message: "Campos obrigatórios ausentes no JSON",
-            cause: "O endpoint stats não retorna total_usuarios, total_afiliados, saldo_total.",
-            solution: "Verifique o SELECT no api.php para o action=stats.",
-          }};
-        }
-        setCache("stats", platform.id, data);
-        return { data, fromCache: false };
-      } catch {
+      const data = result.data;
+      if (typeof data !== "object" || data.total_usuarios === undefined) {
         return { data: null, fromCache: false, error: {
-          endpoint: "stats", type: "INVALID_JSON",
-          message: "A API retornou resposta que não é JSON válido",
-          cause: "O api.php pode ter erros PHP ou warnings antes do JSON.",
-          solution: "1) Abra a URL no navegador e verifique se é JSON puro\n2) Desative display_errors no PHP\n3) Verifique se não há echo antes do json_encode",
+          endpoint: "stats", type: "MISSING_FIELDS",
+          message: "Campos obrigatórios ausentes no JSON",
+          cause: "O endpoint stats não retorna total_usuarios, total_afiliados, saldo_total.",
+          solution: "Verifique o SELECT no api.php para o action=stats.",
         }};
       }
+      setCache("stats", platform.id, data);
+      return { data, fromCache: false };
     } catch (e: any) {
-      // Try to return cached data
       const stale = cacheRef.current.get(`${platform.id}:stats`);
       if (stale) {
         return { data: stale.data, fromCache: true, error: classifyError(e, "stats") };
