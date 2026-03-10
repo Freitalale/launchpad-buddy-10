@@ -160,20 +160,23 @@ function classifyHttpError(status: number, endpoint: string): DiagnosticError {
 }
 
 async function proxyFetch(url: string, method = "GET", payload?: any): Promise<{ ok: boolean; status: number; data: any; error?: string; type?: string }> {
-  const { supabase: sb } = await import("@/integrations/supabase/client");
-  for (let i = 0; i < MAX_RETRIES; i++) {
-    try {
-      const { data, error } = await sb.functions.invoke("api-proxy", {
-        body: { url, method, payload },
-      });
-      if (error) throw new Error(error.message);
-      return data as any;
-    } catch (e: any) {
-      if (i === MAX_RETRIES - 1) throw e;
-      await new Promise(r => setTimeout(r, RETRY_DELAY * (i + 1)));
+  try {
+    const res = await supabase.functions.invoke("api-proxy", {
+      body: { url, method, payload },
+    });
+    // supabase-js may wrap non-2xx as error but our proxy always returns 200
+    if (res.error) {
+      // Try to parse error context body
+      try {
+        const ctx = (res.error as any)?.context;
+        if (ctx?.body) return JSON.parse(ctx.body);
+      } catch {}
+      return { ok: false, status: 0, data: null, error: res.error.message || "Erro ao chamar proxy", type: "NETWORK_ERROR" };
     }
+    return res.data as any;
+  } catch (e: any) {
+    return { ok: false, status: 0, data: null, error: e.message || "Erro de rede", type: "NETWORK_ERROR" };
   }
-  throw new Error("Max retries exceeded");
 }
 
 // Legacy wrapper for compatibility
@@ -216,30 +219,29 @@ export const usePlatformApi = () => {
 
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: null, fromCache: false };
-    try {
-      const result = await proxyFetch(`${apiUrl}?action=stats`);
-      if (!result.ok) {
-        const err = classifyHttpError(result.status, "stats");
-        return { data: null, fromCache: false, error: err };
-      }
-      const data = result.data;
-      if (typeof data !== "object" || data.total_usuarios === undefined) {
-        return { data: null, fromCache: false, error: {
-          endpoint: "stats", type: "MISSING_FIELDS",
-          message: "Campos obrigatórios ausentes no JSON",
-          cause: "O endpoint stats não retorna total_usuarios, total_afiliados, saldo_total.",
-          solution: "Verifique o SELECT no api.php para o action=stats.",
-        }};
-      }
-      setCache("stats", platform.id, data);
-      return { data, fromCache: false };
-    } catch (e: any) {
+
+    const result = await proxyFetch(`${apiUrl}?action=stats`);
+    
+    if (result.error || !result.ok) {
       const stale = cacheRef.current.get(`${platform.id}:stats`);
-      if (stale) {
-        return { data: stale.data, fromCache: true, error: classifyError(e, "stats") };
-      }
-      return { data: null, fromCache: false, error: classifyError(e, "stats") };
+      const errDiag: DiagnosticError = result.status > 0
+        ? classifyHttpError(result.status, "stats")
+        : { endpoint: "stats", type: (result.type as ErrorType) || "NETWORK_ERROR", message: result.error || `Servidor retornou HTTP ${result.status}`, cause: "Erro de conexão com a API da plataforma.", solution: "Verifique se a URL da plataforma está correta e se o servidor está online." };
+      if (stale) return { data: stale.data, fromCache: true, error: errDiag };
+      return { data: null, fromCache: false, error: errDiag };
     }
+
+    const data = result.data;
+    if (typeof data !== "object" || data === null || data.total_usuarios === undefined) {
+      return { data: null, fromCache: false, error: {
+        endpoint: "stats", type: "MISSING_FIELDS",
+        message: "Campos obrigatórios ausentes no JSON",
+        cause: "O endpoint stats não retorna total_usuarios, total_afiliados, saldo_total.",
+        solution: "Verifique o SELECT no api.php para o action=stats.",
+      }};
+    }
+    setCache("stats", platform.id, data);
+    return { data, fromCache: false };
   }, []);
 
   const fetchDepositos = useCallback(async (platform: Plataforma): Promise<{ data: ApiDeposito[]; fromCache: boolean; error?: DiagnosticError }> => {
@@ -248,25 +250,28 @@ export const usePlatformApi = () => {
 
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: [], fromCache: false };
-    try {
-      const result = await proxyFetch(`${apiUrl}?action=depositos`);
-      if (!result.ok) return { data: [], fromCache: false, error: classifyHttpError(result.status, "depositos") };
-      const data = result.data;
-      if (!Array.isArray(data)) {
-        return { data: [], fromCache: false, error: {
-          endpoint: "depositos", type: "INVALID_JSON",
-          message: "Resposta não é um array JSON",
-          cause: "O endpoint depositos deve retornar um array [].",
-          solution: "Verifique se o api.php faz json_encode de um array de depósitos.",
-        }};
-      }
-      setCache("depositos", platform.id, data);
-      return { data, fromCache: false };
-    } catch (e: any) {
+
+    const result = await proxyFetch(`${apiUrl}?action=depositos`);
+    if (result.error || !result.ok) {
       const stale = cacheRef.current.get(`${platform.id}:depositos`);
-      if (stale) return { data: stale.data, fromCache: true, error: classifyError(e, "depositos") };
-      return { data: [], fromCache: false, error: classifyError(e, "depositos") };
+      const errDiag: DiagnosticError = result.status > 0
+        ? classifyHttpError(result.status, "depositos")
+        : { endpoint: "depositos", type: (result.type as ErrorType) || "NETWORK_ERROR", message: result.error || "Erro de conexão", cause: "Erro ao conectar com a API.", solution: "Verifique URL e servidor." };
+      if (stale) return { data: stale.data, fromCache: true, error: errDiag };
+      return { data: [], fromCache: false, error: errDiag };
     }
+
+    const data = result.data;
+    if (!Array.isArray(data)) {
+      return { data: [], fromCache: false, error: {
+        endpoint: "depositos", type: "INVALID_JSON",
+        message: "Resposta não é um array JSON",
+        cause: "O endpoint depositos deve retornar um array [].",
+        solution: "Verifique se o api.php faz json_encode de um array de depósitos.",
+      }};
+    }
+    setCache("depositos", platform.id, data);
+    return { data, fromCache: false };
   }, []);
 
   const fetchSaques = useCallback(async (platform: Plataforma): Promise<{ data: ApiSaque[]; fromCache: boolean; error?: DiagnosticError }> => {
@@ -275,25 +280,28 @@ export const usePlatformApi = () => {
 
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: [], fromCache: false };
-    try {
-      const result = await proxyFetch(`${apiUrl}?action=saques`);
-      if (!result.ok) return { data: [], fromCache: false, error: classifyHttpError(result.status, "saques") };
-      const data = result.data;
-      if (!Array.isArray(data)) {
-        return { data: [], fromCache: false, error: {
-          endpoint: "saques", type: "INVALID_JSON",
-          message: "Resposta não é um array JSON",
-          cause: "O endpoint saques deve retornar um array [].",
-          solution: "Verifique se o api.php faz json_encode de um array de saques.",
-        }};
-      }
-      setCache("saques", platform.id, data);
-      return { data, fromCache: false };
-    } catch (e: any) {
+
+    const result = await proxyFetch(`${apiUrl}?action=saques`);
+    if (result.error || !result.ok) {
       const stale = cacheRef.current.get(`${platform.id}:saques`);
-      if (stale) return { data: stale.data, fromCache: true, error: classifyError(e, "saques") };
-      return { data: [], fromCache: false, error: classifyError(e, "saques") };
+      const errDiag: DiagnosticError = result.status > 0
+        ? classifyHttpError(result.status, "saques")
+        : { endpoint: "saques", type: (result.type as ErrorType) || "NETWORK_ERROR", message: result.error || "Erro de conexão", cause: "Erro ao conectar com a API.", solution: "Verifique URL e servidor." };
+      if (stale) return { data: stale.data, fromCache: true, error: errDiag };
+      return { data: [], fromCache: false, error: errDiag };
     }
+
+    const data = result.data;
+    if (!Array.isArray(data)) {
+      return { data: [], fromCache: false, error: {
+        endpoint: "saques", type: "INVALID_JSON",
+        message: "Resposta não é um array JSON",
+        cause: "O endpoint saques deve retornar um array [].",
+        solution: "Verifique se o api.php faz json_encode de um array de saques.",
+      }};
+    }
+    setCache("saques", platform.id, data);
+    return { data, fromCache: false };
   }, []);
 
   const getStatusMap = (platform: Plataforma): { approve: string; reject: string; pending: string } => {
@@ -448,13 +456,11 @@ export const usePlatformApi = () => {
       return result;
     }
 
-    // Test all 4 endpoints in parallel
-    const [health, stats, depositos, saques] = await Promise.all([
-      testEndpoint(apiUrl, "health"),
-      testEndpoint(apiUrl, "stats"),
-      testEndpoint(apiUrl, "depositos"),
-      testEndpoint(apiUrl, "saques"),
-    ]);
+    // Test endpoints sequentially to avoid overwhelming the proxy
+    const health = await testEndpoint(apiUrl, "health");
+    const stats = await testEndpoint(apiUrl, "stats");
+    const depositos = await testEndpoint(apiUrl, "depositos");
+    const saques = await testEndpoint(apiUrl, "saques");
 
     result.endpoints = { health, stats, depositos, saques };
     result.latency_ms = Math.max(health.latency_ms ?? 0, stats.latency_ms ?? 0, depositos.latency_ms ?? 0, saques.latency_ms ?? 0);
