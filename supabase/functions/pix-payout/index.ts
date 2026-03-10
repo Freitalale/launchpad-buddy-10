@@ -19,6 +19,15 @@ serve(async (req) => {
       });
     }
 
+    // Dry-run validation mode (amount = 0)
+    if (Number(amount) === 0) {
+      console.log(`[pix-payout] Modo validação (R$ 0) — gateway_key presente, pix_key: ${pix_key}`);
+      return new Response(JSON.stringify({
+        success: true, status: "validation_ok",
+        message: "Validação OK — parâmetros corretos, nenhum pagamento enviado",
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // Default PixUP endpoint
     const endpoint = gateway_endpoint || "https://api.pixup.com.br/v2/pix/payment";
 
