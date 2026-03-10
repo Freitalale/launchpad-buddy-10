@@ -368,6 +368,7 @@ const TestSuite = () => {
 
   const pass = results.filter(r => r.status === "pass").length;
   const fail = results.filter(r => r.status === "fail").length;
+  const warn = results.filter(r => r.status === "warn").length;
   const total = results.filter(r => r.status !== "idle" && r.status !== "running").length;
   const categories = Array.from(new Set(results.map(r => r.category)));
   const failedTests = results.filter(r => r.status === "fail");
