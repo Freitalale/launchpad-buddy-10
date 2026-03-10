@@ -250,25 +250,28 @@ export const usePlatformApi = () => {
 
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: [], fromCache: false };
-    try {
-      const result = await proxyFetch(`${apiUrl}?action=depositos`);
-      if (!result.ok) return { data: [], fromCache: false, error: classifyHttpError(result.status, "depositos") };
-      const data = result.data;
-      if (!Array.isArray(data)) {
-        return { data: [], fromCache: false, error: {
-          endpoint: "depositos", type: "INVALID_JSON",
-          message: "Resposta não é um array JSON",
-          cause: "O endpoint depositos deve retornar um array [].",
-          solution: "Verifique se o api.php faz json_encode de um array de depósitos.",
-        }};
-      }
-      setCache("depositos", platform.id, data);
-      return { data, fromCache: false };
-    } catch (e: any) {
+
+    const result = await proxyFetch(`${apiUrl}?action=depositos`);
+    if (result.error || !result.ok) {
       const stale = cacheRef.current.get(`${platform.id}:depositos`);
-      if (stale) return { data: stale.data, fromCache: true, error: classifyError(e, "depositos") };
-      return { data: [], fromCache: false, error: classifyError(e, "depositos") };
+      const errDiag: DiagnosticError = result.status > 0
+        ? classifyHttpError(result.status, "depositos")
+        : { endpoint: "depositos", type: (result.type as ErrorType) || "NETWORK_ERROR", message: result.error || "Erro de conexão", cause: "Erro ao conectar com a API.", solution: "Verifique URL e servidor." };
+      if (stale) return { data: stale.data, fromCache: true, error: errDiag };
+      return { data: [], fromCache: false, error: errDiag };
     }
+
+    const data = result.data;
+    if (!Array.isArray(data)) {
+      return { data: [], fromCache: false, error: {
+        endpoint: "depositos", type: "INVALID_JSON",
+        message: "Resposta não é um array JSON",
+        cause: "O endpoint depositos deve retornar um array [].",
+        solution: "Verifique se o api.php faz json_encode de um array de depósitos.",
+      }};
+    }
+    setCache("depositos", platform.id, data);
+    return { data, fromCache: false };
   }, []);
 
   const fetchSaques = useCallback(async (platform: Plataforma): Promise<{ data: ApiSaque[]; fromCache: boolean; error?: DiagnosticError }> => {
@@ -277,25 +280,28 @@ export const usePlatformApi = () => {
 
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: [], fromCache: false };
-    try {
-      const result = await proxyFetch(`${apiUrl}?action=saques`);
-      if (!result.ok) return { data: [], fromCache: false, error: classifyHttpError(result.status, "saques") };
-      const data = result.data;
-      if (!Array.isArray(data)) {
-        return { data: [], fromCache: false, error: {
-          endpoint: "saques", type: "INVALID_JSON",
-          message: "Resposta não é um array JSON",
-          cause: "O endpoint saques deve retornar um array [].",
-          solution: "Verifique se o api.php faz json_encode de um array de saques.",
-        }};
-      }
-      setCache("saques", platform.id, data);
-      return { data, fromCache: false };
-    } catch (e: any) {
+
+    const result = await proxyFetch(`${apiUrl}?action=saques`);
+    if (result.error || !result.ok) {
       const stale = cacheRef.current.get(`${platform.id}:saques`);
-      if (stale) return { data: stale.data, fromCache: true, error: classifyError(e, "saques") };
-      return { data: [], fromCache: false, error: classifyError(e, "saques") };
+      const errDiag: DiagnosticError = result.status > 0
+        ? classifyHttpError(result.status, "saques")
+        : { endpoint: "saques", type: (result.type as ErrorType) || "NETWORK_ERROR", message: result.error || "Erro de conexão", cause: "Erro ao conectar com a API.", solution: "Verifique URL e servidor." };
+      if (stale) return { data: stale.data, fromCache: true, error: errDiag };
+      return { data: [], fromCache: false, error: errDiag };
     }
+
+    const data = result.data;
+    if (!Array.isArray(data)) {
+      return { data: [], fromCache: false, error: {
+        endpoint: "saques", type: "INVALID_JSON",
+        message: "Resposta não é um array JSON",
+        cause: "O endpoint saques deve retornar um array [].",
+        solution: "Verifique se o api.php faz json_encode de um array de saques.",
+      }};
+    }
+    setCache("saques", platform.id, data);
+    return { data, fromCache: false };
   }, []);
 
   const getStatusMap = (platform: Plataforma): { approve: string; reject: string; pending: string } => {
