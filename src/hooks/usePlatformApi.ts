@@ -314,27 +314,22 @@ export const usePlatformApi = () => {
     }
     const statusMap = getStatusMap(platform);
     try {
-      const formData = new FormData();
-      formData.append("id", String(saqueId));
-      formData.append("status", statusMap.approve);
       console.log(`[aprovarSaque] POST ${apiUrl}?action=aprovar_saque | id=${saqueId} | status_map.approve="${statusMap.approve}"`);
-      const res = await fetchWithRetry(`${apiUrl}?action=aprovar_saque`, { method: "POST", body: formData });
-      const text = await res.text();
-      console.log(`[aprovarSaque] HTTP ${res.status} | Resposta bruta:`, text);
-      try {
-        const data = JSON.parse(text);
+      const result = await proxyFetch(`${apiUrl}?action=aprovar_saque`, "POST", { id: String(saqueId), status: statusMap.approve });
+      console.log(`[aprovarSaque] HTTP ${result.status} | Resposta:`, result.data);
+      const data = result.data;
+      if (typeof data === "object" && data !== null) {
         if (data.affected === 0) {
-          console.warn(`[aprovarSaque] ⚠️ 0 linhas afetadas para ID ${saqueId} — o ID pode não existir ou o status já é "${statusMap.approve}"`);
+          console.warn(`[aprovarSaque] ⚠️ 0 linhas afetadas para ID ${saqueId}`);
           toast({ title: "⚠️ Nenhuma linha afetada", description: `ID ${saqueId} não existe ou já está aprovado no banco remoto.`, variant: "destructive" });
         } else {
           console.log(`[aprovarSaque] ✅ ${data.affected} linha(s) atualizada(s)`);
         }
         return !!data.ok;
-      } catch {
-        console.error(`[aprovarSaque] ❌ Resposta não é JSON:`, text.substring(0, 300));
-        toast({ title: "Erro na API", description: "Resposta da API não é JSON. Verifique o api.php por erros PHP.", variant: "destructive" });
-        return false;
       }
+      console.error(`[aprovarSaque] ❌ Resposta inesperada:`, data);
+      toast({ title: "Erro na API", description: "Resposta da API inesperada.", variant: "destructive" });
+      return false;
     } catch (e: any) {
       console.error(`[aprovarSaque] ❌ Erro de rede:`, e);
       toast({ title: "Erro ao aprovar saque", description: e.message, variant: "destructive" });
@@ -350,15 +345,11 @@ export const usePlatformApi = () => {
     }
     const statusMap = getStatusMap(platform);
     try {
-      const formData = new FormData();
-      formData.append("id", String(saqueId));
-      formData.append("status", statusMap.reject);
       console.log(`[rejeitarSaque] POST ${apiUrl}?action=rejeitar_saque | id=${saqueId} | status_map.reject="${statusMap.reject}"`);
-      const res = await fetchWithRetry(`${apiUrl}?action=rejeitar_saque`, { method: "POST", body: formData });
-      const text = await res.text();
-      console.log(`[rejeitarSaque] HTTP ${res.status} | Resposta bruta:`, text);
-      try {
-        const data = JSON.parse(text);
+      const result = await proxyFetch(`${apiUrl}?action=rejeitar_saque`, "POST", { id: String(saqueId), status: statusMap.reject });
+      console.log(`[rejeitarSaque] HTTP ${result.status} | Resposta:`, result.data);
+      const data = result.data;
+      if (typeof data === "object" && data !== null) {
         if (data.affected === 0) {
           console.warn(`[rejeitarSaque] ⚠️ 0 linhas afetadas para ID ${saqueId}`);
           toast({ title: "⚠️ Nenhuma linha afetada", description: `ID ${saqueId} não existe ou já foi rejeitado.`, variant: "destructive" });
@@ -366,11 +357,10 @@ export const usePlatformApi = () => {
           console.log(`[rejeitarSaque] ✅ ${data.affected} linha(s) atualizada(s)`);
         }
         return !!data.ok;
-      } catch {
-        console.error(`[rejeitarSaque] ❌ Resposta não é JSON:`, text.substring(0, 300));
-        toast({ title: "Erro na API", description: "Resposta não é JSON válido.", variant: "destructive" });
-        return false;
       }
+      console.error(`[rejeitarSaque] ❌ Resposta inesperada:`, data);
+      toast({ title: "Erro na API", description: "Resposta não é JSON válido.", variant: "destructive" });
+      return false;
     } catch (e: any) {
       console.error(`[rejeitarSaque] ❌ Erro de rede:`, e);
       toast({ title: "Erro ao rejeitar saque", description: e.message, variant: "destructive" });
@@ -382,9 +372,8 @@ export const usePlatformApi = () => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return false;
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=remover_afiliados`, { method: "POST" });
-      const data = await res.json();
-      return !!data.ok;
+      const result = await proxyFetch(`${apiUrl}?action=remover_afiliados`, "POST");
+      return !!(result.data?.ok);
     } catch (e: any) {
       toast({ title: "Erro ao remover afiliados", description: e.message, variant: "destructive" });
       return false;
