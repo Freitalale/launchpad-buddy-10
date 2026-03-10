@@ -249,29 +249,19 @@ export const usePlatformApi = () => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: [], fromCache: false };
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=depositos`);
-      if (!res.ok) return { data: [], fromCache: false, error: classifyHttpError(res.status, "depositos") };
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (!Array.isArray(data)) {
-          return { data: [], fromCache: false, error: {
-            endpoint: "depositos", type: "INVALID_JSON",
-            message: "Resposta não é um array JSON",
-            cause: "O endpoint depositos deve retornar um array [].",
-            solution: "Verifique se o api.php faz json_encode de um array de depósitos.",
-          }};
-        }
-        setCache("depositos", platform.id, data);
-        return { data, fromCache: false };
-      } catch {
+      const result = await proxyFetch(`${apiUrl}?action=depositos`);
+      if (!result.ok) return { data: [], fromCache: false, error: classifyHttpError(result.status, "depositos") };
+      const data = result.data;
+      if (!Array.isArray(data)) {
         return { data: [], fromCache: false, error: {
           endpoint: "depositos", type: "INVALID_JSON",
-          message: "JSON inválido retornado pela API",
-          cause: "O api.php pode ter erros PHP antes do JSON.",
-          solution: "Abra a URL diretamente no navegador e verifique a saída.",
+          message: "Resposta não é um array JSON",
+          cause: "O endpoint depositos deve retornar um array [].",
+          solution: "Verifique se o api.php faz json_encode de um array de depósitos.",
         }};
       }
+      setCache("depositos", platform.id, data);
+      return { data, fromCache: false };
     } catch (e: any) {
       const stale = cacheRef.current.get(`${platform.id}:depositos`);
       if (stale) return { data: stale.data, fromCache: true, error: classifyError(e, "depositos") };
@@ -286,29 +276,19 @@ export const usePlatformApi = () => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: [], fromCache: false };
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=saques`);
-      if (!res.ok) return { data: [], fromCache: false, error: classifyHttpError(res.status, "saques") };
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (!Array.isArray(data)) {
-          return { data: [], fromCache: false, error: {
-            endpoint: "saques", type: "INVALID_JSON",
-            message: "Resposta não é um array JSON",
-            cause: "O endpoint saques deve retornar um array [].",
-            solution: "Verifique se o api.php faz json_encode de um array de saques.",
-          }};
-        }
-        setCache("saques", platform.id, data);
-        return { data, fromCache: false };
-      } catch {
+      const result = await proxyFetch(`${apiUrl}?action=saques`);
+      if (!result.ok) return { data: [], fromCache: false, error: classifyHttpError(result.status, "saques") };
+      const data = result.data;
+      if (!Array.isArray(data)) {
         return { data: [], fromCache: false, error: {
           endpoint: "saques", type: "INVALID_JSON",
-          message: "JSON inválido",
-          cause: "Erro PHP antes do json_encode.",
-          solution: "Verifique o arquivo api.php.",
+          message: "Resposta não é um array JSON",
+          cause: "O endpoint saques deve retornar um array [].",
+          solution: "Verifique se o api.php faz json_encode de um array de saques.",
         }};
       }
+      setCache("saques", platform.id, data);
+      return { data, fromCache: false };
     } catch (e: any) {
       const stale = cacheRef.current.get(`${platform.id}:saques`);
       if (stale) return { data: stale.data, fromCache: true, error: classifyError(e, "saques") };
