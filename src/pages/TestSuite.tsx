@@ -505,7 +505,7 @@ const TestSuite = () => {
         <div className="text-center py-20 text-muted-foreground">
           <Play className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">Clique em "Executar Todos os Testes" para iniciar</p>
-          <p className="text-sm mt-1">Será testado: autenticação, {tables.length} tabelas, CRUD, storage, Telegram, edge functions, e cada plataforma individualmente</p>
+          <p className="text-sm mt-1">Será testado: autenticação, 11 tabelas, CRUD, storage, Telegram, edge functions, e cada plataforma individualmente</p>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 max-w-2xl mx-auto">
             {["🔐 Auth", "🗄️ Banco", "✏️ CRUD", "📦 Storage", "📲 Telegram", "⚡ Edge Fn", "🌐 APIs", "💳 Gateway"].map(t => (
               <span key={t} className="text-[11px] px-3 py-1.5 rounded-lg bg-secondary border border-border/50">{t}</span>
