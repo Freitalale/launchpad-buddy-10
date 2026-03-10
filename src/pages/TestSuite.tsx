@@ -319,7 +319,7 @@ const TestSuite = () => {
         }
 
         tick();
-        if (!botToken || !chatId) return { ok: false, msg: "Telegram não configurado (global nem plataforma)", solution: "Configure o Telegram nas notificações" };
+        if (!botToken || !chatId) return { ok: false, warn: true, msg: "⚠️ Telegram não configurado (global nem plataforma)", solution: "Configure o Telegram nas notificações" };
 
         const { data, error } = await supabase.functions.invoke("send-telegram", {
           body: {
