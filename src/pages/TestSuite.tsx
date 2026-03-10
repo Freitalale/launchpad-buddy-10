@@ -479,6 +479,7 @@ const TestSuite = () => {
                 <div key={r.id} className={`flex items-center gap-3 px-4 py-2.5 text-xs ${r.status === "fail" ? "bg-destructive/3" : ""}`}>
                   {r.status === "running" ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary flex-shrink-0" /> :
                     r.status === "pass" ? <CheckCircle className="w-3.5 h-3.5 text-neon-green flex-shrink-0" /> :
+                    r.status === "warn" ? <AlertTriangle className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" /> :
                     <XCircle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
