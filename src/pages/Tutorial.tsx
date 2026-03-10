@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight, Code, FileText, Globe, Copy, CheckCircle, RefreshCw, Search, Sparkles, Activity, CreditCard, Layers } from "lucide-react";
+import { BookOpen, Database, Key, Zap, Server, Send, Shield, ArrowRight, Code, FileText, Globe, Copy, CheckCircle, RefreshCw, Search, Sparkles, Activity, CreditCard, Layers, Smartphone } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -132,12 +132,84 @@ const sections = [
   },
   {
     icon: Send, color: "neon-cyan", title: "8. Telegram Bot",
-    description: "Notificações automáticas",
+    description: "Notificações automáticas via Telegram",
     content: (
       <div className="space-y-2">
         {["1. Telegram → @BotFather → /newbot → copie Bot Token", "2. Crie grupo → adicione bot como admin", "3. Envie mensagem → acesse getUpdates → copie Chat ID", "4. Painel → Integrações → cole Token e Chat ID → Ativar", "5. Eventos → personalize mensagens com variáveis dinâmicas"].map((t, i) => (
           <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-xs text-muted-foreground">{t}</p></div>
         ))}
+      </div>
+    ),
+  },
+  {
+    icon: Smartphone, color: "neon-amber", title: "8.1 PushCut — Notificações iOS/Mac",
+    description: "Tutorial completo passo a passo para configurar PushCut",
+    content: (
+      <div className="space-y-3">
+        <div className="rounded-lg bg-neon-amber/5 border border-neon-amber/20 p-3 space-y-2">
+          <p className="text-[11px] font-bold text-neon-amber">📱 Passo 1 — Criar notificação no App PushCut</p>
+          {[
+            "1. Baixe o app PushCut na App Store (iOS/Mac)",
+            "2. Abra o app → toque em 'Notifications' (aba inferior)",
+            "3. Toque no '+' para criar uma nova notificação",
+            "4. Preencha os campos:",
+          ].map((t, i) => (
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-amber mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
+          ))}
+        </div>
+
+        <div className="rounded-lg bg-secondary/30 p-3 border border-border/30 space-y-2">
+          <p className="text-[11px] font-bold text-foreground">📝 Campos da Notificação no PushCut:</p>
+          <div className="space-y-1.5">
+            {[
+              { campo: "Name (Nome)", valor: "Master Painel", desc: "Nome interno — pode ser qualquer coisa para identificar" },
+              { campo: "Title (Título)", valor: "Deixe VAZIO", desc: "O título será enviado dinamicamente pelo painel (ex: 💰 Depósito Recebido)" },
+              { campo: "Text (Texto)", valor: "Deixe VAZIO", desc: "O texto também é enviado dinamicamente com as variáveis preenchidas" },
+              { campo: "Sound (Som)", valor: "Escolha um som", desc: "Recomendado: 'default' ou qualquer som que chame atenção" },
+              { campo: "Image (Imagem)", valor: "Opcional", desc: "Pode adicionar um ícone/logo, mas não é obrigatório" },
+              { campo: "Default Action (Ação)", valor: "Opcional", desc: "Pode configurar para abrir uma URL ao tocar na notificação" },
+              { campo: "Tags", valor: "Opcional", desc: "Use para categorizar, ex: 'painel', 'financeiro' — não afeta funcionamento" },
+            ].map((item, i) => (
+              <div key={i} className="rounded-lg bg-secondary/50 p-2 border border-border/20">
+                <div className="flex items-center gap-2">
+                  <code className="text-[10px] font-mono text-neon-amber font-semibold whitespace-nowrap">{item.campo}</code>
+                  <span className="text-[10px] text-primary font-medium">→ {item.valor}</span>
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-0.5">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-neon-green/5 border border-neon-green/20 p-3 space-y-2">
+          <p className="text-[11px] font-bold text-neon-green">🔗 Passo 2 — Obter a Webhook URL</p>
+          {[
+            "1. Na notificação criada, toque em 'Webhook Trigger'",
+            "2. Ative o toggle 'Webhook Trigger'",
+            "3. Copie a URL gerada (formato: https://api.pushcut.io/SEU_ID/notifications/NOME)",
+            "4. Essa é a URL que você vai colar no painel",
+          ].map((t, i) => (
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-neon-green mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
+          ))}
+        </div>
+
+        <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-2">
+          <p className="text-[11px] font-bold text-primary">⚙️ Passo 3 — Configurar no Painel</p>
+          {[
+            "1. Vá em Notificações no menu lateral",
+            "2. Na seção PushCut, cole a Webhook URL copiada",
+            "3. Ative o toggle do PushCut",
+            "4. Clique em 'Testar PushCut' → deve receber no celular",
+            "5. Configure os eventos que deseja receber",
+            "6. Clique em 'Salvar Tudo'",
+          ].map((t, i) => (
+            <div key={i} className="flex items-start gap-2"><ArrowRight className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" /><p className="text-[10px] text-muted-foreground">{t}</p></div>
+          ))}
+        </div>
+
+        <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-2">
+          <p className="text-[10px] font-bold text-destructive">⚠️ Importante: O PushCut requer iOS ou macOS. Não funciona em Android. Para Android, use o Telegram.</p>
+        </div>
       </div>
     ),
   },
