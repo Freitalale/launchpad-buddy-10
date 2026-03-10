@@ -412,8 +412,8 @@ const TestSuite = () => {
           {[
             { label: "Passou", value: pass, color: "hsl(var(--neon-green))", icon: CheckCircle, pct: total > 0 ? `${Math.round((pass / total) * 100)}%` : "" },
             { label: "Falhou", value: fail, color: "hsl(var(--neon-red))", icon: XCircle, pct: total > 0 ? `${Math.round((fail / total) * 100)}%` : "" },
-            { label: "Total", value: total, color: "hsl(var(--primary))", icon: BarChart3, pct: "" },
-            { label: "Plataformas", value: platforms.length, color: "hsl(var(--neon-blue))", icon: Globe, pct: `${platforms.filter(p => p.url).length} com API` },
+            { label: "Avisos", value: warn, color: "hsl(45 100% 50%)", icon: AlertTriangle, pct: "" },
+            { label: "Total", value: total, color: "hsl(var(--primary))", icon: BarChart3, pct: `${platforms.filter(p => p.url).length} com API` },
           ].map((s, i) => (
             <div key={i} className="rounded-xl border border-border/60 p-4 flex items-center gap-3" style={{ background: "hsl(var(--card))" }}>
               <div className="p-2 rounded-lg" style={{ background: `${s.color}15` }}>
