@@ -336,7 +336,7 @@ const TestSuite = () => {
       // PIX Payout simulation (dry-run check — only verifies gateway is reachable)
       await runTest(`pix_${p.id}`, "PIX Payout (Validação)", `🌐 ${p.nome}`, async () => {
         tick();
-        if (!p.gateway_chave) return { ok: false, msg: "Sem chave de gateway — PIX não disponível", solution: "Configure gateway_chave na plataforma" };
+        if (!p.gateway_chave) return { ok: false, warn: true, msg: "⚠️ Sem chave de gateway — PIX não disponível", solution: "Configure gateway_chave na plataforma" };
         // We test the edge function with a R$0 amount to avoid real payment
         const { data, error } = await supabase.functions.invoke("pix-payout", {
           body: { gateway_key: p.gateway_chave, amount: 0, pix_key: "00000000000", description: "Teste de validação — R$ 0" },
