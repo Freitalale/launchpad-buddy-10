@@ -21,6 +21,7 @@ import NotFound from "./pages/NotFound";
 import ErrorPanel from "./pages/ErrorPanel";
 import UsersPage from "./pages/Users";
 import NotificationLogs from "./pages/NotificationLogs";
+import TestSuite from "./pages/TestSuite";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/logs" element={<Logs />} />
               <Route path="/integrations" element={<Integrations />} />
               <Route path="/notification-logs" element={<NotificationLogs />} />
+              <Route path="/test-suite" element={<TestSuite />} />
               <Route path="/health" element={<SystemHealth />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/tutorial" element={<Tutorial />} />

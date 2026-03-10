@@ -94,10 +94,26 @@ async function dispatchNotification(
       
       const shouldSend = (tgConfig as any)[notifFlag] !== false;
       if (shouldSend) {
-        await supabase.functions.invoke("send-telegram", {
-          body: { bot_token: tgConfig.bot_token, chat_id: tgConfig.chat_id, message: tgMsg },
-        });
-        console.log(`[Notif] ✅ Telegram enviado: ${eventName} → ${platformName}`);
+        try {
+          const { data: tgResult, error: tgError } = await supabase.functions.invoke("send-telegram", {
+            body: { bot_token: tgConfig.bot_token, chat_id: tgConfig.chat_id, message: tgMsg },
+          });
+          const ok = !tgError && tgResult?.ok;
+          await supabase.from("notificacao_logs").insert({
+            user_id: userId, canal: "telegram", evento: eventName,
+            mensagem: tgMsg, status: ok ? "success" : "error",
+            erro: ok ? null : (tgError?.message || tgResult?.description || "Falha desconhecida"),
+            plataforma_id: platformId, plataforma_nome: platformName,
+            destinatario: tgConfig.chat_id,
+          } as any);
+          console.log(`[Notif] ${ok ? "✅" : "❌"} Telegram ${eventName} → ${platformName}`);
+        } catch (e: any) {
+          await supabase.from("notificacao_logs").insert({
+            user_id: userId, canal: "telegram", evento: eventName,
+            mensagem: resolve(events.mensagem), status: "error", erro: e.message,
+            plataforma_id: platformId, plataforma_nome: platformName,
+          } as any);
+        }
       }
     }
 
@@ -105,7 +121,7 @@ async function dispatchNotification(
     if ((tgConfig as any)?.pushcut_url && (tgConfig as any)?.pushcut_ativo && toggles.pc) {
       const pcMsg = resolve(events.mensagem_pushcut || events.mensagem);
       try {
-        await fetch((tgConfig as any).pushcut_url, {
+        const pcRes = await fetch((tgConfig as any).pushcut_url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -113,8 +129,21 @@ async function dispatchNotification(
             text: pcMsg,
           }),
         });
-        console.log(`[Notif] ✅ PushCut enviado: ${eventName} → ${platformName}`);
-      } catch (e) {
+        const ok = pcRes.ok;
+        await supabase.from("notificacao_logs").insert({
+          user_id: userId, canal: "pushcut", evento: eventName,
+          mensagem: pcMsg, status: ok ? "success" : "error",
+          erro: ok ? null : `HTTP ${pcRes.status}`,
+          plataforma_id: platformId, plataforma_nome: platformName,
+          destinatario: (tgConfig as any).pushcut_url,
+        } as any);
+        console.log(`[Notif] ${ok ? "✅" : "❌"} PushCut ${eventName} → ${platformName}`);
+      } catch (e: any) {
+        await supabase.from("notificacao_logs").insert({
+          user_id: userId, canal: "pushcut", evento: eventName,
+          mensagem: pcMsg, status: "error", erro: e.message,
+          plataforma_id: platformId, plataforma_nome: platformName,
+        } as any);
         console.warn(`[Notif] ⚠️ PushCut falhou:`, e);
       }
     }

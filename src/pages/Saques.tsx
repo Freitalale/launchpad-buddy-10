@@ -68,19 +68,41 @@ const Saques = () => {
         if (platform) {
           const remoteId = saque.original_id || saque.id;
           if (status === "aprovado") {
-            const gatewayResult = await adapterRegistry.executeGatewayPayment(platform, {
-              id: remoteId, user_name: saque.nome_usuario, amount: Number(saque.valor), pix: saque.pix ?? undefined,
-            });
-            if (!gatewayResult.success && adapterRegistry.getConfig(platform).gateway) {
-              const reason = classifyWithdrawError(gatewayResult.error_message ?? "");
-              const errorLabel = ERROR_LABELS[reason];
-              toast({ title: `❌ ${errorLabel}`, description: `Plataforma: ${platform.nome} · ${gatewayResult.error_message}`, variant: "destructive" });
-              await createLog.mutateAsync({ acao: "Erro Gateway Saque", detalhes: `${errorLabel} — ${platform.nome} — ${saque.nome_usuario} — R$ ${Number(saque.valor).toFixed(2)} — ${gatewayResult.error_message}`, plataforma_nome: platform.nome, plataforma_id: platform.id, tipo: "error", valor: Number(saque.valor), usuario: saque.nome_usuario });
-              if (user) {
-                await supabase.from("notificacoes").insert({ user_id: user.id, titulo: "❌ Erro ao aprovar saque", mensagem: `${errorLabel}\n${platform.nome}\n${saque.nome_usuario}\nR$ ${Number(saque.valor).toFixed(2)}`, tipo: "error", plataforma_nome: platform.nome, plataforma_id: platform.id } as any);
+            // Try real PIX payout via edge function
+            const gwKey = platform.gateway_chave;
+            if (gwKey && saque.pix) {
+              const { data: payoutResult, error: payoutError } = await supabase.functions.invoke("pix-payout", {
+                body: {
+                  gateway_key: gwKey,
+                  amount: Number(saque.valor),
+                  pix_key: saque.pix,
+                  description: `Saque ${saque.nome_usuario} — ${platform.nome}`,
+                },
+              });
+              if (payoutError || !payoutResult?.success) {
+                const errMsg = payoutError?.message || payoutResult?.error || "Falha no pagamento PIX";
+                toast({ title: "❌ Pagamento PIX falhou", description: errMsg, variant: "destructive" });
+                await createLog.mutateAsync({ acao: "Erro PIX Payout", detalhes: `${platform.nome} — ${saque.nome_usuario} — R$ ${Number(saque.valor).toFixed(2)} — ${errMsg}`, plataforma_nome: platform.nome, plataforma_id: platform.id, tipo: "error", valor: Number(saque.valor), usuario: saque.nome_usuario });
+                setActionLoading(null);
+                return;
               }
-              setActionLoading(null);
-              return;
+              toast({ title: "✅ PIX enviado!", description: `Transação: ${payoutResult.transaction_id || "processando"}` });
+            } else {
+              // Fallback to adapter gateway
+              const gatewayResult = await adapterRegistry.executeGatewayPayment(platform, {
+                id: remoteId, user_name: saque.nome_usuario, amount: Number(saque.valor), pix: saque.pix ?? undefined,
+              });
+              if (!gatewayResult.success && adapterRegistry.getConfig(platform).gateway) {
+                const reason = classifyWithdrawError(gatewayResult.error_message ?? "");
+                const errorLabel = ERROR_LABELS[reason];
+                toast({ title: `❌ ${errorLabel}`, description: `Plataforma: ${platform.nome} · ${gatewayResult.error_message}`, variant: "destructive" });
+                await createLog.mutateAsync({ acao: "Erro Gateway Saque", detalhes: `${errorLabel} — ${platform.nome} — ${saque.nome_usuario} — R$ ${Number(saque.valor).toFixed(2)} — ${gatewayResult.error_message}`, plataforma_nome: platform.nome, plataforma_id: platform.id, tipo: "error", valor: Number(saque.valor), usuario: saque.nome_usuario });
+                if (user) {
+                  await supabase.from("notificacoes").insert({ user_id: user.id, titulo: "❌ Erro ao aprovar saque", mensagem: `${errorLabel}\n${platform.nome}\n${saque.nome_usuario}\nR$ ${Number(saque.valor).toFixed(2)}`, tipo: "error", plataforma_nome: platform.nome, plataforma_id: platform.id } as any);
+                }
+                setActionLoading(null);
+                return;
+              }
             }
           }
           const success = status === "aprovado" ? await api.aprovarSaque(platform, remoteId) : await api.rejeitarSaque(platform, remoteId);
@@ -93,7 +115,7 @@ const Saques = () => {
       }
       await updateSaque.mutateAsync({ id: saque.id, status });
       await createLog.mutateAsync({ acao: status === "aprovado" ? "Saque Aprovado" : status === "rejeitado" ? "Saque Rejeitado" : "Saque Revalidado", detalhes: `${saque.nome_usuario} — R$ ${Number(saque.valor).toFixed(2)} — ${saque.plataforma_nome ?? ""}`, plataforma_nome: saque.plataforma_nome, plataforma_id: saque.plataforma_id, tipo: status === "aprovado" ? "success" : "warning", valor: Number(saque.valor), usuario: saque.nome_usuario });
-      toast({ title: status === "aprovado" ? "✅ Saque aprovado e executado!" : status === "rejeitado" ? "❌ Saque rejeitado" : "🔄 Saque revalidado para pendente" });
+      toast({ title: status === "aprovado" ? "✅ Saque aprovado e PIX enviado!" : status === "rejeitado" ? "❌ Saque rejeitado" : "🔄 Saque revalidado para pendente" });
     } catch (e: any) {
       console.error(`[Saque V7] ❌ Erro:`, e);
       toast({ title: "Erro", description: e.message, variant: "destructive" });

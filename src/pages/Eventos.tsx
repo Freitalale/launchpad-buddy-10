@@ -97,12 +97,21 @@ const Eventos = () => {
       if (data?.ok) {
         setTestResults(prev => ({ ...prev, [idx]: "success" }));
         toast({ title: "✅ Mensagem enviada com sucesso!" });
+        await supabase.from("notificacao_logs").insert({
+          user_id: user!.id, canal: "telegram", evento: events[idx].nome,
+          mensagem: resolved, status: "success", destinatario: telegramConfig.chat_id,
+        } as any);
       } else {
         throw new Error(data?.description || "Erro ao enviar");
       }
     } catch (err: any) {
       setTestResults(prev => ({ ...prev, [idx]: "error" }));
       toast({ title: "Falha no teste", description: err.message, variant: "destructive" });
+      await supabase.from("notificacao_logs").insert({
+        user_id: user!.id, canal: "telegram", evento: events[idx].nome,
+        mensagem: resolveMessage(events[idx].mensagem), status: "error", erro: err.message,
+        destinatario: telegramConfig?.chat_id,
+      } as any);
     }
     setTestingIdx(null);
   };
