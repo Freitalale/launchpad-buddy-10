@@ -219,30 +219,29 @@ export const usePlatformApi = () => {
 
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: null, fromCache: false };
-    try {
-      const result = await proxyFetch(`${apiUrl}?action=stats`);
-      if (!result.ok) {
-        const err = classifyHttpError(result.status, "stats");
-        return { data: null, fromCache: false, error: err };
-      }
-      const data = result.data;
-      if (typeof data !== "object" || data.total_usuarios === undefined) {
-        return { data: null, fromCache: false, error: {
-          endpoint: "stats", type: "MISSING_FIELDS",
-          message: "Campos obrigatórios ausentes no JSON",
-          cause: "O endpoint stats não retorna total_usuarios, total_afiliados, saldo_total.",
-          solution: "Verifique o SELECT no api.php para o action=stats.",
-        }};
-      }
-      setCache("stats", platform.id, data);
-      return { data, fromCache: false };
-    } catch (e: any) {
+
+    const result = await proxyFetch(`${apiUrl}?action=stats`);
+    
+    if (result.error || !result.ok) {
       const stale = cacheRef.current.get(`${platform.id}:stats`);
-      if (stale) {
-        return { data: stale.data, fromCache: true, error: classifyError(e, "stats") };
-      }
-      return { data: null, fromCache: false, error: classifyError(e, "stats") };
+      const errDiag: DiagnosticError = result.status > 0
+        ? classifyHttpError(result.status, "stats")
+        : { endpoint: "stats", type: (result.type as ErrorType) || "NETWORK_ERROR", message: result.error || `Servidor retornou HTTP ${result.status}`, cause: "Erro de conexão com a API da plataforma.", solution: "Verifique se a URL da plataforma está correta e se o servidor está online." };
+      if (stale) return { data: stale.data, fromCache: true, error: errDiag };
+      return { data: null, fromCache: false, error: errDiag };
     }
+
+    const data = result.data;
+    if (typeof data !== "object" || data === null || data.total_usuarios === undefined) {
+      return { data: null, fromCache: false, error: {
+        endpoint: "stats", type: "MISSING_FIELDS",
+        message: "Campos obrigatórios ausentes no JSON",
+        cause: "O endpoint stats não retorna total_usuarios, total_afiliados, saldo_total.",
+        solution: "Verifique o SELECT no api.php para o action=stats.",
+      }};
+    }
+    setCache("stats", platform.id, data);
+    return { data, fromCache: false };
   }, []);
 
   const fetchDepositos = useCallback(async (platform: Plataforma): Promise<{ data: ApiDeposito[]; fromCache: boolean; error?: DiagnosticError }> => {
