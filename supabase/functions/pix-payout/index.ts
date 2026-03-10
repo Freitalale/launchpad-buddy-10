@@ -13,7 +13,7 @@ serve(async (req) => {
   try {
     const { gateway_key, amount, pix_key, pix_type, description, gateway_endpoint } = await req.json();
 
-    if (!gateway_key || !amount || !pix_key) {
+    if (!gateway_key || amount === undefined || amount === null || !pix_key) {
       return new Response(JSON.stringify({ success: false, error: "Parâmetros obrigatórios: gateway_key, amount, pix_key" }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
