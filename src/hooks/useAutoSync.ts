@@ -117,23 +117,22 @@ async function dispatchNotification(
       }
     }
 
-    // Send PushCut
+    // Send PushCut via Edge Function
     if ((tgConfig as any)?.pushcut_url && (tgConfig as any)?.pushcut_ativo && toggles.pc) {
       const pcMsg = resolve(events.mensagem_pushcut || events.mensagem);
       try {
-        const pcRes = await fetch((tgConfig as any).pushcut_url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const { data: pcResult, error: pcError } = await supabase.functions.invoke("send-pushcut", {
+          body: {
+            pushcut_url: (tgConfig as any).pushcut_url,
             title: `${eventName === "deposito" ? "💰" : eventName === "saque" ? "💸" : eventName === "novo_usuario" ? "🆕" : "📢"} ${platformName}`,
             text: pcMsg,
-          }),
+          },
         });
-        const ok = pcRes.ok;
+        const ok = !pcError && pcResult?.ok;
         await supabase.from("notificacao_logs").insert({
           user_id: userId, canal: "pushcut", evento: eventName,
           mensagem: pcMsg, status: ok ? "success" : "error",
-          erro: ok ? null : `HTTP ${pcRes.status}`,
+          erro: ok ? null : (pcError?.message || pcResult?.error || `Falha desconhecida`),
           plataforma_id: platformId, plataforma_nome: platformName,
           destinatario: (tgConfig as any).pushcut_url,
         } as any);
