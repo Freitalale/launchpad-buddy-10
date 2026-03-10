@@ -456,13 +456,11 @@ export const usePlatformApi = () => {
       return result;
     }
 
-    // Test all 4 endpoints in parallel
-    const [health, stats, depositos, saques] = await Promise.all([
-      testEndpoint(apiUrl, "health"),
-      testEndpoint(apiUrl, "stats"),
-      testEndpoint(apiUrl, "depositos"),
-      testEndpoint(apiUrl, "saques"),
-    ]);
+    // Test endpoints sequentially to avoid overwhelming the proxy
+    const health = await testEndpoint(apiUrl, "health");
+    const stats = await testEndpoint(apiUrl, "stats");
+    const depositos = await testEndpoint(apiUrl, "depositos");
+    const saques = await testEndpoint(apiUrl, "saques");
 
     result.endpoints = { health, stats, depositos, saques };
     result.latency_ms = Math.max(health.latency_ms ?? 0, stats.latency_ms ?? 0, depositos.latency_ms ?? 0, saques.latency_ms ?? 0);
