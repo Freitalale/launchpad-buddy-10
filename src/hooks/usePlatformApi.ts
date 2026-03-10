@@ -163,11 +163,21 @@ async function proxyFetch(url: string, method = "GET", payload?: any): Promise<{
   const { supabase: sb } = await import("@/integrations/supabase/client");
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
-      const { data, error } = await sb.functions.invoke("api-proxy", {
+      const res = await sb.functions.invoke("api-proxy", {
         body: { url, method, payload },
       });
-      if (error) throw new Error(error.message);
-      return data as any;
+      // supabase-js wraps non-2xx as error, but our proxy always returns 200
+      if (res.error) {
+        // Check if it's a FunctionsHttpError with response body
+        const errorBody = (res.error as any)?.context?.body;
+        if (errorBody) {
+          try {
+            return JSON.parse(errorBody);
+          } catch {}
+        }
+        throw new Error(res.error.message || "Erro ao chamar proxy");
+      }
+      return res.data as any;
     } catch (e: any) {
       if (i === MAX_RETRIES - 1) throw e;
       await new Promise(r => setTimeout(r, RETRY_DELAY * (i + 1)));
