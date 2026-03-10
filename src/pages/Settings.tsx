@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +26,10 @@ const Settings = () => {
 
   const [passwordForm, setPasswordForm] = useState({ current: "", newPass: "" });
 
+  // PushCut config from telegram_config table
+  const [pushcutForm, setPushcutForm] = useState({ pushcut_url: "", pushcut_ativo: false });
+  const [pushcutLoaded, setPushcutLoaded] = useState(false);
+
   useEffect(() => {
     if (settings) {
       setForm({
@@ -39,9 +42,40 @@ const Settings = () => {
     }
   }, [settings]);
 
+  // Load pushcut config
+  useEffect(() => {
+    if (!user) return;
+    const loadPushcut = async () => {
+      const { data } = await supabase.from("telegram_config").select("pushcut_url, pushcut_ativo").eq("user_id", user.id).maybeSingle();
+      if (data) {
+        setPushcutForm({ pushcut_url: data.pushcut_url ?? "", pushcut_ativo: data.pushcut_ativo ?? false });
+      }
+      setPushcutLoaded(true);
+    };
+    loadPushcut();
+  }, [user]);
+
   const handleSaveSettings = async () => {
     try {
       await updateSettings.mutateAsync(form);
+
+      // Save pushcut config to telegram_config
+      if (user) {
+        const { data: existing } = await supabase.from("telegram_config").select("id").eq("user_id", user.id).maybeSingle();
+        if (existing) {
+          await supabase.from("telegram_config").update({
+            pushcut_url: pushcutForm.pushcut_url || null,
+            pushcut_ativo: pushcutForm.pushcut_ativo,
+          }).eq("user_id", user.id);
+        } else {
+          await supabase.from("telegram_config").insert({
+            user_id: user.id,
+            pushcut_url: pushcutForm.pushcut_url || null,
+            pushcut_ativo: pushcutForm.pushcut_ativo,
+          } as any);
+        }
+      }
+
       toast({ title: "✅ Configurações salvas!" });
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
@@ -108,8 +142,8 @@ const Settings = () => {
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-neon-amber/10"><Bell className="w-4 h-4 text-neon-amber" /></div>
             <div>
-              <h3 className="font-bold text-sm text-foreground">Webhooks Globais</h3>
-              <p className="text-xs text-muted-foreground">Notificações para todas as plataformas (Telegram + PushCut)</p>
+              <h3 className="font-bold text-sm text-foreground">Webhooks & PushCut</h3>
+              <p className="text-xs text-muted-foreground">Notificações globais (Telegram, PushCut, Discord/Slack)</p>
             </div>
           </div>
           <div className="space-y-3">
@@ -119,10 +153,17 @@ const Settings = () => {
                 className="bg-secondary border-border h-9 text-sm" placeholder="https://api.telegram.org/bot..." />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Webhook PushCut</Label>
-              <Input value={(form as any).webhook_pushcut_global ?? ""} onChange={e => setForm(prev => ({ ...prev, webhook_pushcut_global: e.target.value } as any))}
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">URL do PushCut (Webhook)</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">Ativo</span>
+                  <Switch checked={pushcutForm.pushcut_ativo}
+                    onCheckedChange={v => setPushcutForm(prev => ({ ...prev, pushcut_ativo: v }))} />
+                </div>
+              </div>
+              <Input value={pushcutForm.pushcut_url} onChange={e => setPushcutForm(prev => ({ ...prev, pushcut_url: e.target.value }))}
                 className="bg-secondary border-border h-9 text-sm" placeholder="https://api.pushcut.io/..." />
-              <p className="text-[10px] text-muted-foreground">Recebe notificações idênticas ao Telegram via PushCut (iOS/Mac)</p>
+              <p className="text-[10px] text-muted-foreground">Cole aqui a URL de webhook do PushCut. Ative o toggle para receber notificações de depósitos, saques e alertas via PushCut (iOS/Mac).</p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Webhook Discord / Slack / Outro</Label>
@@ -145,7 +186,7 @@ const Settings = () => {
           <Input value={form.gateway_chave_global} onChange={e => setForm(prev => ({ ...prev, gateway_chave_global: e.target.value }))}
             className="bg-secondary border-border h-9 text-sm font-mono" placeholder="pk_live_..." />
           <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
-            <p className="text-[10px] text-primary font-semibold">💡 V7: Cada plataforma pode ter seu próprio gateway configurado no mapeamento extra (PIX API, REST, Webhook, SQL).</p>
+            <p className="text-[10px] text-primary font-semibold">⚠️ Sem gateway configurado na plataforma, saques NÃO serão enviados via PIX. Configure a chave aqui (global) ou em cada plataforma individualmente.</p>
           </div>
         </motion.div>
 
