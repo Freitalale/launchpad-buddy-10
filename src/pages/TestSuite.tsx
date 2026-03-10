@@ -42,15 +42,15 @@ const TestSuite = () => {
 
   const runTest = async (
     id: string, name: string, category: string,
-    fn: () => Promise<{ ok: boolean; msg: string; solution?: string }>,
+    fn: () => Promise<{ ok: boolean; msg: string; solution?: string; warn?: boolean }>,
     platformName?: string
   ): Promise<void> => {
     const start = Date.now();
     addResult({ id, name, category, status: "running", message: "Executando...", platformName });
     try {
-      const { ok, msg, solution } = await fn();
+      const { ok, msg, solution, warn } = await fn();
       setResults(prev => prev.map(r => r.id === id ? {
-        ...r, status: ok ? "pass" : "fail", message: msg, duration: Date.now() - start, solution
+        ...r, status: warn ? "warn" : (ok ? "pass" : "fail"), message: msg, duration: Date.now() - start, solution
       } : r));
     } catch (e: any) {
       setResults(prev => prev.map(r => r.id === id ? {
