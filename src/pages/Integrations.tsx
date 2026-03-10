@@ -125,12 +125,16 @@ const Integrations = () => {
     if (!pcConfig.pushcut_url) { toast({ title: "Preencha a Webhook URL do PushCut", variant: "destructive" }); return; }
     setTestingPc(true); setTestResultPc(null);
     try {
-      const res = await fetch(pcConfig.pushcut_url, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "✅ Master Painel V7", text: "PushCut conectado com sucesso!" }),
+      const { data, error } = await supabase.functions.invoke("send-pushcut", {
+        body: {
+          pushcut_url: pcConfig.pushcut_url,
+          title: "✅ Master Painel V7",
+          text: "PushCut conectado com sucesso!",
+        },
       });
-      if (res.ok || res.status === 204) { setTestResultPc("success"); toast({ title: "✅ PushCut conectado!" }); }
-      else throw new Error(`HTTP ${res.status}`);
+      if (error) throw new Error(error.message);
+      if (data?.ok) { setTestResultPc("success"); toast({ title: "✅ PushCut conectado!" }); }
+      else throw new Error(data?.error || `HTTP ${data?.status}`);
     } catch (err: any) { setTestResultPc("error"); toast({ title: "Falha PushCut", description: err.message, variant: "destructive" }); }
     setTestingPc(false);
   };
@@ -150,11 +154,15 @@ const Integrations = () => {
         if (!data?.ok) throw new Error(data?.description || "Erro");
       } else {
         if (!pcConfig.pushcut_url || !pcConfig.pushcut_ativo) throw new Error("PushCut não configurado/ativo");
-        const res = await fetch(pcConfig.pushcut_url, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: `${EVENT_DEFS.find(d => d.nome === evt.nome)?.icon ?? "📢"} ${EVENT_DEFS.find(d => d.nome === evt.nome)?.label ?? evt.nome}`, text: msg }),
+        const { data: pcData, error: pcErr } = await supabase.functions.invoke("send-pushcut", {
+          body: {
+            pushcut_url: pcConfig.pushcut_url,
+            title: `${EVENT_DEFS.find(d => d.nome === evt.nome)?.icon ?? "📢"} ${EVENT_DEFS.find(d => d.nome === evt.nome)?.label ?? evt.nome}`,
+            text: msg,
+          },
         });
-        if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+        if (pcErr) throw new Error(pcErr.message);
+        if (!pcData?.ok) throw new Error(pcData?.error || "Falha desconhecida");
       }
       setEvtResults(prev => ({ ...prev, [key]: "success" }));
       toast({ title: `✅ Teste ${type === "tg" ? "Telegram" : "PushCut"} enviado!` });
