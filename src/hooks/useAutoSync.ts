@@ -153,13 +153,12 @@ async function dispatchNotification(
     if (platPcUrl && platPcAtivo && toggles.pc) {
       const pcMsg = resolve(events.mensagem_pushcut || events.mensagem);
       try {
-        await fetch(platPcUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        await supabase.functions.invoke("send-pushcut", {
+          body: {
+            pushcut_url: platPcUrl,
             title: `${eventName === "deposito" ? "💰" : eventName === "saque" ? "💸" : "📢"} ${platformName}`,
             text: pcMsg,
-          }),
+          },
         });
       } catch { /* skip */ }
     }
