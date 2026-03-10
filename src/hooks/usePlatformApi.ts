@@ -383,37 +383,36 @@ export const usePlatformApi = () => {
   const testEndpoint = async (apiUrl: string, action: string): Promise<EndpointDiagnostic> => {
     const t0 = performance.now();
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=${action}`);
+      const result = await proxyFetch(`${apiUrl}?action=${action}`);
       const latency = Math.round(performance.now() - t0);
-      if (!res.ok) {
-        const err = classifyHttpError(res.status, action);
-        return { ok: false, error: err.message, httpStatus: res.status, latency_ms: latency, cause: err.cause, solution: err.solution };
+      
+      if (result.error) {
+        return { ok: false, error: result.error, latency_ms: latency, cause: result.type === "TIMEOUT" ? "Servidor não respondeu a tempo" : "Erro de conexão", solution: "Verifique se a URL e o servidor estão acessíveis" };
       }
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (action === "stats") {
-          if (data.total_usuarios === undefined) {
-            return { ok: false, error: "Campos obrigatórios ausentes", latency_ms: latency, data,
-              cause: "stats deve retornar total_usuarios, total_afiliados, saldo_total",
-              solution: "Verifique o SELECT no action=stats do api.php" };
-          }
-          return { ok: true, latency_ms: latency, data };
-        }
-        if (action === "health") {
-          return { ok: true, latency_ms: latency, data };
-        }
-        if (Array.isArray(data)) {
-          return { ok: true, latency_ms: latency, count: data.length };
-        }
-        return { ok: false, error: "Resposta não é array", latency_ms: latency,
-          cause: `${action} deve retornar um array JSON`,
-          solution: "Verifique json_encode no api.php" };
-      } catch {
-        return { ok: false, error: "JSON inválido", latency_ms: latency,
-          cause: "Resposta não é JSON válido — possível erro PHP",
-          solution: "Abra a URL no navegador e verifique se há warnings PHP antes do JSON" };
+      
+      if (!result.ok) {
+        const err = classifyHttpError(result.status, action);
+        return { ok: false, error: err.message, httpStatus: result.status, latency_ms: latency, cause: err.cause, solution: err.solution };
       }
+      
+      const data = result.data;
+      if (action === "stats") {
+        if (typeof data !== "object" || data.total_usuarios === undefined) {
+          return { ok: false, error: "Campos obrigatórios ausentes", latency_ms: latency, data,
+            cause: "stats deve retornar total_usuarios, total_afiliados, saldo_total",
+            solution: "Verifique o SELECT no action=stats do api.php" };
+        }
+        return { ok: true, latency_ms: latency, data };
+      }
+      if (action === "health") {
+        return { ok: true, latency_ms: latency, data };
+      }
+      if (Array.isArray(data)) {
+        return { ok: true, latency_ms: latency, count: data.length };
+      }
+      return { ok: false, error: "Resposta não é array", latency_ms: latency,
+        cause: `${action} deve retornar um array JSON`,
+        solution: "Verifique json_encode no api.php" };
     } catch (e: any) {
       const latency = Math.round(performance.now() - t0);
       const err = classifyError(e, action);
