@@ -160,30 +160,23 @@ function classifyHttpError(status: number, endpoint: string): DiagnosticError {
 }
 
 async function proxyFetch(url: string, method = "GET", payload?: any): Promise<{ ok: boolean; status: number; data: any; error?: string; type?: string }> {
-  const { supabase: sb } = await import("@/integrations/supabase/client");
-  for (let i = 0; i < MAX_RETRIES; i++) {
-    try {
-      const res = await sb.functions.invoke("api-proxy", {
-        body: { url, method, payload },
-      });
-      // supabase-js wraps non-2xx as error, but our proxy always returns 200
-      if (res.error) {
-        // Check if it's a FunctionsHttpError with response body
-        const errorBody = (res.error as any)?.context?.body;
-        if (errorBody) {
-          try {
-            return JSON.parse(errorBody);
-          } catch {}
-        }
-        throw new Error(res.error.message || "Erro ao chamar proxy");
-      }
-      return res.data as any;
-    } catch (e: any) {
-      if (i === MAX_RETRIES - 1) throw e;
-      await new Promise(r => setTimeout(r, RETRY_DELAY * (i + 1)));
+  try {
+    const res = await supabase.functions.invoke("api-proxy", {
+      body: { url, method, payload },
+    });
+    // supabase-js may wrap non-2xx as error but our proxy always returns 200
+    if (res.error) {
+      // Try to parse error context body
+      try {
+        const ctx = (res.error as any)?.context;
+        if (ctx?.body) return JSON.parse(ctx.body);
+      } catch {}
+      return { ok: false, status: 0, data: null, error: res.error.message || "Erro ao chamar proxy", type: "NETWORK_ERROR" };
     }
+    return res.data as any;
+  } catch (e: any) {
+    return { ok: false, status: 0, data: null, error: e.message || "Erro de rede", type: "NETWORK_ERROR" };
   }
-  throw new Error("Max retries exceeded");
 }
 
 // Legacy wrapper for compatibility
