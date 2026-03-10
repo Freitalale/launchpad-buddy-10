@@ -463,6 +463,7 @@ const TestSuite = () => {
         const catResults = results.filter(r => r.category === cat);
         const catPass = catResults.filter(r => r.status === "pass").length;
         const catFail = catResults.filter(r => r.status === "fail").length;
+        const catWarn = catResults.filter(r => r.status === "warn").length;
         return (
           <motion.div key={cat} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="rounded-xl border border-border/60 overflow-hidden" style={{ background: "hsl(var(--card))" }}>
@@ -470,6 +471,7 @@ const TestSuite = () => {
               <h3 className="font-bold text-sm text-foreground">{cat}</h3>
               <span className="text-[10px] text-muted-foreground ml-auto">
                 <span className="text-neon-green font-bold">{catPass}✓</span>
+                {catWarn > 0 && <span className="text-yellow-500 font-bold ml-2">{catWarn}⚠</span>}
                 {catFail > 0 && <span className="text-destructive font-bold ml-2">{catFail}✗</span>}
                 <span className="ml-2">{catResults.length} total</span>
               </span>
