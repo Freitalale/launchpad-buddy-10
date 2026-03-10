@@ -159,6 +159,24 @@ function classifyHttpError(status: number, endpoint: string): DiagnosticError {
   };
 }
 
+async function proxyFetch(url: string, method = "GET", payload?: any): Promise<{ ok: boolean; status: number; data: any; error?: string; type?: string }> {
+  const { supabase: sb } = await import("@/integrations/supabase/client");
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    try {
+      const { data, error } = await sb.functions.invoke("api-proxy", {
+        body: { url, method, payload },
+      });
+      if (error) throw new Error(error.message);
+      return data as any;
+    } catch (e: any) {
+      if (i === MAX_RETRIES - 1) throw e;
+      await new Promise(r => setTimeout(r, RETRY_DELAY * (i + 1)));
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
+// Legacy wrapper for compatibility
 async function fetchWithRetry(url: string, options?: RequestInit, retries = MAX_RETRIES): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     try {
@@ -199,34 +217,23 @@ export const usePlatformApi = () => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: null, fromCache: false };
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=stats`);
-      if (!res.ok) {
-        const err = classifyHttpError(res.status, "stats");
+      const result = await proxyFetch(`${apiUrl}?action=stats`);
+      if (!result.ok) {
+        const err = classifyHttpError(result.status, "stats");
         return { data: null, fromCache: false, error: err };
       }
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (data.total_usuarios === undefined) {
-          return { data: null, fromCache: false, error: {
-            endpoint: "stats", type: "MISSING_FIELDS",
-            message: "Campos obrigatórios ausentes no JSON",
-            cause: "O endpoint stats não retorna total_usuarios, total_afiliados, saldo_total.",
-            solution: "Verifique o SELECT no api.php para o action=stats.",
-          }};
-        }
-        setCache("stats", platform.id, data);
-        return { data, fromCache: false };
-      } catch {
+      const data = result.data;
+      if (typeof data !== "object" || data.total_usuarios === undefined) {
         return { data: null, fromCache: false, error: {
-          endpoint: "stats", type: "INVALID_JSON",
-          message: "A API retornou resposta que não é JSON válido",
-          cause: "O api.php pode ter erros PHP ou warnings antes do JSON.",
-          solution: "1) Abra a URL no navegador e verifique se é JSON puro\n2) Desative display_errors no PHP\n3) Verifique se não há echo antes do json_encode",
+          endpoint: "stats", type: "MISSING_FIELDS",
+          message: "Campos obrigatórios ausentes no JSON",
+          cause: "O endpoint stats não retorna total_usuarios, total_afiliados, saldo_total.",
+          solution: "Verifique o SELECT no api.php para o action=stats.",
         }};
       }
+      setCache("stats", platform.id, data);
+      return { data, fromCache: false };
     } catch (e: any) {
-      // Try to return cached data
       const stale = cacheRef.current.get(`${platform.id}:stats`);
       if (stale) {
         return { data: stale.data, fromCache: true, error: classifyError(e, "stats") };
@@ -242,29 +249,19 @@ export const usePlatformApi = () => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: [], fromCache: false };
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=depositos`);
-      if (!res.ok) return { data: [], fromCache: false, error: classifyHttpError(res.status, "depositos") };
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (!Array.isArray(data)) {
-          return { data: [], fromCache: false, error: {
-            endpoint: "depositos", type: "INVALID_JSON",
-            message: "Resposta não é um array JSON",
-            cause: "O endpoint depositos deve retornar um array [].",
-            solution: "Verifique se o api.php faz json_encode de um array de depósitos.",
-          }};
-        }
-        setCache("depositos", platform.id, data);
-        return { data, fromCache: false };
-      } catch {
+      const result = await proxyFetch(`${apiUrl}?action=depositos`);
+      if (!result.ok) return { data: [], fromCache: false, error: classifyHttpError(result.status, "depositos") };
+      const data = result.data;
+      if (!Array.isArray(data)) {
         return { data: [], fromCache: false, error: {
           endpoint: "depositos", type: "INVALID_JSON",
-          message: "JSON inválido retornado pela API",
-          cause: "O api.php pode ter erros PHP antes do JSON.",
-          solution: "Abra a URL diretamente no navegador e verifique a saída.",
+          message: "Resposta não é um array JSON",
+          cause: "O endpoint depositos deve retornar um array [].",
+          solution: "Verifique se o api.php faz json_encode de um array de depósitos.",
         }};
       }
+      setCache("depositos", platform.id, data);
+      return { data, fromCache: false };
     } catch (e: any) {
       const stale = cacheRef.current.get(`${platform.id}:depositos`);
       if (stale) return { data: stale.data, fromCache: true, error: classifyError(e, "depositos") };
@@ -279,29 +276,19 @@ export const usePlatformApi = () => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return { data: [], fromCache: false };
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=saques`);
-      if (!res.ok) return { data: [], fromCache: false, error: classifyHttpError(res.status, "saques") };
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (!Array.isArray(data)) {
-          return { data: [], fromCache: false, error: {
-            endpoint: "saques", type: "INVALID_JSON",
-            message: "Resposta não é um array JSON",
-            cause: "O endpoint saques deve retornar um array [].",
-            solution: "Verifique se o api.php faz json_encode de um array de saques.",
-          }};
-        }
-        setCache("saques", platform.id, data);
-        return { data, fromCache: false };
-      } catch {
+      const result = await proxyFetch(`${apiUrl}?action=saques`);
+      if (!result.ok) return { data: [], fromCache: false, error: classifyHttpError(result.status, "saques") };
+      const data = result.data;
+      if (!Array.isArray(data)) {
         return { data: [], fromCache: false, error: {
           endpoint: "saques", type: "INVALID_JSON",
-          message: "JSON inválido",
-          cause: "Erro PHP antes do json_encode.",
-          solution: "Verifique o arquivo api.php.",
+          message: "Resposta não é um array JSON",
+          cause: "O endpoint saques deve retornar um array [].",
+          solution: "Verifique se o api.php faz json_encode de um array de saques.",
         }};
       }
+      setCache("saques", platform.id, data);
+      return { data, fromCache: false };
     } catch (e: any) {
       const stale = cacheRef.current.get(`${platform.id}:saques`);
       if (stale) return { data: stale.data, fromCache: true, error: classifyError(e, "saques") };
@@ -327,27 +314,22 @@ export const usePlatformApi = () => {
     }
     const statusMap = getStatusMap(platform);
     try {
-      const formData = new FormData();
-      formData.append("id", String(saqueId));
-      formData.append("status", statusMap.approve);
       console.log(`[aprovarSaque] POST ${apiUrl}?action=aprovar_saque | id=${saqueId} | status_map.approve="${statusMap.approve}"`);
-      const res = await fetchWithRetry(`${apiUrl}?action=aprovar_saque`, { method: "POST", body: formData });
-      const text = await res.text();
-      console.log(`[aprovarSaque] HTTP ${res.status} | Resposta bruta:`, text);
-      try {
-        const data = JSON.parse(text);
+      const result = await proxyFetch(`${apiUrl}?action=aprovar_saque`, "POST", { id: String(saqueId), status: statusMap.approve });
+      console.log(`[aprovarSaque] HTTP ${result.status} | Resposta:`, result.data);
+      const data = result.data;
+      if (typeof data === "object" && data !== null) {
         if (data.affected === 0) {
-          console.warn(`[aprovarSaque] ⚠️ 0 linhas afetadas para ID ${saqueId} — o ID pode não existir ou o status já é "${statusMap.approve}"`);
+          console.warn(`[aprovarSaque] ⚠️ 0 linhas afetadas para ID ${saqueId}`);
           toast({ title: "⚠️ Nenhuma linha afetada", description: `ID ${saqueId} não existe ou já está aprovado no banco remoto.`, variant: "destructive" });
         } else {
           console.log(`[aprovarSaque] ✅ ${data.affected} linha(s) atualizada(s)`);
         }
         return !!data.ok;
-      } catch {
-        console.error(`[aprovarSaque] ❌ Resposta não é JSON:`, text.substring(0, 300));
-        toast({ title: "Erro na API", description: "Resposta da API não é JSON. Verifique o api.php por erros PHP.", variant: "destructive" });
-        return false;
       }
+      console.error(`[aprovarSaque] ❌ Resposta inesperada:`, data);
+      toast({ title: "Erro na API", description: "Resposta da API inesperada.", variant: "destructive" });
+      return false;
     } catch (e: any) {
       console.error(`[aprovarSaque] ❌ Erro de rede:`, e);
       toast({ title: "Erro ao aprovar saque", description: e.message, variant: "destructive" });
@@ -363,15 +345,11 @@ export const usePlatformApi = () => {
     }
     const statusMap = getStatusMap(platform);
     try {
-      const formData = new FormData();
-      formData.append("id", String(saqueId));
-      formData.append("status", statusMap.reject);
       console.log(`[rejeitarSaque] POST ${apiUrl}?action=rejeitar_saque | id=${saqueId} | status_map.reject="${statusMap.reject}"`);
-      const res = await fetchWithRetry(`${apiUrl}?action=rejeitar_saque`, { method: "POST", body: formData });
-      const text = await res.text();
-      console.log(`[rejeitarSaque] HTTP ${res.status} | Resposta bruta:`, text);
-      try {
-        const data = JSON.parse(text);
+      const result = await proxyFetch(`${apiUrl}?action=rejeitar_saque`, "POST", { id: String(saqueId), status: statusMap.reject });
+      console.log(`[rejeitarSaque] HTTP ${result.status} | Resposta:`, result.data);
+      const data = result.data;
+      if (typeof data === "object" && data !== null) {
         if (data.affected === 0) {
           console.warn(`[rejeitarSaque] ⚠️ 0 linhas afetadas para ID ${saqueId}`);
           toast({ title: "⚠️ Nenhuma linha afetada", description: `ID ${saqueId} não existe ou já foi rejeitado.`, variant: "destructive" });
@@ -379,11 +357,10 @@ export const usePlatformApi = () => {
           console.log(`[rejeitarSaque] ✅ ${data.affected} linha(s) atualizada(s)`);
         }
         return !!data.ok;
-      } catch {
-        console.error(`[rejeitarSaque] ❌ Resposta não é JSON:`, text.substring(0, 300));
-        toast({ title: "Erro na API", description: "Resposta não é JSON válido.", variant: "destructive" });
-        return false;
       }
+      console.error(`[rejeitarSaque] ❌ Resposta inesperada:`, data);
+      toast({ title: "Erro na API", description: "Resposta não é JSON válido.", variant: "destructive" });
+      return false;
     } catch (e: any) {
       console.error(`[rejeitarSaque] ❌ Erro de rede:`, e);
       toast({ title: "Erro ao rejeitar saque", description: e.message, variant: "destructive" });
@@ -395,9 +372,8 @@ export const usePlatformApi = () => {
     const apiUrl = getApiUrl(platform);
     if (!apiUrl) return false;
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=remover_afiliados`, { method: "POST" });
-      const data = await res.json();
-      return !!data.ok;
+      const result = await proxyFetch(`${apiUrl}?action=remover_afiliados`, "POST");
+      return !!(result.data?.ok);
     } catch (e: any) {
       toast({ title: "Erro ao remover afiliados", description: e.message, variant: "destructive" });
       return false;
@@ -407,37 +383,36 @@ export const usePlatformApi = () => {
   const testEndpoint = async (apiUrl: string, action: string): Promise<EndpointDiagnostic> => {
     const t0 = performance.now();
     try {
-      const res = await fetchWithRetry(`${apiUrl}?action=${action}`);
+      const result = await proxyFetch(`${apiUrl}?action=${action}`);
       const latency = Math.round(performance.now() - t0);
-      if (!res.ok) {
-        const err = classifyHttpError(res.status, action);
-        return { ok: false, error: err.message, httpStatus: res.status, latency_ms: latency, cause: err.cause, solution: err.solution };
+      
+      if (result.error) {
+        return { ok: false, error: result.error, latency_ms: latency, cause: result.type === "TIMEOUT" ? "Servidor não respondeu a tempo" : "Erro de conexão", solution: "Verifique se a URL e o servidor estão acessíveis" };
       }
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (action === "stats") {
-          if (data.total_usuarios === undefined) {
-            return { ok: false, error: "Campos obrigatórios ausentes", latency_ms: latency, data,
-              cause: "stats deve retornar total_usuarios, total_afiliados, saldo_total",
-              solution: "Verifique o SELECT no action=stats do api.php" };
-          }
-          return { ok: true, latency_ms: latency, data };
-        }
-        if (action === "health") {
-          return { ok: true, latency_ms: latency, data };
-        }
-        if (Array.isArray(data)) {
-          return { ok: true, latency_ms: latency, count: data.length };
-        }
-        return { ok: false, error: "Resposta não é array", latency_ms: latency,
-          cause: `${action} deve retornar um array JSON`,
-          solution: "Verifique json_encode no api.php" };
-      } catch {
-        return { ok: false, error: "JSON inválido", latency_ms: latency,
-          cause: "Resposta não é JSON válido — possível erro PHP",
-          solution: "Abra a URL no navegador e verifique se há warnings PHP antes do JSON" };
+      
+      if (!result.ok) {
+        const err = classifyHttpError(result.status, action);
+        return { ok: false, error: err.message, httpStatus: result.status, latency_ms: latency, cause: err.cause, solution: err.solution };
       }
+      
+      const data = result.data;
+      if (action === "stats") {
+        if (typeof data !== "object" || data.total_usuarios === undefined) {
+          return { ok: false, error: "Campos obrigatórios ausentes", latency_ms: latency, data,
+            cause: "stats deve retornar total_usuarios, total_afiliados, saldo_total",
+            solution: "Verifique o SELECT no action=stats do api.php" };
+        }
+        return { ok: true, latency_ms: latency, data };
+      }
+      if (action === "health") {
+        return { ok: true, latency_ms: latency, data };
+      }
+      if (Array.isArray(data)) {
+        return { ok: true, latency_ms: latency, count: data.length };
+      }
+      return { ok: false, error: "Resposta não é array", latency_ms: latency,
+        cause: `${action} deve retornar um array JSON`,
+        solution: "Verifique json_encode no api.php" };
     } catch (e: any) {
       const latency = Math.round(performance.now() - t0);
       const err = classifyError(e, action);

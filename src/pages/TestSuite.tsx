@@ -42,15 +42,15 @@ const TestSuite = () => {
 
   const runTest = async (
     id: string, name: string, category: string,
-    fn: () => Promise<{ ok: boolean; msg: string; solution?: string }>,
+    fn: () => Promise<{ ok: boolean; msg: string; solution?: string; warn?: boolean }>,
     platformName?: string
   ): Promise<void> => {
     const start = Date.now();
     addResult({ id, name, category, status: "running", message: "Executando...", platformName });
     try {
-      const { ok, msg, solution } = await fn();
+      const { ok, msg, solution, warn } = await fn();
       setResults(prev => prev.map(r => r.id === id ? {
-        ...r, status: ok ? "pass" : "fail", message: msg, duration: Date.now() - start, solution
+        ...r, status: warn ? "warn" : (ok ? "pass" : "fail"), message: msg, duration: Date.now() - start, solution
       } : r));
     } catch (e: any) {
       setResults(prev => prev.map(r => r.id === id ? {
@@ -298,7 +298,7 @@ const TestSuite = () => {
       // Gateway
       await runTest(`gw_${p.id}`, "Gateway Pagamento", `🌐 ${p.nome}`, async () => {
         tick();
-        if (!p.gateway_chave) return { ok: false, msg: "Chave do gateway não configurada", solution: "Adicione a chave do gateway na edição da plataforma" };
+        if (!p.gateway_chave) return { ok: false, warn: true, msg: "⚠️ Chave do gateway não configurada", solution: "Adicione a chave do gateway na edição da plataforma" };
         const extra = (p.mapeamento_extra as any) ?? {};
         const gw = extra.gateway;
         return { ok: true, msg: `Chave: ${p.gateway_chave.substring(0, 12)}...${gw?.endpoint ? ` · Endpoint: ${gw.endpoint}` : " · PixUP padrão"}` };
@@ -319,7 +319,7 @@ const TestSuite = () => {
         }
 
         tick();
-        if (!botToken || !chatId) return { ok: false, msg: "Telegram não configurado (global nem plataforma)", solution: "Configure o Telegram nas notificações" };
+        if (!botToken || !chatId) return { ok: false, warn: true, msg: "⚠️ Telegram não configurado (global nem plataforma)", solution: "Configure o Telegram nas notificações" };
 
         const { data, error } = await supabase.functions.invoke("send-telegram", {
           body: {
@@ -336,7 +336,7 @@ const TestSuite = () => {
       // PIX Payout simulation (dry-run check — only verifies gateway is reachable)
       await runTest(`pix_${p.id}`, "PIX Payout (Validação)", `🌐 ${p.nome}`, async () => {
         tick();
-        if (!p.gateway_chave) return { ok: false, msg: "Sem chave de gateway — PIX não disponível", solution: "Configure gateway_chave na plataforma" };
+        if (!p.gateway_chave) return { ok: false, warn: true, msg: "⚠️ Sem chave de gateway — PIX não disponível", solution: "Configure gateway_chave na plataforma" };
         // We test the edge function with a R$0 amount to avoid real payment
         const { data, error } = await supabase.functions.invoke("pix-payout", {
           body: { gateway_key: p.gateway_chave, amount: 0, pix_key: "00000000000", description: "Teste de validação — R$ 0" },
@@ -368,6 +368,7 @@ const TestSuite = () => {
 
   const pass = results.filter(r => r.status === "pass").length;
   const fail = results.filter(r => r.status === "fail").length;
+  const warn = results.filter(r => r.status === "warn").length;
   const total = results.filter(r => r.status !== "idle" && r.status !== "running").length;
   const categories = Array.from(new Set(results.map(r => r.category)));
   const failedTests = results.filter(r => r.status === "fail");
@@ -411,8 +412,8 @@ const TestSuite = () => {
           {[
             { label: "Passou", value: pass, color: "hsl(var(--neon-green))", icon: CheckCircle, pct: total > 0 ? `${Math.round((pass / total) * 100)}%` : "" },
             { label: "Falhou", value: fail, color: "hsl(var(--neon-red))", icon: XCircle, pct: total > 0 ? `${Math.round((fail / total) * 100)}%` : "" },
-            { label: "Total", value: total, color: "hsl(var(--primary))", icon: BarChart3, pct: "" },
-            { label: "Plataformas", value: platforms.length, color: "hsl(var(--neon-blue))", icon: Globe, pct: `${platforms.filter(p => p.url).length} com API` },
+            { label: "Avisos", value: warn, color: "hsl(45 100% 50%)", icon: AlertTriangle, pct: "" },
+            { label: "Total", value: total, color: "hsl(var(--primary))", icon: BarChart3, pct: `${platforms.filter(p => p.url).length} com API` },
           ].map((s, i) => (
             <div key={i} className="rounded-xl border border-border/60 p-4 flex items-center gap-3" style={{ background: "hsl(var(--card))" }}>
               <div className="p-2 rounded-lg" style={{ background: `${s.color}15` }}>
@@ -462,6 +463,7 @@ const TestSuite = () => {
         const catResults = results.filter(r => r.category === cat);
         const catPass = catResults.filter(r => r.status === "pass").length;
         const catFail = catResults.filter(r => r.status === "fail").length;
+        const catWarn = catResults.filter(r => r.status === "warn").length;
         return (
           <motion.div key={cat} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="rounded-xl border border-border/60 overflow-hidden" style={{ background: "hsl(var(--card))" }}>
@@ -469,6 +471,7 @@ const TestSuite = () => {
               <h3 className="font-bold text-sm text-foreground">{cat}</h3>
               <span className="text-[10px] text-muted-foreground ml-auto">
                 <span className="text-neon-green font-bold">{catPass}✓</span>
+                {catWarn > 0 && <span className="text-yellow-500 font-bold ml-2">{catWarn}⚠</span>}
                 {catFail > 0 && <span className="text-destructive font-bold ml-2">{catFail}✗</span>}
                 <span className="ml-2">{catResults.length} total</span>
               </span>
@@ -478,6 +481,7 @@ const TestSuite = () => {
                 <div key={r.id} className={`flex items-center gap-3 px-4 py-2.5 text-xs ${r.status === "fail" ? "bg-destructive/3" : ""}`}>
                   {r.status === "running" ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary flex-shrink-0" /> :
                     r.status === "pass" ? <CheckCircle className="w-3.5 h-3.5 text-neon-green flex-shrink-0" /> :
+                    r.status === "warn" ? <AlertTriangle className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" /> :
                     <XCircle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
